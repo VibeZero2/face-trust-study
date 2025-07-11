@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Face Task – Start</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-dark text-white d-flex align-items-center" style="height:100vh;">
+  <div class="container text-center">
+    <h1 class="mb-3">Face Perception Task</h1>
+    <h2 class="h5 text-info mb-4">Laterality and Dimorphism in Facial Trustworthiness Judgments</h2>
+    <p class="mb-3">Please enter your Participant ID to begin.</p>
+    <form method="post" action="{{ url_for('start_manual') }}" class="row justify-content-center">
+      <div class="col-auto">
+        <input name="pid" type="text" class="form-control" placeholder="Participant ID" required>
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-primary">Start</button>
+      </div>
+    </form>
+  </div>
+</body>
+</html>

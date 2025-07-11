@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Face Task</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    .img-full        { max-height: 60vh; object-fit: contain; }
+    .img-half-left   { max-height: 60vh; object-fit: cover; clip-path: inset(0 50% 0 0); }
+    .img-half-right  { max-height: 60vh; object-fit: cover; clip-path: inset(0 0 0 50%); }
+  </style>
+</head>
+<body class="bg-dark text-white d-flex flex-column align-items-center pt-4">
+  <!-- Persistent Instructions button -->
+  <a class="btn btn-outline-info position-fixed" style="top:15px; right:15px; z-index:1050;" data-bs-toggle="modal" data-bs-target="#instructionsModal">Instructions</a>
+  <div class="container text-center">
+    <h4>Participant: {{ pid }}</h4>
+    <p>Face {{ progress }} of {{ total }}</p>
+    {% if version == 'toggle' %}
+      <img id="face-img" src="{{ image_url }}" class="img-fluid border border-light mb-3 {% if side=='left' %}img-half-left{% else %}img-half-right{% endif %}" alt="half face">
+      <div class="mb-3">
+        <button type="button" class="btn btn-secondary" id="toggle-btn">Toggle Side</button>
+      </div>
+    {% elif version == 'left' %}
+      <img src="{{ image_url }}" class="img-fluid border border-light mb-4 img-half-left" alt="left half">
+    {% elif version == 'right' %}
+      <img src="{{ image_url }}" class="img-fluid border border-light mb-4 img-half-right" alt="right half">
+    {% elif version == 'compare' %}
+      <div class="d-flex justify-content-center mb-4">
+        <img src="{{ image_url }}" class="img-fluid border border-light img-half-left me-1" alt="left half">
+        <img src="{{ image_url }}" class="img-fluid border border-light img-half-right ms-1" alt="right half">
+      </div>
+    {% else %}
+      <img src="{{ image_url }}" class="img-fluid border border-light mb-4 img-full" alt="full face">
+    {% endif %}
+
+    <form method="post">
+      <input type="hidden" name="version" value="{{ version }}">
+      {% if show_trust and version == 'toggle' %}
+      <div class="mb-3">
+        <label class="form-label">Trustworthiness – Left side</label>
+        <div class="d-flex justify-content-center">
+          {% for i in range(1,8) %}
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="trust_left" value="{{ i }}" required>
+              <label class="form-check-label">{{ i }}</label>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Trustworthiness – Right side</label>
+        <div class="d-flex justify-content-center">
+          {% for i in range(1,8) %}
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="trust_right" value="{{ i }}" required>
+              <label class="form-check-label">{{ i }}</label>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% elif show_trust %}
+      <div class="mb-3">
+        <label class="form-label">How trustworthy is this face?</label>
+        <div class="d-flex justify-content-center">
+          {% for i in range(1,8) %}
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="trust" value="{{ i }}" required>
+              <label class="form-check-label">{{ i }}</label>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      {% if show_mf %}
+      <div class="mb-3">
+        <label class="form-label">Which side appears more masculine?</label>
+        <select class="form-select" name="masc" required>
+          <option value="" disabled selected>Select...</option>
+          <option value="left">Left</option>
+          <option value="right">Right</option>
+          <option value="both">Both equally</option>
+          <option value="neither">Neither</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Which side appears more feminine?</label>
+        <select class="form-select" name="fem" required>
+          <option value="" disabled selected>Select...</option>
+          <option value="left">Left</option>
+          <option value="right">Right</option>
+          <option value="both">Both equally</option>
+          <option value="neither">Neither</option>
+        </select>
+      </div>
+      {% endif %}
+
+      <p class="small text-secondary mb-2">1 = Not at all trustworthy &nbsp;&nbsp; • &nbsp;&nbsp; 7 = Very trustworthy</p>
+      <button type="submit" class="btn btn-success">Continue</button>
+    </form>
+  </div>
+  <script>
+    const btn = document.getElementById('toggle-btn');
+    if(btn){
+      btn.addEventListener('click', () => {
+        const img = document.getElementById('face-img');
+        if(img.classList.contains('img-half-left')){
+          img.classList.remove('img-half-left');
+          img.classList.add('img-half-right');
+        }else{
+          img.classList.remove('img-half-right');
+          img.classList.add('img-half-left');
+        }
+      });
+    }
+  </script>
+  <!-- Instructions Modal -->
+  <div class="modal fade" id="instructionsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable modal-lg">
+      <div class="modal-content bg-dark text-white">
+        <div class="modal-header">
+          <h5 class="modal-title">Instructions</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p>You will see <strong>35</strong> individual faces.</p>
+          <h6>For each face:</h6>
+          <ul>
+            <li><strong>Toggle Side</strong> – Use the Toggle Side button to flip between the left and right side as many times as you like.</li>
+            <li><strong>Rate Trustworthiness</strong> – Use the 1–7 scale (1 = Not at all trustworthy, 7 = Very trustworthy).</li>
+            <li><strong>Compare Masculinity and Femininity</strong> – You will be asked which side appears more masculine and which more feminine.</li>
+            <li><strong>Final Rating</strong> – View the full face and rate overall trustworthiness.</li>
+          </ul>
+          <p class="text-warning">You can return to this screen anytime during the task using the “Instructions” button.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap JS Bundle (for modal functionality) -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

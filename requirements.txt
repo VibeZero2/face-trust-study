@@ -1,0 +1,5 @@
+flask==2.3.2
+python-dotenv==1.0.0
+cryptography
+pandas
+openpyxl==42.0.0
