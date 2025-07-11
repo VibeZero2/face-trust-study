@@ -9,6 +9,27 @@
     .img-full        { max-height: 60vh; object-fit: contain; }
     .img-half-left   { max-height: 60vh; object-fit: cover; clip-path: inset(0 50% 0 0); }
     .img-half-right  { max-height: 60vh; object-fit: cover; clip-path: inset(0 0 0 50%); }
+
+    /* Responsive container for side-by-side halves */
+    .face-pair {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 1vw;
+    }
+    /* Each half adapts to viewport */
+    .narrow-select{
+      max-width:400px;
+      width:90%;
+      margin-left:auto;
+      margin-right:auto;
+    }
+    .face-half {
+      max-width: 45vw;
+      width: 100%;
+      max-height: 70vh;
+      object-fit: cover;
+    }
   </style>
 </head>
 <body class="bg-dark text-white d-flex flex-column align-items-center pt-4">
@@ -27,9 +48,9 @@
     {% elif version == 'right' %}
       <img src="{{ image_url }}" class="img-fluid border border-light mb-4 img-half-right" alt="right half">
     {% elif version == 'compare' %}
-      <div class="d-flex justify-content-center mb-4">
-        <img src="{{ image_url }}" class="img-fluid border border-light img-half-left me-1" alt="left half">
-        <img src="{{ image_url }}" class="img-fluid border border-light img-half-right ms-1" alt="right half">
+      <div class="face-pair mb-4">
+        <img src="{{ image_url }}" class="img-fluid border border-light img-half-left face-half" alt="left half">
+        <img src="{{ image_url }}" class="img-fluid border border-light img-half-right face-half" alt="right half">
       </div>
     {% else %}
       <img src="{{ image_url }}" class="img-fluid border border-light mb-4 img-full" alt="full face">
@@ -77,7 +98,7 @@
       {% if show_mf %}
       <div class="mb-3">
         <label class="form-label">Which side appears more masculine?</label>
-        <select class="form-select" name="masc" required>
+        <select class="form-select narrow-select" name="masc" required>
           <option value="" disabled selected>Select...</option>
           <option value="left">Left</option>
           <option value="right">Right</option>
@@ -87,7 +108,7 @@
       </div>
       <div class="mb-3">
         <label class="form-label">Which side appears more feminine?</label>
-        <select class="form-select" name="fem" required>
+        <select class="form-select narrow-select" name="fem" required>
           <option value="" disabled selected>Select...</option>
           <option value="left">Left</option>
           <option value="right">Right</option>
