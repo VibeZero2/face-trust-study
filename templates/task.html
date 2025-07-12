@@ -62,7 +62,7 @@
       <img src="{{ image_url }}" class="img-fluid border border-light mb-4 img-half-left" alt="left half">
     {% elif version == 'right' %}
       <img src="{{ image_url }}" class="img-fluid border border-light mb-4 img-half-right" alt="right half">
-    {% elif version == 'compare' %}
+    {% elif version == 'compare' and not show_mf %}
       <div class="face-pair mb-4">
         <div class="half-wrapper left-wrap">
           <img src="{{ image_url }}" class="img-fluid border border-light" alt="left half">
@@ -71,7 +71,7 @@
           <img src="{{ image_url }}" class="img-fluid border border-light" alt="right half">
         </div>
       </div>
-    {% else %}
+    {% elif not show_mf %}
       <img src="{{ image_url }}" class="img-fluid border border-light mb-4 img-full" alt="full face">
     {% endif %}
 
