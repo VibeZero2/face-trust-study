@@ -10,6 +10,18 @@
     .img-half-left   { max-height: 60vh; object-fit: cover; clip-path: inset(0 50% 0 0); }
     .img-half-right  { max-height: 60vh; object-fit: cover; clip-path: inset(0 0 0 50%); }
 
+    /* Masculinity/Femininity compare pair */
+    .mf-pair{
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      gap:4in;
+    }
+    .mf-pair img{ flex-shrink:0; }
+    @media(max-width:900px){
+      .mf-pair{ gap:2rem; }
+    }
+
     /* Container for compare halves */
     .face-pair {
       display:flex;
@@ -116,7 +128,7 @@
 
       {% if show_mf %}
         <h3>Which side appears more masculine?</h3>
-        <div style="display: flex; justify-content: center; align-items: center; margin-bottom: 2rem; gap: 4in;">
+        <div class="mf-pair" style="margin-bottom:2rem;">
           <img src="{{ image_url }}" alt="Left Half" class="img-fluid border border-light img-half-left" style="max-height:60vh;">
           <img src="{{ image_url }}" alt="Right Half" class="img-fluid border border-light img-half-right" style="max-height:60vh;">
         </div>
