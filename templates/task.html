@@ -129,10 +129,25 @@
 
       {% if show_mf %}
         <h3>Which side appears more masculine?</h3>
-        <div style="display:flex; justify-content:center; align-items:center; margin:0 auto 2rem; gap:4in;">
-          <img src="{{ image_url }}" alt="Left Half" class="img-half-left" style="height:60vh; width:auto; max-width:none;">
-          <img src="{{ image_url }}" alt="Right Half" class="img-half-right" style="height:60vh; width:auto; max-width:none;">
-        </div>
+        {% if version == 'toggle' %}
+          <img id="face-img" src="{{ image_url }}" class="img-fluid border border-light mb-3 {% if side=='left' %}img-half-left{% else %}img-half-right{% endif %}" alt="half face">
+          <div class="mb-3">
+            <button type="button" class="btn btn-secondary" id="toggle-btn">Toggle Side</button>
+          </div>
+        {% elif version == 'left' %}
+          <img src="{{ image_url }}" class="img-fluid border border-light mb-4 img-half-left" alt="left half">
+        {% elif version == 'right' %}
+          <img src="{{ image_url }}" class="img-fluid border border-light mb-4 img-half-right" alt="right half">
+        {% elif version == 'compare' %}
+          <div class="face-pair mb-4">
+            <div class="half-wrapper left-wrap">
+              <img src="{{ image_url }}" class="img-fluid border border-light" alt="left half">
+            </div>
+            <div class="half-wrapper right-wrap">
+              <img src="{{ image_url }}" class="img-fluid border border-light" alt="right half">
+            </div>
+          </div>
+        {% endif %}
 
         <div style="text-align: center;">
           <label for="masc">Which side appears more masculine?</label><br>
