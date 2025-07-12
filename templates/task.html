@@ -14,10 +14,16 @@
     .face-pair {
       display:flex;
       justify-content:center;
-      gap:1rem; /* narrow gap ~1rem */
+      gap:2rem;
       margin:auto;
       max-width:100vw;
     }
+    /* Half wrappers for compare mode */
+    .half-wrapper{ width:28vw; max-height:70vh; overflow:hidden; }
+    .half-wrapper img{ width:56vw; height:70vh; object-fit:cover; }
+    .left-wrap img{ object-position:left center; }
+    .right-wrap img{ object-position:right center; }
+
     /* Each half adapts to viewport */
     .narrow-select{
       max-width:400px;
@@ -25,7 +31,9 @@
       margin-left:auto;
       margin-right:auto;
     }
-    .compare-half{ height:70vh; width:45vw; max-width:45vw; object-fit:cover; }
+    
+    /* pull right half leftwards so hidden portion overlaps, leaving ≈20vw (~4in on FHD) gap */
+    
     .face-half {
       /* width rule removed for other modes */
       
@@ -54,8 +62,12 @@
       <img src="{{ image_url }}" class="img-fluid border border-light mb-4 img-half-right" alt="right half">
     {% elif version == 'compare' %}
       <div class="face-pair mb-4">
-        <img src="{{ image_url }}" class="img-fluid border border-light img-half-left compare-half" alt="left half">
-        <img src="{{ image_url }}" class="img-fluid border border-light img-half-right compare-half" alt="right half">
+        <div class="half-wrapper left-wrap">
+          <img src="{{ image_url }}" class="img-fluid border border-light" alt="left half">
+        </div>
+        <div class="half-wrapper right-wrap">
+          <img src="{{ image_url }}" class="img-fluid border border-light" alt="right half">
+        </div>
       </div>
     {% else %}
       <img src="{{ image_url }}" class="img-fluid border border-light mb-4 img-full" alt="full face">
