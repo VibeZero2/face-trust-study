@@ -21,8 +21,8 @@
     /* Half wrappers for compare mode */
     .half-wrapper{ width:30vw; max-height:70vh; overflow:hidden; }
     .half-wrapper img{ width:60vw; height:70vh; object-fit:cover; }
-    .left-wrap{}
-    .right-wrap{}
+    
+    
     .left-wrap img{ object-position:left center; }
     .right-wrap img{ object-position:right center; }
 
@@ -65,10 +65,10 @@
     {% elif version == 'compare' %}
       <div class="face-pair mb-4">
         <div class="half-wrapper left-wrap">
-          <img src="{{ image_url }}" class="img-fluid border border-light" alt="left half">
+          <img src="{{ image_url }}" class="img-fluid border border-light img-half-left" alt="left half">
         </div>
         <div class="half-wrapper right-wrap">
-          <img src="{{ image_url }}" class="img-fluid border border-light" alt="right half">
+          <img src="{{ image_url }}" class="img-fluid border border-light img-half-right" alt="right half">
         </div>
       </div>
     {% else %}
