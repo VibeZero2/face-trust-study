@@ -129,12 +129,13 @@
 
       {% if show_mf %}
         <h3>Which side appears more masculine?</h3>
-        <div class="face-pair mb-4">
-          <div class="half-wrapper left-wrap">
-            <img src="{{ image_url }}" class="img-fluid border border-light" alt="left half">
+        <!-- Completely inline styles to force update -->
+        <div style="display:flex; justify-content:center; gap:4rem; margin-bottom:1.5rem;">
+          <div style="width:35vw; height:70vh; overflow:hidden;">
+            <img src="{{ image_url }}" style="width:70vw; height:100%; object-fit:cover; object-position:left;" alt="left half">
           </div>
-          <div class="half-wrapper right-wrap">
-            <img src="{{ image_url }}" class="img-fluid border border-light" alt="right half">
+          <div style="width:35vw; height:70vh; overflow:hidden;">
+            <img src="{{ image_url }}" style="width:70vw; height:100%; object-fit:cover; object-position:right;" alt="right half">
           </div>
         </div>
 
