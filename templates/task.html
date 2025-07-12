@@ -116,13 +116,15 @@
 
       {% if show_mf %}
         <h3>Which side appears more masculine?</h3>
-        <div style="display: flex; justify-content: center; align-items: center; margin-bottom: 1rem;">
-          <div style="flex: 0 0 auto;">
-            <img src="{{ image_url }}" alt="Face Image Left" style="clip-path: inset(0 50% 0 0); width: 250px; height: auto;">
+        <div style="display: flex; justify-content: center; align-items: center; margin-bottom: 2rem; gap: 4in;">
+          <!-- Left half -->
+          <div style="width: 250px; overflow: hidden;">
+            <img src="{{ image_url }}" alt="Left Half" style="width: 500px; object-fit: cover; object-position: left;">
           </div>
-          <div style="width: 4in;"></div>
-          <div style="flex: 0 0 auto;">
-            <img src="{{ image_url }}" alt="Face Image Right" style="clip-path: inset(0 0 0 50%); width: 250px; height: auto;">
+
+          <!-- Right half -->
+          <div style="width: 250px; overflow: hidden;">
+            <img src="{{ image_url }}" alt="Right Half" style="width: 500px; object-fit: cover; object-position: right;">
           </div>
         </div>
 
