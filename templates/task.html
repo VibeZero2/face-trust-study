@@ -91,38 +91,77 @@
     <form method="post">
       <input type="hidden" name="version" value="{{ version }}">
       {% if show_trust and version == 'toggle' %}
-      <div class="mb-3">
-        <label class="form-label">Trustworthiness – Left side</label>
-        <div class="d-flex justify-content-center">
-          {% for i in range(1,8) %}
-            <div class="form-check form-check-inline">
-              <input class="form-check-input" type="radio" name="trust_left" value="{{ i }}" required>
-              <label class="form-check-label">{{ i }}</label>
-            </div>
-          {% endfor %}
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Trustworthiness – Left side</label>
+          <div class="d-flex justify-content-center">
+            {% for i in range(1,10) %}
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="trust_left" value="{{ i }}" required>
+                <label class="form-check-label">{{ i }}</label>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Emotion – Left side</label>
+          <div class="d-flex justify-content-center">
+            {% for i in range(1,10) %}
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="emotion_left" value="{{ i }}" required>
+                <label class="form-check-label">{{ i }}</label>
+              </div>
+            {% endfor %}
+          </div>
         </div>
       </div>
-      <div class="mb-3">
-        <label class="form-label">Trustworthiness – Right side</label>
-        <div class="d-flex justify-content-center">
-          {% for i in range(1,8) %}
-            <div class="form-check form-check-inline">
-              <input class="form-check-input" type="radio" name="trust_right" value="{{ i }}" required>
-              <label class="form-check-label">{{ i }}</label>
-            </div>
-          {% endfor %}
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Trustworthiness – Right side</label>
+          <div class="d-flex justify-content-center">
+            {% for i in range(1,10) %}
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="trust_right" value="{{ i }}" required>
+                <label class="form-check-label">{{ i }}</label>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Emotion – Right side</label>
+          <div class="d-flex justify-content-center">
+            {% for i in range(1,10) %}
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="emotion_right" value="{{ i }}" required>
+                <label class="form-check-label">{{ i }}</label>
+              </div>
+            {% endfor %}
+          </div>
         </div>
       </div>
       {% elif show_trust %}
-      <div class="mb-3">
-        <label class="form-label">How trustworthy is this face?</label>
-        <div class="d-flex justify-content-center">
-          {% for i in range(1,8) %}
-            <div class="form-check form-check-inline">
-              <input class="form-check-input" type="radio" name="trust" value="{{ i }}" required>
-              <label class="form-check-label">{{ i }}</label>
-            </div>
-          {% endfor %}
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label">How trustworthy is this face?</label>
+          <div class="d-flex justify-content-center">
+            {% for i in range(1,10) %}
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="trust" value="{{ i }}" required>
+                <label class="form-check-label">{{ i }}</label>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">What emotion does this face appear to express?</label>
+          <div class="d-flex justify-content-center">
+            {% for i in range(1,10) %}
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="emotion" value="{{ i }}" required>
+                <label class="form-check-label">{{ i }}</label>
+              </div>
+            {% endfor %}
+          </div>
         </div>
       </div>
       {% endif %}
@@ -141,26 +180,57 @@
           </tr>
         </table>
 
-        <div style="text-align: center;">
-          <label for="masc">Which side appears more masculine?</label><br>
-          <select name="masc" id="masc" required>
-            <option value="">Select...</option>
-            <option value="left">Left</option>
-            <option value="right">Right</option>
-            <option value="neither">Neither</option>
-          </select><br><br>
-
-          <label for="fem">Which side appears more feminine?</label><br>
-          <select name="fem" id="fem" required>
-            <option value="">Select...</option>
-            <option value="left">Left</option>
-            <option value="right">Right</option>
-            <option value="neither">Neither</option>
-          </select>
+        <div class="row mb-4">
+          <div class="col-md-6">
+            <label for="masc">Which side appears more masculine?</label><br>
+            <select name="masc" id="masc" class="form-select narrow-select" required>
+              <option value="">Select...</option>
+              <option value="left">Left</option>
+              <option value="right">Right</option>
+              <option value="both">Both equally</option>
+              <option value="neither">Neither</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label for="fem">Which side appears more feminine?</label><br>
+            <select name="fem" id="fem" class="form-select narrow-select" required>
+              <option value="">Select...</option>
+              <option value="left">Left</option>
+              <option value="right">Right</option>
+              <option value="both">Both equally</option>
+              <option value="neither">Neither</option>
+            </select>
+          </div>
+        </div>
+        
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label class="form-label">How trustworthy is this face?</label>
+            <div class="d-flex justify-content-center">
+              {% for i in range(1,10) %}
+                <div class="form-check form-check-inline">
+                  <input class="form-check-input" type="radio" name="trust_mf" value="{{ i }}" required>
+                  <label class="form-check-label">{{ i }}</label>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="form-label">What emotion does this face appear to express?</label>
+            <div class="d-flex justify-content-center">
+              {% for i in range(1,10) %}
+                <div class="form-check form-check-inline">
+                  <input class="form-check-input" type="radio" name="emotion_mf" value="{{ i }}" required>
+                  <label class="form-check-label">{{ i }}</label>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
         </div>
       {% endif %}
 
-      <p class="small text-secondary mb-2">1 = Not at all trustworthy &nbsp;&nbsp; • &nbsp;&nbsp; 7 = Very trustworthy</p>
+      <p class="small text-secondary mb-2">1 = Not at all trustworthy &nbsp;&nbsp; • &nbsp;&nbsp; 5 = Neutral &nbsp;&nbsp; • &nbsp;&nbsp; 9 = Extremely trustworthy</p>
+      <p class="small text-secondary mb-2">1 = Very Negative Emotion &nbsp;&nbsp; • &nbsp;&nbsp; 5 = Neutral &nbsp;&nbsp; • &nbsp;&nbsp; 9 = Very Positive Emotion</p>
       <button type="submit" class="btn btn-success">Continue</button>
     </form>
   </div>
@@ -192,7 +262,8 @@
           <h6>For each face:</h6>
           <ul>
             <li><strong>Toggle Side</strong> – Use the Toggle Side button to flip between the left and right side as many times as you like.</li>
-            <li><strong>Rate Trustworthiness</strong> – Use the 1–7 scale (1 = Not at all trustworthy, 7 = Very trustworthy).</li>
+            <li><strong>Rate Trustworthiness</strong> – Use the 1–9 scale (1 = Not at all trustworthy, 5 = Neutral, 9 = Extremely trustworthy).</li>
+          <li><strong>Rate Emotion</strong> – Use the 1–9 scale (1 = Very Negative Emotion, 5 = Neutral, 9 = Very Positive Emotion).</li>
             <li><strong>Compare Masculinity and Femininity</strong> – You will be asked which side appears more masculine and which more feminine.</li>
             <li><strong>Final Rating</strong> – View the full face and rate overall trustworthiness.</li>
           </ul>
