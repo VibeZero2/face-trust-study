@@ -66,7 +66,7 @@ def create_participant_run(pid: str):
             ]
         sequence.append({
             "face_id": Path(fname).stem,
-            "order": [{"version": "toggle", "file": fname, "start": ("left" if left_first else "right")} , {"version": "compare", "file": fname}, {"version": "full", "file": fname}]
+            "order": [{"version": "toggle", "file": fname, "start": ("left" if left_first else "right")}, {"version": "full", "file": fname}]
         })
     session["pid"] = pid
     session["index"] = 0  # index in sequence
@@ -226,12 +226,12 @@ def task():
         session["index"] += 1
 
     # Check if finished
-    if session["index"] >= len(session["sequence"]) * 3:  # 3 stages per face
+    if session["index"] >= len(session["sequence"]) * 2:  # 2 stages per face (toggle and full)
         return redirect(url_for("survey"))
 
     # Determine current image to show
-    face_index = session["index"] // 3
-    image_index = session["index"] % 3
+    face_index = session["index"] // 2
+    image_index = session["index"] % 2
     current = session["sequence"][face_index]
     image_dict = current["order"][image_index]
     image_file = image_dict["file"]

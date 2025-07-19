@@ -258,67 +258,8 @@
       </div>
       {% endif %}
 
-      {% if show_mf %}
-        <h3>Which side appears more masculine?</h3>
-        <!-- Table-based layout with fixed positions -->
-        <table style="border-collapse:separate; border-spacing:4in 0; margin:0 auto 2rem;">
-          <tr>
-            <td style="padding:0; width:300px; height:400px; overflow:hidden;">
-              <img src="{{ image_url }}" style="width:600px; height:400px; object-fit:cover; object-position:0% 50%; margin-left:0;" alt="left half">
-            </td>
-            <td style="padding:0; width:300px; height:400px; overflow:hidden;">
-              <img src="{{ image_url }}" style="width:600px; height:400px; object-fit:cover; object-position:100% 50%; margin-left:-300px;" alt="right half">
-            </td>
-          </tr>
-        </table>
-
-        <div class="row mb-4">
-          <div class="col-md-6">
-            <label for="masc">Which side appears more masculine?</label><br>
-            <select name="masc" id="masc" class="form-select narrow-select" required>
-              <option value="">Select...</option>
-              <option value="left">Left</option>
-              <option value="right">Right</option>
-              <option value="both">Both equally</option>
-              <option value="neither">Neither</option>
-            </select>
-          </div>
-          <div class="col-md-6">
-            <label for="fem">Which side appears more feminine?</label><br>
-            <select name="fem" id="fem" class="form-select narrow-select" required>
-              <option value="">Select...</option>
-              <option value="left">Left</option>
-              <option value="right">Right</option>
-              <option value="both">Both equally</option>
-              <option value="neither">Neither</option>
-            </select>
-          </div>
-        </div>
-        
-        <div class="row">
-          <div class="col-md-6 mb-3">
-            <label class="form-label">How trustworthy is this face?</label>
-            <div class="d-flex justify-content-center">
-              {% for i in range(1,10) %}
-                <div class="form-check form-check-inline">
-                  <input class="form-check-input" type="radio" name="trust_mf" value="{{ i }}" required>
-                  <label class="form-check-label">{{ i }}</label>
-                </div>
-              {% endfor %}
-            </div>
-          </div>
-          <div class="col-md-6 mb-3">
-            <label class="form-label">What emotion does this face appear to express?</label>
-            <div class="d-flex justify-content-center">
-              {% for i in range(1,10) %}
-                <div class="form-check form-check-inline">
-                  <input class="form-check-input" type="radio" name="emotion_mf" value="{{ i }}" required>
-                  <label class="form-check-label">{{ i }}</label>
-                </div>
-              {% endfor %}
-            </div>
-          </div>
-        </div>
+      {% if false %}
+        <!-- Masculinity/Femininity comparison page has been removed as it's now integrated into the main rating screens -->
       {% endif %}
 
       <div class="row mb-2">
