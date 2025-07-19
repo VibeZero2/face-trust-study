@@ -51,8 +51,17 @@ def create_participant_run(pid: str):
     """Initialises session variables for a new participant."""
     # Randomly pick left-first or right-first presentation
     left_first = random.choice([True, False])
+    
+    # Randomize the order of face files for this participant
+    # Use a copy to avoid modifying the original FACE_FILES list
+    randomized_faces = FACE_FILES.copy()
+    random.shuffle(randomized_faces)
+    
+    # Store the randomized order for analysis
+    face_order = [Path(fname).stem for fname in randomized_faces]
+    
     sequence = []
-    for fname in FACE_FILES:
+    for fname in randomized_faces:
         # order list simply contains the same filename with a tag indicating crop
         if left_first:
             halves = [
@@ -68,10 +77,12 @@ def create_participant_run(pid: str):
             "face_id": Path(fname).stem,
             "order": [{"version": "toggle", "file": fname, "start": ("left" if left_first else "right")}, {"version": "full", "file": fname}]
         })
+    
     session["pid"] = pid
     session["index"] = 0  # index in sequence
     session["sequence"] = sequence
     session["responses"] = []
+    session["face_order"] = face_order  # Store the randomized face order
 
 
 def save_encrypted_csv(pid: str, rows: list):
@@ -86,6 +97,16 @@ def save_encrypted_csv(pid: str, rows: list):
         "pers_q1", "pers_q2", "pers_q3", "pers_q4", "pers_q5"
     ])
     writer.writerows(rows)
+    
+    # Save face order information in a separate row
+    if "face_order" in session:
+        face_order_row = [pid, datetime.utcnow().isoformat(), "face_order", "metadata", "", "", "", "", "", "", "", "", "", "", "", ""]
+        writer.writerow(face_order_row)
+        # Add the face order as additional rows with index numbers
+        for i, face_id in enumerate(session["face_order"]):
+            order_row = [pid, "", face_id, "order_index", i+1, "", "", "", "", "", "", "", "", "", "", ""]
+            writer.writerow(order_row)
+    
     # Save plaintext CSV (for immediate analysis)
     plain_path = DATA_DIR / f"{pid}.csv"
     plain_path.write_text(csv_content.getvalue(), encoding="utf-8")
@@ -99,11 +120,27 @@ def save_encrypted_csv(pid: str, rows: list):
     # Also save a plaintext Excel copy for quick inspection
     try:
         import pandas as pd
+        # Create main dataframe with responses
         df = pd.DataFrame(rows, columns=[
             "pid", "timestamp", "face_id", "version", "order_presented",
             "trust_rating", "masc_choice", "fem_choice",
+            "trust_q1", "trust_q2", "trust_q3",
+            "pers_q1", "pers_q2", "pers_q3", "pers_q4", "pers_q5"
         ])
-        df.to_excel(DATA_DIR / f"{pid}.xlsx", index=False)
+        
+        # Add face order information to a separate sheet
+        if "face_order" in session:
+            face_order_df = pd.DataFrame({
+                "position": range(1, len(session["face_order"])+1),
+                "face_id": session["face_order"]
+            })
+            
+            # Create Excel writer with multiple sheets
+            with pd.ExcelWriter(DATA_DIR / f"{pid}.xlsx") as writer:
+                df.to_excel(writer, sheet_name="Responses", index=False)
+                face_order_df.to_excel(writer, sheet_name="Face Order", index=False)
+        else:
+            df.to_excel(DATA_DIR / f"{pid}.xlsx", index=False)
     except ImportError:
         pass  # pandas not installed; Excel export skipped
 
