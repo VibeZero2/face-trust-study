@@ -47,7 +47,7 @@ assert FACE_FILES, "No face images found. Place images in static/images/."
 # Helper functions
 # ----------------------------------------------------------------------------
 
-def create_participant_run(pid: str):
+def create_participant_run(pid: str, prolific_pid: str = None):
     """Initialises session variables for a new participant."""
     # Randomly pick left-first or right-first presentation
     left_first = random.choice([True, False])
@@ -83,6 +83,10 @@ def create_participant_run(pid: str):
     session["sequence"] = sequence
     session["responses"] = []
     session["face_order"] = face_order  # Store the randomized face order
+    
+    # Store Prolific ID if provided
+    if prolific_pid:
+        session["prolific_pid"] = prolific_pid
 
 
 def save_encrypted_csv(pid: str, rows: list):
@@ -94,13 +98,16 @@ def save_encrypted_csv(pid: str, rows: list):
         "pid", "timestamp", "face_id", "version", "order_presented",
         "trust_rating", "masc_choice", "fem_choice",
         "trust_q1", "trust_q2", "trust_q3",
-        "pers_q1", "pers_q2", "pers_q3", "pers_q4", "pers_q5"
+        "pers_q1", "pers_q2", "pers_q3", "pers_q4", "pers_q5",
+        "prolific_pid"  # Add Prolific ID to header
     ])
     writer.writerows(rows)
     
     # Save face order information in a separate row
     if "face_order" in session:
-        face_order_row = [pid, datetime.utcnow().isoformat(), "face_order", "metadata", "", "", "", "", "", "", "", "", "", "", "", ""]
+        # Get prolific_pid from session if available
+        prolific_pid = session.get("prolific_pid", "")
+        face_order_row = [pid, datetime.utcnow().isoformat(), "face_order", "metadata", "", "", "", "", "", "", "", "", "", "", "", "", prolific_pid]
         writer.writerow(face_order_row)
         # Add the face order as additional rows with index numbers
         for i, face_id in enumerate(session["face_order"]):
@@ -175,10 +182,13 @@ def survey():
         p3 = request.form.get("pers3")
         p4 = request.form.get("pers4")
         p5 = request.form.get("pers5")
+        prolific_pid = session.get("prolific_pid", "")
+        
         session["responses"].append([
             session["pid"], datetime.utcnow().isoformat(), "survey", "survey", session["index"],
             None, None, None,
-            t1, t2, t3, p1, p2, p3, p4, p5
+            t1, t2, t3, p1, p2, p3, p4, p5,
+            prolific_pid  # Add Prolific ID
         ])
         # Save and finish
         save_encrypted_csv(session["pid"], session["responses"])
@@ -195,11 +205,15 @@ def landing():
         return redirect(url_for("consent"))
 
     pid = request.args.get("pid")
+    prolific_pid = request.args.get("PROLIFIC_PID", "")
+    
     if pid:
         # Start session immediately
-        create_participant_run(pid)
+        create_participant_run(pid, prolific_pid)
         return redirect(url_for("task", pid=pid))
-    return render_template("index.html")
+    
+    # Pass prolific_pid to template if available
+    return render_template("index.html", prolific_pid=prolific_pid)
 
 @app.route("/instructions")
 def instructions():
@@ -213,7 +227,11 @@ def start_manual():
     pid = request.form.get("pid", "").strip()
     if not pid:
         abort(400)
-    create_participant_run(pid)
+    
+    # Capture Prolific ID if provided
+    prolific_pid = request.form.get("prolific_pid", "").strip()
+    
+    create_participant_run(pid, prolific_pid)
     return redirect(url_for("instructions"))
 
 @app.route("/task", methods=["GET", "POST"])
@@ -235,30 +253,38 @@ def task():
             trust_left = request.form.get("trust_left")
             trust_right = request.form.get("trust_right")
             # record left then right (order flag indicates which shown first but both stored)
+            prolific_pid = session.get("prolific_pid", "")
+            
             row_l = [
                 session["pid"], datetime.utcnow().isoformat(), face_id,
                 "left", session["index"], trust_left, None, None
             ]
             while len(row_l) < 16:
                 row_l.append(None)
+            row_l.append(prolific_pid)  # Add Prolific ID
             session["responses"].append(row_l)
+            
             row_r = [
                 session["pid"], datetime.utcnow().isoformat(), face_id,
                 "right", session["index"], trust_right, None, None
             ]
             while len(row_r) < 16:
                 row_r.append(None)
+            row_r.append(prolific_pid)  # Add Prolific ID
             session["responses"].append(row_r)
         else:
             trust_rating = request.form.get("trust")
             masc_choice = request.form.get("masc")
             fem_choice = request.form.get("fem")
+            prolific_pid = session.get("prolific_pid", "")
+            
             row_o = [
                 session["pid"], datetime.utcnow().isoformat(), face_id,
                 version, session["index"], trust_rating, masc_choice, fem_choice
             ]
             while len(row_o) < 16:
                 row_o.append(None)
+            row_o.append(prolific_pid)  # Add Prolific ID
             session["responses"].append(row_o)
         session["index"] += 1
 
@@ -299,7 +325,15 @@ def task():
 @app.route("/done")
 def done():
     pid = request.args.get("pid")
-    return render_template("done.html", pid=pid)
+    prolific_pid = request.args.get("PROLIFIC_PID", "")
+    
+    # Prepare completion URL for Prolific if needed
+    completion_url = ""
+    if prolific_pid:
+        # You would replace this with your actual Prolific completion URL
+        completion_url = "https://app.prolific.co/submissions/complete?cc=COMPLETION_CODE"
+    
+    return render_template("done.html", pid=pid, prolific_pid=prolific_pid, completion_url=completion_url)
 
 # ----------------------------------------------------------------------------
 if __name__ == "__main__":
