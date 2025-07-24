@@ -9,6 +9,13 @@
     .img-full        { max-height: 58vh; object-fit: contain; }
     .img-half-left   { max-height: 58vh; object-fit: cover; clip-path: inset(0 50% 0 0); }
     .img-half-right  { max-height: 58vh; object-fit: cover; clip-path: inset(0 0 0 50%); }
+    
+    /* Amazon orange button */
+    .btn-amazon-orange {
+      background-color: #FF9900;
+      color: #000;
+      font-weight: 500;
+    }
 
     /* Masculinity/Femininity compare pair */
     .mf-pair{
@@ -88,7 +95,7 @@
     {% if version == 'toggle' %}
       <img id="face-img" src="{{ image_url }}" class="img-fluid border border-light mb-3 {% if side=='left' %}img-half-left{% else %}img-half-right{% endif %}" alt="half face">
       <div class="mb-2">
-        <button type="button" class="btn btn-secondary" id="toggle-btn">Toggle Side</button>
+        <button type="button" class="btn" id="toggle-btn" style="background-color: #FF9900; color: #000;">Toggle Side</button>
       </div>
     {% elif version == 'left' %}
       <img src="{{ image_url }}" class="img-fluid border border-light mb-3 img-half-left" alt="left half">
