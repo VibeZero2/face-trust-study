@@ -114,19 +114,47 @@ def save_encrypted_csv(pid: str, rows: list):
             order_row = [pid, "", face_id, "order_index", i+1, "", "", "", "", "", "", "", "", "", "", ""]
             writer.writerow(order_row)
     
-    # Save plaintext CSV (for immediate analysis)
-    plain_path = DATA_DIR / f"{pid}.csv"
-    plain_path.write_text(csv_content.getvalue(), encoding="utf-8")
+    # Encrypt the CSV content
+    encrypted_data = fernet.encrypt(csv_content.getvalue().encode())
+    
+    # Save to file
+    enc_path = DATA_DIR / f"{pid}.enc"
+    with open(enc_path, "wb") as f:
+        f.write(encrypted_data)
+        
+    # Also save as CSV for easy access
+    csv_path = DATA_DIR / f"{pid}.csv"
+    with open(csv_path, "w", newline="") as f:
+        f.write(csv_content.getvalue())
+        
+    # Return both paths for confirmation
+    return {"enc": enc_path, "csv": csv_path}
 
-    # Encrypt and save the same content
-    token = fernet.encrypt(csv_content.getvalue().encode())
-    outfile = DATA_DIR / f"{pid}.csv.enc"
-    with outfile.open("wb") as f:
-        f.write(token)
 
-    # Also save a plaintext Excel copy for quick inspection
-    try:
-        import pandas as pd
+def save_participant_data(participant_id: str, responses: list, headers=None):
+    """Save responses to a CSV file in data/responses/
+    
+    Args:
+        participant_id: The participant ID (PROLIFIC_PID or assigned ID)
+        responses: List of dictionaries containing response data
+        headers: Optional list of column headers (uses dict keys if not provided)
+    """
+    # Create data/responses directory if it doesn't exist
+    responses_dir = DATA_DIR / "responses"
+    responses_dir.mkdir(exist_ok=True)
+    
+    # Define the filepath
+    filepath = responses_dir / f"{participant_id}.csv"
+    
+    # Write the CSV file
+    with open(filepath, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=headers or responses[0].keys())
+        writer.writeheader()
+        writer.writerows(responses)
+    
+    print(f"✅ Saved participant data to {filepath}")
+    return filepath
+
         # Create main dataframe with responses
         df = pd.DataFrame(rows, columns=[
             "pid", "timestamp", "face_id", "version", "order_presented",
@@ -192,6 +220,36 @@ def survey():
         ])
         # Save and finish
         save_encrypted_csv(session["pid"], session["responses"])
+        
+        # Convert session responses to dictionary format for save_participant_data
+        participant_id = session["pid"]
+        prolific_pid = session.get("prolific_pid", participant_id)
+        
+        # Use the Prolific ID if available, otherwise use the participant ID
+        save_id = prolific_pid if prolific_pid else participant_id
+        
+        # Convert list-based responses to dictionary format
+        dict_responses = []
+        headers = [
+            "pid", "timestamp", "face_id", "version", "order_presented",
+            "trust_rating", "masc_choice", "fem_choice",
+            "trust_q1", "trust_q2", "trust_q3",
+            "pers_q1", "pers_q2", "pers_q3", "pers_q4", "pers_q5",
+            "prolific_pid"
+        ]
+        
+        for row in session["responses"]:
+            dict_row = {}
+            for i, header in enumerate(headers):
+                if i < len(row):
+                    dict_row[header] = row[i]
+                else:
+                    dict_row[header] = None
+            dict_responses.append(dict_row)
+        
+        # Save participant data to data/responses directory
+        save_participant_data(save_id, dict_responses, headers)
+        
         pid = session["pid"]
         session.clear()
         return redirect(url_for("done", pid=pid))
