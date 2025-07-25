@@ -115,16 +115,38 @@ def generate_test_participant_data(participant_id="test123", prolific_pid="PROLI
     return responses
 
 def save_participant_data(participant_id, responses, headers=None):
-    """Save responses to a CSV file in data/responses/"""
-    filepath = RESPONSES_DIR / f"{participant_id}.csv"
-    
-    with open(filepath, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=headers or responses[0].keys())
-        writer.writeheader()
-        writer.writerows(responses)
-    
-    print(f"✅ Saved participant data to {filepath}")
-    return filepath
+    """Save responses to a CSV file in data/responses/ with timestamp"""
+    try:
+        # Use a timestamp in the filename to prevent overwriting
+        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        
+        # Ensure participant_id is valid for a filename
+        safe_id = participant_id.replace(" ", "_").replace("/", "_").replace("\\", "_")
+        if not safe_id:
+            safe_id = "anon"  # Use 'anon' if ID is empty
+            
+        # Define the filepath with timestamp
+        filepath = RESPONSES_DIR / f"{safe_id}_{timestamp}.csv"
+        
+        # Ensure we have valid responses
+        if not responses or len(responses) == 0:
+            print(f"⚠️ No responses to save for participant {participant_id}")
+            return None
+            
+        # Write the CSV file
+        with open(filepath, "w", newline="") as f:
+            # Use provided headers or get keys from first response
+            field_names = headers if headers else responses[0].keys()
+            writer = csv.DictWriter(f, fieldnames=field_names)
+            writer.writeheader()
+            writer.writerows(responses)
+        
+        print(f"✅ Saved participant data to {filepath}")
+        return filepath
+        
+    except Exception as e:
+        print(f"❌ Error saving participant data: {e}")
+        return None
 
 def main():
     """Main test function"""

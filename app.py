@@ -139,45 +139,41 @@ def save_participant_data(participant_id: str, responses: list, headers=None):
         responses: List of dictionaries containing response data
         headers: Optional list of column headers (uses dict keys if not provided)
     """
-    # Create data/responses directory if it doesn't exist
-    responses_dir = DATA_DIR / "responses"
-    responses_dir.mkdir(exist_ok=True)
-    
-    # Define the filepath
-    filepath = responses_dir / f"{participant_id}.csv"
-    
-    # Write the CSV file
-    with open(filepath, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=headers or responses[0].keys())
-        writer.writeheader()
-        writer.writerows(responses)
-    
-    print(f"✅ Saved participant data to {filepath}")
-    return filepath
-
-        # Create main dataframe with responses
-        df = pd.DataFrame(rows, columns=[
-            "pid", "timestamp", "face_id", "version", "order_presented",
-            "trust_rating", "masc_choice", "fem_choice",
-            "trust_q1", "trust_q2", "trust_q3",
-            "pers_q1", "pers_q2", "pers_q3", "pers_q4", "pers_q5"
-        ])
+    try:
+        # Create data/responses directory if it doesn't exist
+        responses_dir = DATA_DIR / "responses"
+        responses_dir.mkdir(exist_ok=True)
         
-        # Add face order information to a separate sheet
-        if "face_order" in session:
-            face_order_df = pd.DataFrame({
-                "position": range(1, len(session["face_order"])+1),
-                "face_id": session["face_order"]
-            })
+        # Use a timestamp in the filename to prevent overwriting
+        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        
+        # Ensure participant_id is valid for a filename
+        safe_id = participant_id.replace(" ", "_").replace("/", "_").replace("\\", "_")
+        if not safe_id:
+            safe_id = "anon"  # Use 'anon' if ID is empty
             
-            # Create Excel writer with multiple sheets
-            with pd.ExcelWriter(DATA_DIR / f"{pid}.xlsx") as writer:
-                df.to_excel(writer, sheet_name="Responses", index=False)
-                face_order_df.to_excel(writer, sheet_name="Face Order", index=False)
-        else:
-            df.to_excel(DATA_DIR / f"{pid}.xlsx", index=False)
-    except ImportError:
-        pass  # pandas not installed; Excel export skipped
+        # Define the filepath with timestamp
+        filepath = responses_dir / f"{safe_id}_{timestamp}.csv"
+        
+        # Ensure we have valid responses
+        if not responses or len(responses) == 0:
+            print(f"⚠️ No responses to save for participant {participant_id}")
+            return None
+            
+        # Write the CSV file
+        with open(filepath, "w", newline="") as f:
+            # Use provided headers or get keys from first response
+            field_names = headers if headers else responses[0].keys()
+            writer = csv.DictWriter(f, fieldnames=field_names)
+            writer.writeheader()
+            writer.writerows(responses)
+        
+        print(f"✅ Saved participant data to {filepath}")
+        return filepath
+        
+    except Exception as e:
+        print(f"❌ Error saving participant data: {e}")
+        return None
 
 # ----------------------------------------------------------------------------
 # Routes
