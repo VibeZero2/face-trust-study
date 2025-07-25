@@ -198,6 +198,8 @@ def survey():
     if "pid" not in session:
         return redirect(url_for("landing"))
     if request.method == "POST":
+        # Get form data with correct input names
+        # The template now uses trust1, trust2, trust3 instead of trust1, trust2, trust3
         t1 = request.form.get("trust1")
         t2 = request.form.get("trust2")
         t3 = request.form.get("trust3")
@@ -208,47 +210,63 @@ def survey():
         p5 = request.form.get("pers5")
         prolific_pid = session.get("prolific_pid", "")
         
+        # Log the form data for debugging
+        print(f"Form data received: {dict(request.form)}")
+        
         session["responses"].append([
             session["pid"], datetime.utcnow().isoformat(), "survey", "survey", session["index"],
             None, None, None,
             t1, t2, t3, p1, p2, p3, p4, p5,
             prolific_pid  # Add Prolific ID
         ])
+        
         # Save and finish
-        save_encrypted_csv(session["pid"], session["responses"])
-        
-        # Convert session responses to dictionary format for save_participant_data
-        participant_id = session["pid"]
-        prolific_pid = session.get("prolific_pid", participant_id)
-        
-        # Use the Prolific ID if available, otherwise use the participant ID
-        save_id = prolific_pid if prolific_pid else participant_id
-        
-        # Convert list-based responses to dictionary format
-        dict_responses = []
-        headers = [
-            "pid", "timestamp", "face_id", "version", "order_presented",
-            "trust_rating", "masc_choice", "fem_choice",
-            "trust_q1", "trust_q2", "trust_q3",
-            "pers_q1", "pers_q2", "pers_q3", "pers_q4", "pers_q5",
-            "prolific_pid"
-        ]
-        
-        for row in session["responses"]:
-            dict_row = {}
-            for i, header in enumerate(headers):
-                if i < len(row):
-                    dict_row[header] = row[i]
-                else:
-                    dict_row[header] = None
-            dict_responses.append(dict_row)
-        
-        # Save participant data to data/responses directory
-        save_participant_data(save_id, dict_responses, headers)
+        try:
+            # Save encrypted CSV (original format)
+            save_encrypted_csv(session["pid"], session["responses"])
+            print(f"✅ Successfully saved encrypted CSV for participant {session['pid']}")
+            
+            # Convert session responses to dictionary format for save_participant_data
+            participant_id = session["pid"]
+            prolific_pid = session.get("prolific_pid", participant_id)
+            
+            # Use the Prolific ID if available, otherwise use the participant ID
+            save_id = prolific_pid if prolific_pid else participant_id
+            
+            # Convert list-based responses to dictionary format
+            dict_responses = []
+            headers = [
+                "pid", "timestamp", "face_id", "version", "order_presented",
+                "trust_rating", "masc_choice", "fem_choice",
+                "trust_q1", "trust_q2", "trust_q3",
+                "pers_q1", "pers_q2", "pers_q3", "pers_q4", "pers_q5",
+                "prolific_pid"
+            ]
+            
+            for row in session["responses"]:
+                dict_row = {}
+                for i, header in enumerate(headers):
+                    if i < len(row):
+                        dict_row[header] = row[i]
+                    else:
+                        dict_row[header] = None
+                dict_responses.append(dict_row)
+            
+            # Save participant data to data/responses directory
+            filepath = save_participant_data(save_id, dict_responses, headers)
+            print(f"✅ Successfully saved participant data to {filepath}")
+            
+            # Also save a backup copy with just the participant ID to ensure it's found
+            backup_filepath = save_participant_data(f"participant_{participant_id}", dict_responses, headers)
+            print(f"✅ Successfully saved backup participant data to {backup_filepath}")
+            
+        except Exception as e:
+            print(f"❌ Error saving participant data: {e}")
         
         pid = session["pid"]
+        prolific_pid = session.get("prolific_pid", "")
         session.clear()
-        return redirect(url_for("done", pid=pid))
+        return redirect(url_for("done", pid=pid, PROLIFIC_PID=prolific_pid))
     return render_template("survey.html")
 
 

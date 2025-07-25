@@ -5,11 +5,30 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Post-Task Surveys</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    /* Improve radio button visibility and clickability */
+    input[type="radio"] {
+      width: 20px;
+      height: 20px;
+      cursor: pointer;
+    }
+    .rating-cell {
+      cursor: pointer;
+      padding: 10px;
+    }
+    .rating-cell:hover {
+      background-color: rgba(255,255,255,0.1);
+    }
+    /* Add visual indicator for selected options */
+    input[type="radio"]:checked + label {
+      font-weight: bold;
+    }
+  </style>
 </head>
 <body class="bg-dark text-white py-4">
 <div class="container" style="max-width: 900px;">
   <h1 class="mb-4 text-center">Post-Task Surveys</h1>
-  <form method="post">
+  <form method="post" id="surveyForm">
     <!-- Trust Survey -->
     <h2 class="h4">General Trust Survey</h2>
     <p>Rate how much you agree with the following statements <strong>(1 = Strongly Disagree, 7 = Strongly Agree)</strong></p>
@@ -30,7 +49,9 @@
         <tr>
           <td class="text-start">{{ item }}</td>
           {% for i in range(1,8) %}
-          <td><input type="radio" name="trust{{ loop.index }}" value="{{i}}" required></td>
+          <td class="rating-cell" onclick="document.getElementById('trust{{ loop.parent.loop.index }}_{{ i }}').click()">
+            <input type="radio" id="trust{{ loop.parent.loop.index }}_{{ i }}" name="trust{{ loop.parent.loop.index }}" value="{{i}}" required>
+          </td>
           {% endfor %}
         </tr>
         {% endfor %}
@@ -59,7 +80,9 @@
         <tr>
           <td class="text-start">{{ item }}</td>
           {% for i in range(1,8) %}
-          <td><input type="radio" name="pers{{ loop.index }}" value="{{i}}" required></td>
+          <td class="rating-cell" onclick="document.getElementById('pers{{ loop.parent.loop.index }}_{{ i }}').click()">
+            <input type="radio" id="pers{{ loop.parent.loop.index }}_{{ i }}" name="pers{{ loop.parent.loop.index }}" value="{{i}}" required>
+          </td>
           {% endfor %}
         </tr>
         {% endfor %}
@@ -67,9 +90,23 @@
     </table>
 
     <div class="text-center mt-4">
-      <button type="submit" class="btn btn-success">Submit Surveys</button>
+      <button type="submit" class="btn btn-success btn-lg">Submit Surveys</button>
     </div>
   </form>
+  
+  <script>
+    // Add visual feedback when a radio button is selected
+    document.querySelectorAll('input[type="radio"]').forEach(radio => {
+      radio.addEventListener('change', function() {
+        // Reset all cells in this row
+        const rowCells = this.closest('tr').querySelectorAll('.rating-cell');
+        rowCells.forEach(cell => cell.style.backgroundColor = '');
+        
+        // Highlight the selected cell
+        this.closest('.rating-cell').style.backgroundColor = 'rgba(255,255,255,0.2)';
+      });
+    });
+  </script>
 </div>
 </body>
 </html>
