@@ -1,0 +1,13 @@
+pid,timestamp,face_id,version,order_presented,trust_rating,masc_choice,fem_choice,trust_q1,trust_q2,trust_q3,pers_q1,pers_q2,pers_q3,pers_q4,pers_q5,prolific_pid
+P001,2025-07-24T10:00:00Z,face1,full,1,5.2,1,0,,,,,,,,,ABC123
+P001,2025-07-24T10:01:00Z,face1,left,2,4.7,0,1,,,,,,,,,ABC123
+P001,2025-07-24T10:02:00Z,face1,right,3,4.5,1,0,,,,,,,,,ABC123
+P002,2025-07-24T11:00:00Z,face2,full,1,6.1,0,1,,,,,,,,,DEF456
+P002,2025-07-24T11:01:00Z,face2,left,2,5.8,1,0,,,,,,,,,DEF456
+P002,2025-07-24T11:02:00Z,face2,right,3,5.5,0,1,,,,,,,,,DEF456
+P003,2025-07-24T12:00:00Z,face3,full,1,4.9,1,0,,,,,,,,,GHI789
+P003,2025-07-24T12:01:00Z,face3,left,2,5.3,0,1,,,,,,,,,GHI789
+P003,2025-07-24T12:02:00Z,face3,right,3,5.7,1,0,,,,,,,,,GHI789
+P004,2025-07-24T13:00:00Z,face4,full,1,6.2,0,1,,,,,,,,,JKL012
+P004,2025-07-24T13:01:00Z,face4,left,2,5.0,1,0,,,,,,,,,JKL012
+P004,2025-07-24T13:02:00Z,face4,right,3,4.2,0,1,,,,,,,,,JKL012

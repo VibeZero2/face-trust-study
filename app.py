@@ -326,9 +326,24 @@ def start_manual():
                 # Resume existing session
                 session["pid"] = pid
                 session["index"] = existing_session.get("index", 0)
-                session["sequence"] = existing_session.get("sequence", [])
                 session["responses"] = existing_session.get("responses", [])
                 session["face_order"] = existing_session.get("face_order", [])
+                
+                # Rebuild sequence from face_order with proper structure
+                face_order = existing_session.get("face_order", [])
+                sequence = []
+                for face_id in face_order:
+                    # Create a simplified sequence structure for resumed sessions
+                    # This maintains compatibility with the task processing logic
+                    sequence.append({
+                        "face_id": face_id,
+                        "order": [
+                            {"version": "toggle", "file": f"{face_id}.jpg", "start": "left"}, 
+                            {"version": "full", "file": f"{face_id}.jpg"}
+                        ]
+                    })
+                session["sequence"] = sequence
+                
                 if existing_session.get("prolific_pid"):
                     session["prolific_pid"] = existing_session["prolific_pid"]
                 print(f"✅ Resumed session for participant {pid}")

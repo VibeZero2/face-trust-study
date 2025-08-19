@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300">
+  <style>
+    .fielding-maroon { fill: #8B1D3D; }
+  </style>
+  <g>
+    <!-- Triangle -->
+    <path class="fielding-maroon" d="M200 30 L300 170 L100 170 Z" />
+    <!-- Inner shapes -->
+    <path class="fielding-maroon" d="M200 50 L270 150 L130 150 Z" fill="white" />
+    <path class="fielding-maroon" d="M200 70 L240 130 L160 130 Z" />
+    <!-- Text -->
+    <text x="8" y="220" class="fielding-maroon" style="font-size: 42px; font-family: serif; font-weight: bold;">FIELDING</text>
+    <text x="8" y="255" class="fielding-maroon" style="font-size: 20px; font-family: serif;">GRADUATE UNIVERSITY</text>
+  </g>
+</svg>

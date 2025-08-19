@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Face Task</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    .img-full        { max-height: 60vh; object-fit: contain; }
+    .img-half-left   { max-height: 60vh; object-fit: cover; clip-path: inset(0 50% 0 0); }
+    .img-half-right  { max-height: 60vh; object-fit: cover; clip-path: inset(0 0 0 50%); }
+
+    /* Masculinity/Femininity compare pair */
+    .mf-pair{
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      gap:0.5rem;
+    }
+    .mf-pair img{ flex-shrink:0; max-width: 60vw; max-height: 60vh; }
+    @media (max-width: 900px) {
+      .mf-pair { gap: 0.25rem; }
+      .mf-pair img { max-width: 98vw; }
+    }
+
+    /* Container for compare halves */
+    .face-pair {
+      display:flex;
+      justify-content:center;
+      gap:4rem;
+      margin:auto;
+      max-width:100vw;
+    }
+    /* Half wrappers for compare mode */
+    .half-wrapper{ width:35vw; height:70vh; overflow:hidden; }
+    .half-wrapper img{ width:70vw; height:100%; object-fit:cover; }
+    
+    
+    .left-wrap img{ transform:translateX(0); }
+    .right-wrap img{ transform:translateX(-35vw); }
+
+    /* Each half adapts to viewport */
+    .narrow-select{
+      max-width:400px;
+      width:90%;
+      margin-left:auto;
+      margin-right:auto;
+    }
+    
+    /* pull right half leftwards so hidden portion overlaps, leaving ≈20vw (~4in on FHD) gap */
+    
+    .face-half {
+      /* width rule removed for other modes */
+      
+      
+      
+      
+      max-height: 70vh;
+      object-fit: cover;
+    }
+  </style>
+</head>
+<body class="bg-dark text-white d-flex flex-column align-items-center pt-4">
+  <!-- Persistent Instructions button -->
+  <a class="btn btn-outline-info position-fixed" style="top:15px; right:15px; z-index:1050;" data-bs-toggle="modal" data-bs-target="#instructionsModal">Instructions</a>
+  <div class="container text-center">
+    <h4>Participant: {{ pid }}</h4>
+    <p>Face {{ progress }} of {{ total }}</p>
+    {% if version == 'toggle' %}
+      <img id="face-img" src="{{ image_url }}" class="img-fluid border border-light mb-3 {% if side=='left' %}img-half-left{% else %}img-half-right{% endif %}" alt="half face">
+      <div class="mb-3">
+        <button type="button" class="btn btn-secondary" id="toggle-btn">Toggle Side</button>
+      </div>
+    {% elif version == 'left' %}
+      <img src="{{ image_url }}" class="img-fluid border border-light mb-4 img-half-left" alt="left half">
+    {% elif version == 'right' %}
+      <img src="{{ image_url }}" class="img-fluid border border-light mb-4 img-half-right" alt="right half">
+    {% elif version == 'compare' and not show_mf %}
+      <div class="face-pair mb-4">
+        <div class="half-wrapper left-wrap">
+          <img src="{{ image_url }}" class="img-fluid border border-light" alt="left half">
+        </div>
+        <div class="half-wrapper right-wrap">
+          <img src="{{ image_url }}" class="img-fluid border border-light" alt="right half">
+        </div>
+      </div>
+    {% elif not show_mf %}
+      <img src="{{ image_url }}" class="img-fluid border border-light mb-4 img-full" alt="full face">
+    {% endif %}
+
+    <form method="post">
+      <input type="hidden" name="version" value="{{ version }}">
+      {% if show_trust and version == 'toggle' %}
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Trustworthiness – Left side</label>
+          <div class="d-flex justify-content-center">
+            {% for i in range(1,10) %}
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="trust_left" value="{{ i }}" required>
+                <label class="form-check-label">{{ i }}</label>
+              </div>
+            {% endfor %}
+          </div>
+          <p class="small text-white mt-1">1 = Not at all trustworthy &nbsp;&nbsp; • &nbsp;&nbsp; 5 = Neutral &nbsp;&nbsp; • &nbsp;&nbsp; 9 = Extremely trustworthy</p>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Emotion – Left side</label>
+          <div class="d-flex justify-content-center">
+            {% for i in range(1,10) %}
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="emotion_left" value="{{ i }}" required>
+                <label class="form-check-label">{{ i }}</label>
+              </div>
+            {% endfor %}
+          </div>
+          <p class="small text-white mt-1">1 = Very Negative Emotion &nbsp;&nbsp; • &nbsp;&nbsp; 5 = Neutral &nbsp;&nbsp; • &nbsp;&nbsp; 9 = Very Positive Emotion</p>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Trustworthiness – Right side</label>
+          <div class="d-flex justify-content-center">
+            {% for i in range(1,10) %}
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="trust_right" value="{{ i }}" required>
+                <label class="form-check-label">{{ i }}</label>
+              </div>
+            {% endfor %}
+          </div>
+          <p class="small text-white mt-1">1 = Not at all trustworthy &nbsp;&nbsp; • &nbsp;&nbsp; 5 = Neutral &nbsp;&nbsp; • &nbsp;&nbsp; 9 = Extremely trustworthy</p>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Emotion – Right side</label>
+          <div class="d-flex justify-content-center">
+            {% for i in range(1,10) %}
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="emotion_right" value="{{ i }}" required>
+                <label class="form-check-label">{{ i }}</label>
+              </div>
+            {% endfor %}
+          </div>
+          <p class="small text-white mt-1">1 = Very Negative Emotion &nbsp;&nbsp; • &nbsp;&nbsp; 5 = Neutral &nbsp;&nbsp; • &nbsp;&nbsp; 9 = Very Positive Emotion</p>
+        </div>
+      </div>
+      
+      <div class="row mt-4">
+        <h5 class="mb-3">Masculinity/Femininity Comparison</h5>
+        <div class="alert alert-info mb-3">
+          <p class="mb-2"><strong>Please answer both questions separately:</strong> Which side of the face appears more masculine?    Which side of the face appears more feminine?</p>
+          <p class="mb-0">A face may display masculine and feminine features to different degrees on each side. Your impressions may differ across traits. This is normal and expected. Use your first impression when making each choice.</p>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Which side appears more masculine?</label>
+          <div class="d-flex justify-content-center">
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="masc_toggle" value="left" required>
+              <label class="form-check-label">Left</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="masc_toggle" value="right" required>
+              <label class="form-check-label">Right</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="masc_toggle" value="both" required>
+              <label class="form-check-label">Both equally</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="masc_toggle" value="neither" required>
+              <label class="form-check-label">Neither</label>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Which side appears more feminine?</label>
+          <div class="d-flex justify-content-center">
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="fem_toggle" value="left" required>
+              <label class="form-check-label">Left</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="fem_toggle" value="right" required>
+              <label class="form-check-label">Right</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="fem_toggle" value="both" required>
+              <label class="form-check-label">Both equally</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="fem_toggle" value="neither" required>
+              <label class="form-check-label">Neither</label>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% elif show_trust %}
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label">How trustworthy is this face?</label>
+          <div class="d-flex justify-content-center">
+            {% for i in range(1,10) %}
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="trust" value="{{ i }}" required>
+                <label class="form-check-label">{{ i }}</label>
+              </div>
+            {% endfor %}
+          </div>
+          <p class="small text-white mt-1">1 = Not at all trustworthy &nbsp;&nbsp; • &nbsp;&nbsp; 5 = Neutral &nbsp;&nbsp; • &nbsp;&nbsp; 9 = Extremely trustworthy</p>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">What emotion does this face appear to express?</label>
+          <div class="d-flex justify-content-center">
+            {% for i in range(1,10) %}
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="emotion" value="{{ i }}" required>
+                <label class="form-check-label">{{ i }}</label>
+              </div>
+            {% endfor %}
+          </div>
+          <p class="small text-white mt-1">1 = Very Negative Emotion &nbsp;&nbsp; • &nbsp;&nbsp; 5 = Neutral &nbsp;&nbsp; • &nbsp;&nbsp; 9 = Very Positive Emotion</p>
+        </div>
+      </div>
+      
+      <div class="row mt-4">
+        <h5 class="mb-3">Masculinity/Femininity Comparison</h5>
+        <div class="alert alert-info mb-3">
+          <p class="mb-2"><strong>Please answer both questions separately:</strong> Which side of the face appears more masculine?    Which side of the face appears more feminine?</p>
+          <p class="mb-0">A face may display masculine and feminine features to different degrees on each side. Your impressions may differ across traits. This is normal and expected. Use your first impression when making each choice.</p>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Which side appears more masculine?</label>
+          <div class="d-flex justify-content-center">
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="masc" value="left" required>
+              <label class="form-check-label">Left</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="masc" value="right" required>
+              <label class="form-check-label">Right</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="masc" value="both" required>
+              <label class="form-check-label">Both equally</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="masc" value="neither" required>
+              <label class="form-check-label">Neither</label>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Which side appears more feminine?</label>
+          <div class="d-flex justify-content-center">
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="fem" value="left" required>
+              <label class="form-check-label">Left</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="fem" value="right" required>
+              <label class="form-check-label">Right</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="fem" value="both" required>
+              <label class="form-check-label">Both equally</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="fem" value="neither" required>
+              <label class="form-check-label">Neither</label>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      {% if false %}
+        <!-- Masculinity/Femininity comparison page has been removed as it's now integrated into the main rating screens -->
+      {% endif %}
+
+      <!-- Scale descriptions moved under each rating section -->
+      <button type="submit" class="btn btn-success">Continue</button>
+    </form>
+  </div>
+  <script>
+    const btn = document.getElementById('toggle-btn');
+    if(btn){
+      btn.addEventListener('click', () => {
+        const img = document.getElementById('face-img');
+        if(img.classList.contains('img-half-left')){
+          img.classList.remove('img-half-left');
+          img.classList.add('img-half-right');
+        }else{
+          img.classList.remove('img-half-right');
+          img.classList.add('img-half-left');
+        }
+      });
+    }
+  </script>
+  <!-- Instructions Modal -->
+  <div class="modal fade" id="instructionsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable modal-lg">
+      <div class="modal-content bg-dark text-white">
+        <div class="modal-header">
+          <h5 class="modal-title">Instructions</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p>You will now begin the face perception task.</p>
+          <p>You will see <strong>35</strong> individual faces, each presented across two screens.</p>
+          
+          <h6>For each face:</h6>
+          <p>🔁 <strong>Screen 1: Hemiface Views (Side-by-Side Ratings)</strong></p>
+          <ul>
+            <li><strong>Toggle Side</strong> – Use the Toggle Side button to flip between the left and right sides of the face. Toggle as many times as you'd like.</li>
+            <li><strong>Rate Trustworthiness</strong> – Use the 1–9 scale to rate how trustworthy each side appears<br>(1 = Not at all trustworthy, 9 = Extremely trustworthy).</li>
+            <li><strong>Rate Emotion</strong> – Use the 1–9 scale to rate the emotion each side appears to express<br>(1 = Very Negative Emotion, 9 = Very Positive Emotion).</li>
+            <li><strong>Compare Masculinity and Femininity</strong> – You'll be asked:
+              <ul>
+                <li>Which side appears more masculine?</li>
+                <li>Which side appears more feminine?</li>
+              </ul>
+            </li>
+          </ul>
+          
+          <p>🧑‍🦱 <strong>Screen 2: Full-Face View</strong></p>
+          <p>You will then see the full face and be asked to rate:</p>
+          <ul>
+            <li>Overall trustworthiness (1–9)</li>
+            <li>Overall emotional expression (1–9)</li>
+            <li>Which side appears more masculine?</li>
+            <li>Which side appears more feminine?</li>
+          </ul>
+          
+          <p class="text-warning"><strong>Important:</strong> Take your time toggling between sides to get a good impression before making your selections.</p>
+          <p class="text-info">You can return to this screen anytime during the task using the "Instructions" button.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap JS Bundle (for modal functionality) -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
