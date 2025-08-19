@@ -7,6 +7,14 @@ from flask import Flask, render_template, request, redirect, url_for, session, a
 from cryptography.fernet import Fernet
 from dotenv import load_dotenv
 
+# Session management (IRB-safe addition)
+try:
+    from session_manager import save_session_state, load_session_state, check_session_exists, mark_session_complete, get_session_progress
+    SESSION_MANAGEMENT_ENABLED = True
+except ImportError:
+    SESSION_MANAGEMENT_ENABLED = False
+    print("⚠️ Session management not available - continuing without save/resume functionality")
+
 # ----------------------------------------------------------------------------
 # Initial setup
 # ----------------------------------------------------------------------------
@@ -263,6 +271,13 @@ def survey():
         except Exception as e:
             print(f"❌ Error saving participant data: {e}")
         
+        # IRB-Safe: Mark session as complete (non-intrusive addition)
+        if SESSION_MANAGEMENT_ENABLED:
+            try:
+                mark_session_complete(session["pid"])
+            except Exception as e:
+                print(f"⚠️ Session completion marking failed (non-critical): {e}")
+        
         pid = session["pid"]
         prolific_pid = session.get("prolific_pid", "")
         session.clear()
@@ -303,6 +318,25 @@ def start_manual():
     # Capture Prolific ID if provided
     prolific_pid = request.form.get("prolific_pid", "").strip()
     
+    # IRB-Safe: Check for existing session before creating new one
+    if SESSION_MANAGEMENT_ENABLED:
+        try:
+            existing_session = load_session_state(pid)
+            if existing_session and not existing_session.get("session_complete", False):
+                # Resume existing session
+                session["pid"] = pid
+                session["index"] = existing_session.get("index", 0)
+                session["sequence"] = existing_session.get("sequence", [])
+                session["responses"] = existing_session.get("responses", [])
+                session["face_order"] = existing_session.get("face_order", [])
+                if existing_session.get("prolific_pid"):
+                    session["prolific_pid"] = existing_session["prolific_pid"]
+                print(f"✅ Resumed session for participant {pid}")
+                return redirect(url_for("task", pid=pid))
+        except Exception as e:
+            print(f"⚠️ Session resume failed (non-critical): {e}")
+    
+    # Create new session (existing behavior unchanged)
     create_participant_run(pid, prolific_pid)
     return redirect(url_for("instructions"))
 
@@ -359,6 +393,13 @@ def task():
             row_o.append(prolific_pid)  # Add Prolific ID
             session["responses"].append(row_o)
         session["index"] += 1
+        
+        # IRB-Safe: Save session state after each response (non-intrusive addition)
+        if SESSION_MANAGEMENT_ENABLED:
+            try:
+                save_session_state(session["pid"], dict(session))
+            except Exception as e:
+                print(f"⚠️ Session save failed (non-critical): {e}")
 
     # Check if finished
     if session["index"] >= len(session["sequence"]) * 2:  # 2 stages per face (toggle and full)
