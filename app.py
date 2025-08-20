@@ -320,8 +320,13 @@ def start_manual():
     
     # IRB-Safe: Check for existing session before creating new one
     if SESSION_MANAGEMENT_ENABLED:
+        print(f"DEBUG: Checking for existing session for participant {pid}")
         try:
             existing_session = load_session_state(pid)
+            print(f"DEBUG: Loaded session: {existing_session is not None}")
+            if existing_session:
+                print(f"DEBUG: Session complete: {existing_session.get('session_complete', False)}")
+                print(f"DEBUG: Session responses: {len(existing_session.get('responses', []))}")
             if existing_session and not existing_session.get("session_complete", False):
                 # Resume existing session
                 session["pid"] = pid
