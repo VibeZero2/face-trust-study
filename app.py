@@ -369,16 +369,9 @@ def start_manual():
                             print(f"   🔄 Face {face_id}: Incomplete (toggle: {len(toggle_responses)}, full: {len(full_responses)}) - will restart")
                         break  # Stop at first incomplete face
                 
-                # Clean up: Remove partial responses for the incomplete face
-                # Keep only responses from fully completed faces
-                cleaned_responses = []
-                for response in responses:
-                    if len(response) >= 4:
-                        face_id = response[2]
-                        if face_id in completed_faces_in_order:
-                            cleaned_responses.append(response)
-                
-                session["responses"] = cleaned_responses
+                # Keep all responses (including partial ones) for proper tracking
+                # Don't delete partial responses - they're needed for progress tracking
+                session["responses"] = responses
                 
                 # Set index to start at the first incomplete face
                 completed_count = len(completed_faces_in_order)
