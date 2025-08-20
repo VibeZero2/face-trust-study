@@ -381,11 +381,44 @@ def start_manual():
 
 @app.route("/task", methods=["GET", "POST"])
 def task():
-    # If session missing but pid present in query (e.g., redirect loop), rebuild session
+    # If session missing but pid present in query (e.g., redirect loop), try to resume first
     if "pid" not in session:
         qpid = request.args.get("pid")
         if qpid:
-            create_participant_run(qpid)
+            print(f"DEBUG: Task route - no session, trying to resume for pid: {qpid}")
+            # Try to resume existing session first
+            if SESSION_MANAGEMENT_ENABLED:
+                try:
+                    existing_session = load_session_state(qpid)
+                    if existing_session and not existing_session.get("session_complete", False):
+                        print(f"DEBUG: Task route - found existing session, resuming...")
+                        # Resume the session
+                        session["pid"] = existing_session["participant_id"]
+                        session["index"] = existing_session["index"]
+                        session["face_order"] = existing_session["face_order"]
+                        session["responses"] = existing_session["responses"]
+                        
+                        # Rebuild sequence
+                        sequence = []
+                        for face_id in existing_session["face_order"]:
+                            sequence.append({
+                                "face_id": face_id,
+                                "order": [{"version": "toggle", "file": f"{face_id}.jpg", "start": "left"}, {"version": "full", "file": f"{face_id}.jpg"}]
+                            })
+                        session["sequence"] = sequence
+                        
+                        if existing_session.get("prolific_pid"):
+                            session["prolific_pid"] = existing_session["prolific_pid"]
+                            
+                        print(f"DEBUG: Task route - resumed session with {len(session['responses'])} responses at index {session['index']}")
+                    else:
+                        print(f"DEBUG: Task route - no valid session found, creating new one")
+                        create_participant_run(qpid)
+                except Exception as e:
+                    print(f"DEBUG: Task route - session resume failed: {e}")
+                    create_participant_run(qpid)
+            else:
+                create_participant_run(qpid)
         else:
             return redirect(url_for("landing"))
 
