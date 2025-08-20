@@ -57,6 +57,8 @@ assert FACE_FILES, "No face images found. Place images in static/images/."
 
 def create_participant_run(pid: str, prolific_pid: str = None):
     """Initialises session variables for a new participant."""
+    print(f"DEBUG: Creating NEW participant run for {pid}")
+    
     # Randomly pick left-first or right-first presentation
     left_first = random.choice([True, False])
     
@@ -95,6 +97,8 @@ def create_participant_run(pid: str, prolific_pid: str = None):
     # Store Prolific ID if provided
     if prolific_pid:
         session["prolific_pid"] = prolific_pid
+    
+    print(f"DEBUG: Created new session - index: {session['index']}, responses: {len(session['responses'])}")
 
 
 def save_encrypted_csv(pid: str, rows: list):
@@ -367,6 +371,8 @@ def start_manual():
                 return redirect(url_for("task", pid=pid))
         except Exception as e:
             print(f"⚠️ Session resume failed (non-critical): {e}")
+            import traceback
+            traceback.print_exc()
     
     # Create new session (existing behavior unchanged)
     print(f"DEBUG: Creating NEW session for participant {pid} (resumption failed or no existing session)")
@@ -437,10 +443,14 @@ def task():
         # IRB-Safe: Save session state after each response (non-intrusive addition)
         if SESSION_MANAGEMENT_ENABLED:
             try:
-                save_session_state(session["pid"], dict(session))
+                print(f"DEBUG: About to save session - responses: {len(session['responses'])}, index: {session['index']}")
+                save_result = save_session_state(session["pid"], dict(session))
+                print(f"DEBUG: Session save result: {save_result}")
                 print(f"DEBUG: Session saved - total responses: {len(session['responses'])}, index: {session['index']}")
             except Exception as e:
                 print(f"⚠️ Session save failed (non-critical): {e}")
+                import traceback
+                traceback.print_exc()
         
         # Save responses to CSV immediately for dashboard visibility
         try:
