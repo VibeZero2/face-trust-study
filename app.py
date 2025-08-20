@@ -105,7 +105,7 @@ def save_encrypted_csv(pid: str, rows: list):
     writer.writerow([
         "pid", "timestamp", "face_id", "version", "order_presented",
         "trust_rating", "masc_choice", "fem_choice",
-        "trust_q1", "trust_q2", "trust_q3",
+        "emotion_rating", "trust_q2", "trust_q3",
         "pers_q1", "pers_q2", "pers_q3", "pers_q4", "pers_q5",
         "prolific_pid"  # Add Prolific ID to header
     ])
@@ -373,38 +373,40 @@ def task():
         if version == "toggle":
             trust_left = request.form.get("trust_left")
             trust_right = request.form.get("trust_right")
+            emotion_left = request.form.get("emotion_left")
+            emotion_right = request.form.get("emotion_right")
+            masc_toggle = request.form.get("masc_toggle")
+            fem_toggle = request.form.get("fem_toggle")
             # record left then right (order flag indicates which shown first but both stored)
             prolific_pid = session.get("prolific_pid", "")
             
             row_l = [
                 session["pid"], datetime.utcnow().isoformat(), face_id,
-                "left", session["index"], trust_left, None, None
+                "left", session["index"], trust_left, masc_toggle, fem_toggle,
+                emotion_left, None, None, None, None, None, None, None
             ]
-            while len(row_l) < 16:
-                row_l.append(None)
             row_l.append(prolific_pid)  # Add Prolific ID
             session["responses"].append(row_l)
             
             row_r = [
                 session["pid"], datetime.utcnow().isoformat(), face_id,
-                "right", session["index"], trust_right, None, None
+                "right", session["index"], trust_right, masc_toggle, fem_toggle,
+                emotion_right, None, None, None, None, None, None, None
             ]
-            while len(row_r) < 16:
-                row_r.append(None)
             row_r.append(prolific_pid)  # Add Prolific ID
             session["responses"].append(row_r)
         else:
             trust_rating = request.form.get("trust")
+            emotion_rating = request.form.get("emotion")
             masc_choice = request.form.get("masc")
             fem_choice = request.form.get("fem")
             prolific_pid = session.get("prolific_pid", "")
             
             row_o = [
                 session["pid"], datetime.utcnow().isoformat(), face_id,
-                version, session["index"], trust_rating, masc_choice, fem_choice
+                version, session["index"], trust_rating, masc_choice, fem_choice,
+                emotion_rating, None, None, None, None, None, None, None
             ]
-            while len(row_o) < 16:
-                row_o.append(None)
             row_o.append(prolific_pid)  # Add Prolific ID
             session["responses"].append(row_o)
         session["index"] += 1
