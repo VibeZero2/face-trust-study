@@ -346,25 +346,42 @@ def start_manual():
                 # CRITICAL: Calculate correct index based on completed faces
                 # Analyze responses to determine which faces are fully completed
                 responses = existing_session.get("responses", [])
-                completed_faces = set()
+                completed_faces_in_order = []
+                partial_face_responses = []
                 
-                # Group responses by face_id and check completion
+                # Check each face in the original order to maintain sequence
+                for face_id in face_order:
+                    # Get all responses for this specific face
+                    face_responses = [r for r in responses if len(r) >= 4 and r[2] == face_id]
+                    toggle_responses = [r for r in face_responses if r[3] in ['left', 'right']]
+                    full_responses = [r for r in face_responses if r[3] == 'full']
+                    
+                    # Face is complete ONLY if it has both left+right (toggle) AND full responses
+                    is_complete = len(toggle_responses) >= 2 and len(full_responses) >= 1
+                    
+                    if is_complete:
+                        completed_faces_in_order.append(face_id)
+                        print(f"   ✅ Face {face_id}: Complete (toggle: {len(toggle_responses)}, full: {len(full_responses)})")
+                    else:
+                        # This face is incomplete - we'll restart from here
+                        if face_responses:
+                            partial_face_responses.extend(face_responses)
+                            print(f"   🔄 Face {face_id}: Incomplete (toggle: {len(toggle_responses)}, full: {len(full_responses)}) - will restart")
+                        break  # Stop at first incomplete face
+                
+                # Clean up: Remove partial responses for the incomplete face
+                # Keep only responses from fully completed faces
+                cleaned_responses = []
                 for response in responses:
-                    if len(response) >= 3:  # Ensure response has face_id
-                        face_id = response[2]  # face_id is at index 2
-                        version = response[3]  # version is at index 3
-                        
-                        # Count responses for this face
-                        face_responses = [r for r in responses if len(r) >= 4 and r[2] == face_id]
-                        toggle_responses = [r for r in face_responses if r[3] in ['left', 'right']]
-                        full_responses = [r for r in face_responses if r[3] == 'full']
-                        
-                        # Face is complete if it has both left+right (toggle) AND full responses
-                        if len(toggle_responses) >= 2 and len(full_responses) >= 1:
-                            completed_faces.add(face_id)
+                    if len(response) >= 4:
+                        face_id = response[2]
+                        if face_id in completed_faces_in_order:
+                            cleaned_responses.append(response)
+                
+                session["responses"] = cleaned_responses
                 
                 # Set index to start after the last completed face
-                completed_count = len(completed_faces)
+                completed_count = len(completed_faces_in_order)
                 session["index"] = completed_count * 2  # 2 stages per face
                 
                 if existing_session.get("prolific_pid"):
@@ -373,6 +390,9 @@ def start_manual():
                 print(f"✅ Resumed session for participant {pid}")
                 print(f"   Completed faces: {completed_count}/{len(face_order)}")
                 print(f"   Resuming at index: {session['index']}")
+                if partial_face_responses:
+                    print(f"   🧹 Cleaned {len(partial_face_responses)} partial responses from incomplete face")
+                print(f"   📊 Total valid responses: {len(cleaned_responses)}")
                 return redirect(url_for("task", pid=pid))
         except Exception as e:
             print(f"⚠️ Session resume failed (non-critical): {e}")
