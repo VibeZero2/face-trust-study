@@ -348,86 +348,20 @@ def start_manual():
                     })
                 session["sequence"] = sequence
                 
-                # CRITICAL: Calculate correct index based on completed faces
-                # Analyze responses to determine which faces are fully completed
-                responses = existing_session.get("responses", [])
-                completed_faces_in_order = []
-                partial_face_responses = []
+                # SIMPLIFIED: Just use the existing index and responses
+                # The session was working before, so let's keep it simple
+                session["responses"] = existing_session.get("responses", [])
                 
-                # Check each face in the original order to maintain sequence
-                for face_id in face_order:
-                    # Get all responses for this specific face
-                    face_responses = [r for r in responses if len(r) >= 4 and r[2] == face_id]
-                    toggle_responses = [r for r in face_responses if r[3] in ['left', 'right']]
-                    full_responses = [r for r in face_responses if r[3] == 'full']
-                    
-                    # Face is complete ONLY if it has both left+right (toggle) AND full responses
-                    is_complete = len(toggle_responses) >= 2 and len(full_responses) >= 1
-                    
-                    if is_complete:
-                        completed_faces_in_order.append(face_id)
-                        print(f"   ✅ Face {face_id}: Complete (toggle: {len(toggle_responses)}, full: {len(full_responses)})")
-                    else:
-                        # This face is incomplete - we'll restart from here
-                        if face_responses:
-                            partial_face_responses.extend(face_responses)
-                            print(f"   🔄 Face {face_id}: Incomplete (toggle: {len(toggle_responses)}, full: {len(full_responses)}) - will restart")
-                        break  # Stop at first incomplete face
-                
-                # Keep all responses (including partial ones) for proper tracking
-                # Don't delete partial responses - they're needed for progress tracking
-                session["responses"] = responses
-                
-                # Set index to start at the first incomplete face
-                completed_count = len(completed_faces_in_order)
-                
-                # Check if we have any responses for the current face
-                current_face_id = face_order[completed_count] if completed_count < len(face_order) else None
-                if current_face_id:
-                    current_face_responses = [r for r in responses if len(r) >= 4 and r[2] == current_face_id]
-                    if current_face_responses:
-                        # We have responses for this face, so we're in the middle of it
-                        # Calculate which stage we're on for this face
-                        toggle_responses = [r for r in current_face_responses if r[3] in ['left', 'right']]
-                        full_responses = [r for r in current_face_responses if r[3] == 'full']
-                        
-                        print(f"   🔍 Current face {current_face_id} has {len(toggle_responses)} toggle, {len(full_responses)} full responses")
-                        
-                        if len(toggle_responses) < 2:
-                            # Still on toggle stage - stay exactly where we are
-                            session["index"] = completed_count * 2  # Start of toggle stage for this face
-                            print(f"   🔄 Staying on toggle stage for face {current_face_id} (index: {session['index']})")
-                        elif len(full_responses) < 1:
-                            # Toggle complete, on full stage - stay exactly where we are
-                            session["index"] = completed_count * 2 + 1  # Start of full stage for this face
-                            print(f"   🔄 Staying on full stage for face {current_face_id} (index: {session['index']})")
-                        else:
-                            # This face is actually complete, move to next
-                            session["index"] = (completed_count + 1) * 2
-                            print(f"   ➡️ Face {current_face_id} is complete, moving to next face (index: {session['index']})")
-                    
-                    # Special case: If we have full response but no toggle responses, we're on full stage
-                    elif len(full_responses) >= 1 and len(toggle_responses) == 0:
-                        session["index"] = completed_count * 2 + 1  # Full stage
-                        print(f"   🔄 Staying on full stage for face {current_face_id} (index: {session['index']}) - has full response")
-                    else:
-                        # No responses for current face, start at beginning
-                        session["index"] = completed_count * 2
-                        print(f"   ➡️ Starting fresh on face {current_face_id} (index: {session['index']})")
-                else:
-                    # All faces complete
-                    session["index"] = len(face_order) * 2
-                    print(f"   ✅ All faces complete (index: {session['index']})")
+                # Keep the existing index - it should be correct
+                print(f"   📊 Using existing index: {session['index']}")
+                print(f"   📊 Total responses: {len(session['responses'])}")
                 
                 if existing_session.get("prolific_pid"):
                     session["prolific_pid"] = existing_session["prolific_pid"]
                 
                 print(f"✅ Resumed session for participant {pid}")
-                print(f"   Completed faces: {completed_count}/{len(face_order)}")
                 print(f"   Resuming at index: {session['index']}")
-                if partial_face_responses:
-                    print(f"   🧹 Cleaned {len(partial_face_responses)} partial responses from incomplete face")
-                print(f"   📊 Total valid responses: {len(cleaned_responses)}")
+                print(f"   📊 Total responses: {len(session['responses'])}")
                 return redirect(url_for("task", pid=pid))
         except Exception as e:
             print(f"⚠️ Session resume failed (non-critical): {e}")
