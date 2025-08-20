@@ -93,6 +93,7 @@ def create_participant_run(pid: str, prolific_pid: str = None):
     session["sequence"] = sequence
     session["responses"] = []
     session["face_order"] = face_order  # Store the randomized face order
+    session["left_first"] = left_first  # Store the left_first value for session resumption
     
     # Store Prolific ID if provided
     if prolific_pid:
@@ -340,14 +341,14 @@ def start_manual():
                 
                 # Rebuild sequence from face_order with proper structure
                 face_order = existing_session.get("face_order", [])
+                left_first = existing_session.get("left_first", True)  # Default to True if not stored
                 sequence = []
                 for face_id in face_order:
-                    # Create a simplified sequence structure for resumed sessions
-                    # This maintains compatibility with the task processing logic
+                    # Create the exact same sequence structure as the original
                     sequence.append({
                         "face_id": face_id,
                         "order": [
-                            {"version": "toggle", "file": f"{face_id}.jpg", "start": "left"}, 
+                            {"version": "toggle", "file": f"{face_id}.jpg", "start": ("left" if left_first else "right")}, 
                             {"version": "full", "file": f"{face_id}.jpg"}
                         ]
                     })
@@ -400,11 +401,12 @@ def task():
                         session["responses"] = existing_session["responses"]
                         
                         # Rebuild sequence
+                        left_first = existing_session.get("left_first", True)  # Default to True if not stored
                         sequence = []
                         for face_id in existing_session["face_order"]:
                             sequence.append({
                                 "face_id": face_id,
-                                "order": [{"version": "toggle", "file": f"{face_id}.jpg", "start": "left"}, {"version": "full", "file": f"{face_id}.jpg"}]
+                                "order": [{"version": "toggle", "file": f"{face_id}.jpg", "start": ("left" if left_first else "right")}, {"version": "full", "file": f"{face_id}.jpg"}]
                             })
                         session["sequence"] = sequence
                         
