@@ -39,6 +39,7 @@ def save_session_state(participant_id: str, session_data: Dict[str, Any]) -> boo
             "face_order": session_data.get("face_order", []),
             "responses": session_data.get("responses", []),
             "prolific_pid": session_data.get("prolific_pid", ""),
+            "left_first": session_data.get("left_first", True),  # Save the left_first value
             "session_complete": False
         }
         
