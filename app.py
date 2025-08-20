@@ -389,14 +389,39 @@ def start_manual():
                     })
                 session["sequence"] = sequence
                 
-                # SIMPLIFIED: Just use the existing index and responses
-                # The session was working before, so let's keep it simple
-                session["responses"] = existing_session.get("responses", [])
-                session["index"] = existing_session.get("index", 0)  # Set the index from existing session
+                # Determine the correct index to resume at
+                existing_index = existing_session.get("index", 0)
+                existing_responses = existing_session.get("responses", [])
                 
-                # Keep the existing index - it should be correct
-                print(f"   📊 Using existing index: {session['index']}")
-                print(f"   📊 Total responses: {len(session['responses'])}")
+                # Calculate which face we're on and if it's complete
+                face_index = existing_index // 2  # Each face has 2 stages (toggle, full)
+                stage_in_face = existing_index % 2  # 0 = toggle, 1 = full
+                
+                print(f"   📊 Existing index: {existing_index}, face_index: {face_index}, stage_in_face: {stage_in_face}")
+                
+                # Check if current face is complete (has both toggle and full responses)
+                face_responses = [r for r in existing_responses if r[2] == face_order[face_index]]  # Filter by face_id
+                has_toggle = any(r[3] == "toggle" for r in face_responses)
+                has_full = any(r[3] == "full" for r in face_responses)
+                
+                print(f"   📊 Face {face_order[face_index]} responses: toggle={has_toggle}, full={has_full}")
+                
+                # If face is incomplete, resume at the missing stage
+                if not has_toggle:
+                    # Resume at toggle stage of current face
+                    session["index"] = face_index * 2  # toggle stage
+                    print(f"   📊 Resuming at toggle stage (index {session['index']})")
+                elif not has_full:
+                    # Resume at full stage of current face
+                    session["index"] = face_index * 2 + 1  # full stage
+                    print(f"   📊 Resuming at full stage (index {session['index']})")
+                else:
+                    # Face is complete, move to next face
+                    session["index"] = (face_index + 1) * 2  # toggle stage of next face
+                    print(f"   📊 Face complete, moving to next face (index {session['index']})")
+                
+                session["responses"] = existing_responses
+                print(f"   📊 Final index: {session['index']}, total responses: {len(session['responses'])}")
                 
                 if existing_session.get("prolific_pid"):
                     session["prolific_pid"] = existing_session["prolific_pid"]
@@ -414,6 +439,11 @@ def start_manual():
     # Create new session (existing behavior unchanged)
     print(f"DEBUG: Creating NEW session for participant {pid} (resumption failed or no existing session)")
     create_participant_run(pid, prolific_pid)
+    print(f"DEBUG: NEW session created - index: {session['index']}, sequence length: {len(session['sequence'])}")
+    if len(session['sequence']) > 0:
+        first_face = session['sequence'][0]
+        print(f"DEBUG: First face: {first_face['face_id']}")
+        print(f"DEBUG: First face order: {[item['version'] for item in first_face['order']]}")
     return redirect(url_for("instructions"))
 
 @app.route("/task", methods=["GET", "POST"])
@@ -429,9 +459,8 @@ def task():
                     existing_session = load_session_state(qpid)
                     if existing_session and not existing_session.get("session_complete", False):
                         print(f"DEBUG: Task route - found existing session, resuming...")
-                        # Resume the session
+                        # Resume the session with proper index calculation
                         session["pid"] = existing_session["participant_id"]
-                        session["index"] = existing_session["index"]
                         session["face_order"] = existing_session["face_order"]
                         session["responses"] = existing_session["responses"]
                         
@@ -444,6 +473,43 @@ def task():
                                 "order": [{"version": "toggle", "file": f"{face_id}.jpg", "start": ("left" if left_first else "right")}, {"version": "full", "file": f"{face_id}.jpg"}]
                             })
                         session["sequence"] = sequence
+                        
+                        # Determine the correct index to resume at (same logic as start_manual)
+                        existing_index = existing_session.get("index", 0)
+                        existing_responses = existing_session.get("responses", [])
+                        face_order = existing_session.get("face_order", [])
+                        
+                        # Calculate which face we're on and if it's complete
+                        face_index = existing_index // 2  # Each face has 2 stages (toggle, full)
+                        stage_in_face = existing_index % 2  # 0 = toggle, 1 = full
+                        
+                        print(f"DEBUG: Task route - existing index: {existing_index}, face_index: {face_index}, stage_in_face: {stage_in_face}")
+                        
+                        # Check if current face is complete (has both toggle and full responses)
+                        if face_index < len(face_order):
+                            face_responses = [r for r in existing_responses if r[2] == face_order[face_index]]  # Filter by face_id
+                            has_toggle = any(r[3] == "toggle" for r in face_responses)
+                            has_full = any(r[3] == "full" for r in face_responses)
+                            
+                            print(f"DEBUG: Task route - Face {face_order[face_index]} responses: toggle={has_toggle}, full={has_full}")
+                            
+                            # If face is incomplete, resume at the missing stage
+                            if not has_toggle:
+                                # Resume at toggle stage of current face
+                                session["index"] = face_index * 2  # toggle stage
+                                print(f"DEBUG: Task route - resuming at toggle stage (index {session['index']})")
+                            elif not has_full:
+                                # Resume at full stage of current face
+                                session["index"] = face_index * 2 + 1  # full stage
+                                print(f"DEBUG: Task route - resuming at full stage (index {session['index']})")
+                            else:
+                                # Face is complete, move to next face
+                                session["index"] = (face_index + 1) * 2  # toggle stage of next face
+                                print(f"DEBUG: Task route - face complete, moving to next face (index {session['index']})")
+                        else:
+                            # We're past all faces, keep the existing index
+                            session["index"] = existing_index
+                            print(f"DEBUG: Task route - past all faces, keeping index {session['index']}")
                         
                         if existing_session.get("prolific_pid"):
                             session["prolific_pid"] = existing_session["prolific_pid"]
@@ -572,9 +638,12 @@ def task():
                 dict_responses.append(dict_row)
             
             # Save participant data to data/responses directory
+            print(f"DEBUG: About to call save_participant_data with {len(dict_responses)} responses")
             filepath = save_participant_data(save_id, dict_responses, headers)
             if filepath:
                 print(f"✅ Saved live response data to {filepath}")
+            else:
+                print(f"❌ save_participant_data returned None - saving failed")
             
             # Also save a backup copy with just the participant ID to ensure it's found
             backup_filepath = save_participant_data(f"participant_{participant_id}", dict_responses, headers)
@@ -609,6 +678,10 @@ def task():
     image_dict = current["order"][image_index]
     image_file = image_dict["file"]
     version = image_dict["version"]
+    
+    print(f"DEBUG: Task route - index: {session['index']}, face_index: {face_index}, image_index: {image_index}")
+    print(f"DEBUG: Task route - current face: {current['face_id']}, version: {version}")
+    print(f"DEBUG: Task route - face order: {[item['version'] for item in current['order']]}")
     if version == "toggle":
         side = image_dict.get("start", "left")
     else:
@@ -647,5 +720,5 @@ def done():
 
 # ----------------------------------------------------------------------------
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
+    port = int(os.environ.get("PORT", 5001))
     app.run(host="0.0.0.0", port=port, debug=False)
