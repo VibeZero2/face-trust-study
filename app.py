@@ -393,25 +393,28 @@ def start_manual():
                         toggle_responses = [r for r in current_face_responses if r[3] in ['left', 'right']]
                         full_responses = [r for r in current_face_responses if r[3] == 'full']
                         
+                        print(f"   🔍 Current face {current_face_id} has {len(toggle_responses)} toggle, {len(full_responses)} full responses")
+                        
                         if len(toggle_responses) < 2:
-                            # Still on toggle stage
+                            # Still on toggle stage - stay exactly where we are
                             session["index"] = completed_count * 2  # Start of toggle stage for this face
-                            print(f"   🔄 Staying on toggle stage for face {current_face_id}")
+                            print(f"   🔄 Staying on toggle stage for face {current_face_id} (index: {session['index']})")
                         elif len(full_responses) < 1:
-                            # Toggle complete, on full stage
+                            # Toggle complete, on full stage - stay exactly where we are
                             session["index"] = completed_count * 2 + 1  # Start of full stage for this face
-                            print(f"   🔄 Staying on full stage for face {current_face_id}")
+                            print(f"   🔄 Staying on full stage for face {current_face_id} (index: {session['index']})")
                         else:
                             # This face is actually complete, move to next
                             session["index"] = (completed_count + 1) * 2
-                            print(f"   ➡️ Face {current_face_id} is complete, moving to next")
+                            print(f"   ➡️ Face {current_face_id} is complete, moving to next face (index: {session['index']})")
                     else:
                         # No responses for current face, start at beginning
                         session["index"] = completed_count * 2
-                        print(f"   ➡️ Starting fresh on face {current_face_id}")
+                        print(f"   ➡️ Starting fresh on face {current_face_id} (index: {session['index']})")
                 else:
                     # All faces complete
                     session["index"] = len(face_order) * 2
+                    print(f"   ✅ All faces complete (index: {session['index']})")
                 
                 if existing_session.get("prolific_pid"):
                     session["prolific_pid"] = existing_session["prolific_pid"]
@@ -485,13 +488,17 @@ def task():
             ]
             row_o.append(prolific_pid)  # Add Prolific ID
             session["responses"].append(row_o)
+        # Save the current index before advancing
+        current_index = session["index"]
         session["index"] += 1
+        
+        print(f"DEBUG: Advanced from index {current_index} to {session['index']}")
         
         # IRB-Safe: Save session state after each response (non-intrusive addition)
         if SESSION_MANAGEMENT_ENABLED:
             try:
                 save_session_state(session["pid"], dict(session))
-                print(f"DEBUG: Session saved - total responses: {len(session['responses'])}")
+                print(f"DEBUG: Session saved - total responses: {len(session['responses'])}, index: {session['index']}")
             except Exception as e:
                 print(f"⚠️ Session save failed (non-critical): {e}")
 
