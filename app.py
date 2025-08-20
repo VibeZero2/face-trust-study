@@ -327,6 +327,7 @@ def start_manual():
             if existing_session:
                 print(f"DEBUG: Session complete: {existing_session.get('session_complete', False)}")
                 print(f"DEBUG: Session responses: {len(existing_session.get('responses', []))}")
+                print(f"DEBUG: Session index: {existing_session.get('index', 'N/A')}")
             if existing_session and not existing_session.get("session_complete", False):
                 # Resume existing session
                 session["pid"] = pid
@@ -362,11 +363,13 @@ def start_manual():
                 print(f"✅ Resumed session for participant {pid}")
                 print(f"   Resuming at index: {session['index']}")
                 print(f"   📊 Total responses: {len(session['responses'])}")
+                print(f"   🔄 Redirecting to task page...")
                 return redirect(url_for("task", pid=pid))
         except Exception as e:
             print(f"⚠️ Session resume failed (non-critical): {e}")
     
     # Create new session (existing behavior unchanged)
+    print(f"DEBUG: Creating NEW session for participant {pid} (resumption failed or no existing session)")
     create_participant_run(pid, prolific_pid)
     return redirect(url_for("instructions"))
 
