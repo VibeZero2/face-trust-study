@@ -325,7 +325,6 @@ def start_manual():
             if existing_session and not existing_session.get("session_complete", False):
                 # Resume existing session
                 session["pid"] = pid
-                session["index"] = existing_session.get("index", 0)
                 session["responses"] = existing_session.get("responses", [])
                 session["face_order"] = existing_session.get("face_order", [])
                 
@@ -344,9 +343,36 @@ def start_manual():
                     })
                 session["sequence"] = sequence
                 
+                # CRITICAL: Calculate correct index based on completed faces
+                # Analyze responses to determine which faces are fully completed
+                responses = existing_session.get("responses", [])
+                completed_faces = set()
+                
+                # Group responses by face_id and check completion
+                for response in responses:
+                    if len(response) >= 3:  # Ensure response has face_id
+                        face_id = response[2]  # face_id is at index 2
+                        version = response[3]  # version is at index 3
+                        
+                        # Count responses for this face
+                        face_responses = [r for r in responses if len(r) >= 4 and r[2] == face_id]
+                        toggle_responses = [r for r in face_responses if r[3] in ['left', 'right']]
+                        full_responses = [r for r in face_responses if r[3] == 'full']
+                        
+                        # Face is complete if it has both left+right (toggle) AND full responses
+                        if len(toggle_responses) >= 2 and len(full_responses) >= 1:
+                            completed_faces.add(face_id)
+                
+                # Set index to start after the last completed face
+                completed_count = len(completed_faces)
+                session["index"] = completed_count * 2  # 2 stages per face
+                
                 if existing_session.get("prolific_pid"):
                     session["prolific_pid"] = existing_session["prolific_pid"]
+                
                 print(f"✅ Resumed session for participant {pid}")
+                print(f"   Completed faces: {completed_count}/{len(face_order)}")
+                print(f"   Resuming at index: {session['index']}")
                 return redirect(url_for("task", pid=pid))
         except Exception as e:
             print(f"⚠️ Session resume failed (non-critical): {e}")
