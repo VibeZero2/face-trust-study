@@ -539,6 +539,18 @@ def task():
             backup_filepath = save_participant_data(f"participant_{participant_id}", dict_responses, headers)
             if backup_filepath:
                 print(f"✅ Saved backup response data to {backup_filepath}")
+            
+            # Create a simple CSV file for dashboard compatibility
+            simple_csv_path = responses_dir / f"{participant_id}.csv"
+            try:
+                with open(simple_csv_path, "w", newline="") as f:
+                    field_names = headers
+                    writer = csv.DictWriter(f, fieldnames=field_names)
+                    writer.writeheader()
+                    writer.writerows(dict_responses)
+                print(f"✅ Saved simple CSV for dashboard: {simple_csv_path}")
+            except Exception as e:
+                print(f"⚠️ Simple CSV save failed: {e}")
                 
         except Exception as e:
             print(f"⚠️ Live response saving failed (non-critical): {e}")
