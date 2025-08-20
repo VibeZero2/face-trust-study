@@ -484,7 +484,6 @@ def task():
                 # Also save a backup copy directly to ensure it works
                 try:
                     import json
-                    from datetime import datetime
                     backup_file = DATA_DIR / "sessions" / f"{session['pid']}_backup.json"
                     backup_data = {
                         "participant_id": session["pid"],
