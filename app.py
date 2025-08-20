@@ -501,6 +501,47 @@ def task():
                 print(f"DEBUG: Session saved - total responses: {len(session['responses'])}, index: {session['index']}")
             except Exception as e:
                 print(f"⚠️ Session save failed (non-critical): {e}")
+        
+        # Save responses to CSV immediately for dashboard visibility
+        try:
+            # Convert session responses to dictionary format for save_participant_data
+            participant_id = session["pid"]
+            prolific_pid = session.get("prolific_pid", participant_id)
+            
+            # Use the Prolific ID if available, otherwise use the participant ID
+            save_id = prolific_pid if prolific_pid else participant_id
+            
+            # Convert list-based responses to dictionary format
+            dict_responses = []
+            headers = [
+                "pid", "timestamp", "face_id", "version", "order_presented",
+                "trust_rating", "masc_choice", "fem_choice",
+                "emotion_rating", "trust_q2", "trust_q3",
+                "pers_q1", "pers_q2", "pers_q3", "pers_q4", "pers_q5",
+                "prolific_pid"
+            ]
+            
+            for row in session["responses"]:
+                dict_row = {}
+                for i, header in enumerate(headers):
+                    if i < len(row):
+                        dict_row[header] = row[i]
+                    else:
+                        dict_row[header] = None
+                dict_responses.append(dict_row)
+            
+            # Save participant data to data/responses directory
+            filepath = save_participant_data(save_id, dict_responses, headers)
+            if filepath:
+                print(f"✅ Saved live response data to {filepath}")
+            
+            # Also save a backup copy with just the participant ID to ensure it's found
+            backup_filepath = save_participant_data(f"participant_{participant_id}", dict_responses, headers)
+            if backup_filepath:
+                print(f"✅ Saved backup response data to {backup_filepath}")
+                
+        except Exception as e:
+            print(f"⚠️ Live response saving failed (non-critical): {e}")
 
     # Check if finished
     if session["index"] >= len(session["sequence"]) * 2:  # 2 stages per face (toggle and full)
