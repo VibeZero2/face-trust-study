@@ -442,9 +442,10 @@ def task():
 
     # Handle POST (save previous answer)
     if request.method == "POST":
-        data = session["sequence"][session["index"] // 3]
+        data = session["sequence"][session["index"] // 2]
         face_id = data["face_id"]
         version = request.form["version"]
+        print(f"DEBUG: Saving response - index: {session['index']}, face_id: {face_id}, version: {version}")
         if version == "toggle":
             trust_left = request.form.get("trust_left")
             trust_right = request.form.get("trust_right")
@@ -490,6 +491,7 @@ def task():
         if SESSION_MANAGEMENT_ENABLED:
             try:
                 save_session_state(session["pid"], dict(session))
+                print(f"DEBUG: Session saved - total responses: {len(session['responses'])}")
             except Exception as e:
                 print(f"⚠️ Session save failed (non-critical): {e}")
 
