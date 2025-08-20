@@ -541,6 +541,8 @@ def task():
                 print(f"✅ Saved backup response data to {backup_filepath}")
             
             # Create a simple CSV file for dashboard compatibility
+            responses_dir = DATA_DIR / "responses"
+            responses_dir.mkdir(exist_ok=True)
             simple_csv_path = responses_dir / f"{participant_id}.csv"
             try:
                 with open(simple_csv_path, "w", newline="") as f:
