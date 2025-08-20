@@ -380,9 +380,38 @@ def start_manual():
                 
                 session["responses"] = cleaned_responses
                 
-                # Set index to start after the last completed face
+                # Set index to start at the first incomplete face
                 completed_count = len(completed_faces_in_order)
-                session["index"] = completed_count * 2  # 2 stages per face
+                
+                # Check if we have any responses for the current face
+                current_face_id = face_order[completed_count] if completed_count < len(face_order) else None
+                if current_face_id:
+                    current_face_responses = [r for r in responses if len(r) >= 4 and r[2] == current_face_id]
+                    if current_face_responses:
+                        # We have responses for this face, so we're in the middle of it
+                        # Calculate which stage we're on for this face
+                        toggle_responses = [r for r in current_face_responses if r[3] in ['left', 'right']]
+                        full_responses = [r for r in current_face_responses if r[3] == 'full']
+                        
+                        if len(toggle_responses) < 2:
+                            # Still on toggle stage
+                            session["index"] = completed_count * 2  # Start of toggle stage for this face
+                            print(f"   🔄 Staying on toggle stage for face {current_face_id}")
+                        elif len(full_responses) < 1:
+                            # Toggle complete, on full stage
+                            session["index"] = completed_count * 2 + 1  # Start of full stage for this face
+                            print(f"   🔄 Staying on full stage for face {current_face_id}")
+                        else:
+                            # This face is actually complete, move to next
+                            session["index"] = (completed_count + 1) * 2
+                            print(f"   ➡️ Face {current_face_id} is complete, moving to next")
+                    else:
+                        # No responses for current face, start at beginning
+                        session["index"] = completed_count * 2
+                        print(f"   ➡️ Starting fresh on face {current_face_id}")
+                else:
+                    # All faces complete
+                    session["index"] = len(face_order) * 2
                 
                 if existing_session.get("prolific_pid"):
                     session["prolific_pid"] = existing_session["prolific_pid"]
