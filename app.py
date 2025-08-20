@@ -356,6 +356,7 @@ def start_manual():
                 # SIMPLIFIED: Just use the existing index and responses
                 # The session was working before, so let's keep it simple
                 session["responses"] = existing_session.get("responses", [])
+                session["index"] = existing_session.get("index", 0)  # Set the index from existing session
                 
                 # Keep the existing index - it should be correct
                 print(f"   📊 Using existing index: {session['index']}")
