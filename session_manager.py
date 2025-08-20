@@ -47,6 +47,8 @@ def save_session_state(participant_id: str, session_data: Dict[str, Any]) -> boo
             json.dump(session_state, f, indent=2)
             
         print(f"✅ Session saved for participant {participant_id}")
+        print(f"   📊 Saved {len(session_state.get('responses', []))} responses at index {session_state.get('index', 0)}")
+        print(f"   📁 File: {session_file}")
         return True
         
     except Exception as e:
