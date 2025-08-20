@@ -400,6 +400,11 @@ def start_manual():
                             # This face is actually complete, move to next
                             session["index"] = (completed_count + 1) * 2
                             print(f"   ➡️ Face {current_face_id} is complete, moving to next face (index: {session['index']})")
+                    
+                    # Special case: If we have full response but no toggle responses, we're on full stage
+                    elif len(full_responses) >= 1 and len(toggle_responses) == 0:
+                        session["index"] = completed_count * 2 + 1  # Full stage
+                        print(f"   🔄 Staying on full stage for face {current_face_id} (index: {session['index']}) - has full response")
                     else:
                         # No responses for current face, start at beginning
                         session["index"] = completed_count * 2
