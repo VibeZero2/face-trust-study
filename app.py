@@ -55,6 +55,41 @@ assert FACE_FILES, "No face images found. Place images in static/images/."
 # Helper functions
 # ----------------------------------------------------------------------------
 
+def save_participant_data(participant_id: str, responses: list, headers: list) -> str:
+    """
+    Save participant responses to CSV file.
+    
+    Args:
+        participant_id: The participant ID
+        responses: List of response dictionaries
+        headers: List of column headers
+        
+    Returns:
+        str: Path to saved file or None if failed
+    """
+    try:
+        # Create responses directory
+        responses_dir = DATA_DIR / "responses"
+        responses_dir.mkdir(exist_ok=True)
+        
+        # Create timestamped filename
+        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        filename = f"{participant_id}_{timestamp}.csv"
+        filepath = responses_dir / filename
+        
+        # Write CSV file
+        with open(filepath, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=headers)
+            writer.writeheader()
+            writer.writerows(responses)
+            
+        print(f"✅ Saved participant data to {filepath}")
+        return str(filepath)
+        
+    except Exception as e:
+        print(f"❌ Error saving participant data: {e}")
+        return None
+
 def create_participant_run(pid: str, prolific_pid: str = None):
     """Initialises session variables for a new participant."""
     print(f"DEBUG: Creating NEW participant run for {pid}")
