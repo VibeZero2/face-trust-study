@@ -480,6 +480,27 @@ def task():
                 save_result = save_session_state(session["pid"], dict(session))
                 print(f"DEBUG: Session save result: {save_result}")
                 print(f"DEBUG: Session saved - total responses: {len(session['responses'])}, index: {session['index']}")
+                
+                # Also save a backup copy directly to ensure it works
+                try:
+                    import json
+                    from datetime import datetime
+                    backup_file = DATA_DIR / "sessions" / f"{session['pid']}_backup.json"
+                    backup_data = {
+                        "participant_id": session["pid"],
+                        "timestamp": datetime.utcnow().isoformat(),
+                        "index": session["index"],
+                        "face_order": session["face_order"],
+                        "responses": session["responses"],
+                        "prolific_pid": session.get("prolific_pid", ""),
+                        "session_complete": False
+                    }
+                    with open(backup_file, 'w') as f:
+                        json.dump(backup_data, f, indent=2)
+                    print(f"✅ Backup session saved to {backup_file}")
+                except Exception as backup_e:
+                    print(f"⚠️ Backup save failed: {backup_e}")
+                    
             except Exception as e:
                 print(f"⚠️ Session save failed (non-critical): {e}")
                 import traceback
