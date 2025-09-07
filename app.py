@@ -179,8 +179,60 @@ def save_encrypted_csv(pid: str, rows: list):
     return {"enc": enc_path, "csv": csv_path}
 
 
+def convert_wide_to_long_format(wide_responses: list) -> list:
+    """
+    Convert wide format responses to long format.
+    
+    Args:
+        wide_responses: List of dictionaries in wide format
+        
+    Returns:
+        List of dictionaries in long format
+    """
+    long_responses = []
+    
+    for response in wide_responses:
+        participant_id = response.get("pid", "")
+        timestamp = response.get("timestamp", "")
+        face_id = response.get("face_id", "")
+        face_view = response.get("version", "")
+        
+        # Skip survey rows
+        if face_id == "survey":
+            continue
+            
+        # Define question types and their corresponding response values
+        question_mappings = [
+            ("trust_rating", response.get("trust_rating")),
+            ("masc_choice", response.get("masc_choice")),
+            ("fem_choice", response.get("fem_choice")),
+            ("emotion_rating", response.get("emotion_rating")),
+            ("trust_q2", response.get("trust_q2")),
+            ("trust_q3", response.get("trust_q3")),
+            ("pers_q1", response.get("pers_q1")),
+            ("pers_q2", response.get("pers_q2")),
+            ("pers_q3", response.get("pers_q3")),
+            ("pers_q4", response.get("pers_q4")),
+            ("pers_q5", response.get("pers_q5"))
+        ]
+        
+        # Create a long format row for each non-null response
+        for question_type, response_value in question_mappings:
+            if response_value is not None and response_value != "":
+                long_row = {
+                    "participant_id": participant_id,
+                    "image_id": face_id,
+                    "face_view": face_view,
+                    "question_type": question_type,
+                    "response": response_value,
+                    "timestamp": timestamp
+                }
+                long_responses.append(long_row)
+    
+    return long_responses
+
 def save_participant_data(participant_id: str, responses: list, headers=None):
-    """Save responses to a CSV file in data/responses/
+    """Save responses to a CSV file in data/responses/ in LONG FORMAT
     
     Args:
         participant_id: The participant ID (PROLIFIC_PID or assigned ID)
@@ -207,16 +259,25 @@ def save_participant_data(participant_id: str, responses: list, headers=None):
         if not responses or len(responses) == 0:
             print(f"⚠️ No responses to save for participant {participant_id}")
             return None
-            
-        # Write the CSV file
-        with open(filepath, "w", newline="") as f:
-            # Use provided headers or get keys from first response
-            field_names = headers if headers else responses[0].keys()
-            writer = csv.DictWriter(f, fieldnames=field_names)
-            writer.writeheader()
-            writer.writerows(responses)
         
-        print(f"✅ Saved participant data to {filepath}")
+        # Convert wide format to long format
+        long_responses = convert_wide_to_long_format(responses)
+        
+        if not long_responses:
+            print(f"⚠️ No valid responses after conversion to long format for participant {participant_id}")
+            return None
+            
+        # Define long format headers
+        long_format_headers = ["participant_id", "image_id", "face_view", "question_type", "response", "timestamp"]
+        
+        # Write the CSV file in long format
+        with open(filepath, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=long_format_headers)
+            writer.writeheader()
+            writer.writerows(long_responses)
+        
+        print(f"✅ Saved participant data in LONG FORMAT to {filepath}")
+        print(f"   📊 Converted {len(responses)} wide format rows to {len(long_responses)} long format rows")
         return filepath
         
     except Exception as e:
@@ -650,17 +711,21 @@ def task():
             if backup_filepath:
                 print(f"✅ Saved backup response data to {backup_filepath}")
             
-            # Create a simple CSV file for dashboard compatibility
+            # Create a simple CSV file for dashboard compatibility (in long format)
             responses_dir = DATA_DIR / "responses"
             responses_dir.mkdir(exist_ok=True)
             simple_csv_path = responses_dir / f"{participant_id}.csv"
             try:
+                # Convert to long format for dashboard compatibility
+                long_responses = convert_wide_to_long_format(dict_responses)
+                long_format_headers = ["participant_id", "image_id", "face_view", "question_type", "response", "timestamp"]
+                
                 with open(simple_csv_path, "w", newline="") as f:
-                    field_names = headers
-                    writer = csv.DictWriter(f, fieldnames=field_names)
+                    writer = csv.DictWriter(f, fieldnames=long_format_headers)
                     writer.writeheader()
-                    writer.writerows(dict_responses)
-                print(f"✅ Saved simple CSV for dashboard: {simple_csv_path}")
+                    writer.writerows(long_responses)
+                print(f"✅ Saved simple CSV in LONG FORMAT for dashboard: {simple_csv_path}")
+                print(f"   📊 Converted {len(dict_responses)} wide format rows to {len(long_responses)} long format rows")
             except Exception as e:
                 print(f"⚠️ Simple CSV save failed: {e}")
                 
@@ -720,5 +785,16 @@ def done():
 
 # ----------------------------------------------------------------------------
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5002))
-    app.run(host="0.0.0.0", port=port, debug=False)
+    port = int(os.environ.get("PORT", 8080))
+    print(f"🎯 Starting Facial Trust Study on port {port}")
+    print(f"📍 URL: http://localhost:{port}")
+    print("🔧 Using localhost binding for Windows compatibility")
+    try:
+        app.run(host="127.0.0.1", port=port, debug=False)
+    except OSError as e:
+        if "Address already in use" in str(e):
+            print(f"❌ Port {port} is already in use. Please stop other services on this port.")
+        else:
+            print(f"❌ Error starting server: {e}")
+    except Exception as e:
+        print(f"❌ Unexpected error: {e}")
