@@ -752,7 +752,24 @@ def done():
     return render_template("done.html", pid=pid, prolific_pid=prolific_pid, completion_url=completion_url)
 
 # ----------------------------------------------------------------------------
+def cleanup_old_sessions():
+    """Clean up old test session files on startup"""
+    if SESSION_MANAGEMENT_ENABLED:
+        sessions_dir = Path("data/sessions")
+        if sessions_dir.exists():
+            # Remove any test session files (P008, test_participant_*, etc.)
+            test_sessions = list(sessions_dir.glob("*test*.json")) + list(sessions_dir.glob("P*.json"))
+            for session_file in test_sessions:
+                try:
+                    session_file.unlink()
+                    print(f"🧹 Cleaned up old session: {session_file.name}")
+                except Exception as e:
+                    print(f"⚠️ Could not remove {session_file.name}: {e}")
+
 if __name__ == "__main__":
+    # Clean up old session files on startup
+    cleanup_old_sessions()
+    
     port = int(os.environ.get("PORT", 3000))
     print(f"🎯 Starting Facial Trust Study on port {port}")
     print(f"📍 URL: http://localhost:{port}")
