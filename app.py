@@ -738,66 +738,6 @@ def task():
         side=side,
     )
 
-@app.route("/cleanup_data", methods=['GET', 'POST'])
-def cleanup_data():
-    """Manual endpoint to find and clean up problematic CSV and session files"""
-    
-    # Check sessions directory
-    sessions_dir = Path("data/sessions")
-    session_info = []
-    removed_sessions = []
-    
-    if sessions_dir.exists():
-        all_sessions = list(sessions_dir.glob("*.json"))
-        for session_file in all_sessions:
-            session_info.append(f"SESSION: {session_file.name} ({session_file.stat().st_size} bytes)")
-            
-        # Remove problematic sessions
-        problematic_patterns = ["P008", "test_participant", "P0"]
-        for session_file in all_sessions:
-            if any(pattern in session_file.name for pattern in problematic_patterns) and "200" not in session_file.name:
-                try:
-                    session_file.unlink()
-                    removed_sessions.append(f"SESSION: {session_file.name}")
-                except Exception as e:
-                    print(f"Error removing session {session_file.name}: {e}")
-    
-    # Check responses directory  
-    responses_dir = Path("data/responses")
-    csv_info = []
-    removed_csvs = []
-    
-    if responses_dir.exists():
-        all_csvs = list(responses_dir.glob("*.csv"))
-        for csv_file in all_csvs:
-            csv_info.append(f"CSV: {csv_file.name} ({csv_file.stat().st_size} bytes)")
-            
-        # Remove problematic CSV files (P008, P007, P009, etc. but NOT participant_200)
-        for csv_file in all_csvs:
-            if ("P008" in csv_file.name or 
-                (csv_file.name.startswith("P0") and "200" not in csv_file.name) or
-                "test_participant" in csv_file.name):
-                try:
-                    csv_file.unlink()
-                    removed_csvs.append(f"CSV: {csv_file.name}")
-                except Exception as e:
-                    print(f"Error removing CSV {csv_file.name}: {e}")
-    
-    # Prepare results
-    all_files = session_info + csv_info
-    all_removed = removed_sessions + removed_csvs
-    
-    files_list = "<br>".join(all_files) if all_files else "No files found"
-    
-    if all_removed:
-        result_message = f"Cleaned up files: {', '.join(all_removed)}"
-    else:
-        result_message = "No problematic files found to clean up"
-    
-    return f"""<h1>Data Cleanup</h1>
-    <p><strong>Found files:</strong><br>{files_list}</p>
-    <p><strong>Result:</strong> {result_message}</p>
-    <p><a href='/'>Back to Study</a></p>"""
 
 @app.route("/done")
 def done():
@@ -813,30 +753,7 @@ def done():
     return render_template("done.html", pid=pid, prolific_pid=prolific_pid, completion_url=completion_url)
 
 # ----------------------------------------------------------------------------
-def cleanup_old_sessions():
-    """Clean up ONLY specific problematic test session files on startup"""
-    if SESSION_MANAGEMENT_ENABLED:
-        sessions_dir = Path("data/sessions")
-        if sessions_dir.exists():
-            # Remove ONLY specific known test sessions (P008, test_participant_*, etc.)
-            # DO NOT remove legitimate participant sessions
-            problematic_sessions = [
-                "P008_session.json",  # Specific problematic session
-                "test_participant_123_session.json"  # Known test session
-            ]
-            
-            for session_name in problematic_sessions:
-                session_file = sessions_dir / session_name
-                if session_file.exists():
-                    try:
-                        session_file.unlink()
-                        print(f"🧹 Cleaned up problematic session: {session_name}")
-                    except Exception as e:
-                        print(f"⚠️ Could not remove {session_name}: {e}")
-
 if __name__ == "__main__":
-    # Clean up old session files on startup
-    cleanup_old_sessions()
     
     port = int(os.environ.get("PORT", 3000))
     print(f"🎯 Starting Facial Trust Study on port {port}")
