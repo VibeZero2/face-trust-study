@@ -741,34 +741,42 @@ def task():
 @app.route("/cleanup_sessions", methods=['GET', 'POST'])
 def cleanup_sessions():
     """Manual endpoint to clean up problematic session files"""
-    if SESSION_MANAGEMENT_ENABLED:
-        sessions_dir = Path("data/sessions")
-        if sessions_dir.exists():
-            problematic_sessions = [
-                "P008_session.json",
-                "test_participant_123_session.json"
-            ]
-            
-            removed_sessions = []
-            for session_name in problematic_sessions:
-                session_file = sessions_dir / session_name
-                if session_file.exists():
-                    try:
-                        session_file.unlink()
-                        removed_sessions.append(session_name)
-                    except Exception as e:
-                        print(f"Error removing {session_name}: {e}")
-            
-            if removed_sessions:
-                message = f"Cleaned up sessions: {', '.join(removed_sessions)}"
-            else:
-                message = "No problematic sessions found to clean up"
-                
-            return f"<h1>Session Cleanup</h1><p>{message}</p><p><a href='/'>Back to Study</a></p>"
-        else:
-            return "<h1>Session Cleanup</h1><p>Sessions directory not found</p><p><a href='/'>Back to Study</a></p>"
+    sessions_dir = Path("data/sessions")
+    
+    if not sessions_dir.exists():
+        return "<h1>Session Cleanup</h1><p>Sessions directory not found</p><p><a href='/'>Back to Study</a></p>"
+    
+    # List all session files first
+    all_sessions = list(sessions_dir.glob("*.json"))
+    session_info = []
+    
+    for session_file in all_sessions:
+        session_info.append(f"{session_file.name} ({session_file.stat().st_size} bytes)")
+    
+    # Remove problematic sessions
+    removed_sessions = []
+    problematic_patterns = ["P008", "test_participant", "P0"]  # Broader patterns
+    
+    for session_file in all_sessions:
+        # Remove if filename contains any problematic pattern AND it's not participant 200
+        if any(pattern in session_file.name for pattern in problematic_patterns) and "200" not in session_file.name:
+            try:
+                session_file.unlink()
+                removed_sessions.append(session_file.name)
+            except Exception as e:
+                print(f"Error removing {session_file.name}: {e}")
+    
+    if removed_sessions:
+        message = f"Cleaned up sessions: {', '.join(removed_sessions)}"
     else:
-        return "<h1>Session Cleanup</h1><p>Session management not enabled</p><p><a href='/'>Back to Study</a></p>"
+        message = "No problematic sessions found to clean up"
+    
+    session_list = "<br>".join(session_info) if session_info else "No sessions found"
+    
+    return f"""<h1>Session Cleanup</h1>
+    <p><strong>Found sessions:</strong><br>{session_list}</p>
+    <p><strong>Result:</strong> {message}</p>
+    <p><a href='/'>Back to Study</a></p>"""
 
 @app.route("/done")
 def done():
