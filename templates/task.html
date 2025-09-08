@@ -353,9 +353,25 @@
 
   <!-- ⚠️ CRITICAL: Prevent page refresh to protect study data integrity -->
   <script>
-    // This prevents participants from accidentally skipping faces and losing responses
+    // Track if user is legitimately submitting the form
+    let isFormSubmitting = false;
+    
+    // Mark when form is being submitted legitimately
+    const forms = document.querySelectorAll('form');
+    forms.forEach(function(form) {
+      form.addEventListener('submit', function() {
+        isFormSubmitting = true;
+      });
+    });
+    
+    // Only show warning for accidental navigation (refresh, close, back), not form submissions
     window.addEventListener('beforeunload', function(e) {
-      // Show warning when trying to leave/refresh the page
+      // Allow legitimate form submissions to proceed without warning
+      if (isFormSubmitting) {
+        return undefined;
+      }
+      
+      // Show warning only for accidental navigation
       e.preventDefault();
       e.returnValue = 'Are you sure you want to leave? Your progress will be lost and you may skip faces.';
       return 'Are you sure you want to leave? Your progress will be lost and you may skip faces.';
