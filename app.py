@@ -738,6 +738,38 @@ def task():
         side=side,
     )
 
+@app.route("/cleanup_sessions", methods=['GET', 'POST'])
+def cleanup_sessions():
+    """Manual endpoint to clean up problematic session files"""
+    if SESSION_MANAGEMENT_ENABLED:
+        sessions_dir = Path("data/sessions")
+        if sessions_dir.exists():
+            problematic_sessions = [
+                "P008_session.json",
+                "test_participant_123_session.json"
+            ]
+            
+            removed_sessions = []
+            for session_name in problematic_sessions:
+                session_file = sessions_dir / session_name
+                if session_file.exists():
+                    try:
+                        session_file.unlink()
+                        removed_sessions.append(session_name)
+                    except Exception as e:
+                        print(f"Error removing {session_name}: {e}")
+            
+            if removed_sessions:
+                message = f"Cleaned up sessions: {', '.join(removed_sessions)}"
+            else:
+                message = "No problematic sessions found to clean up"
+                
+            return f"<h1>Session Cleanup</h1><p>{message}</p><p><a href='/'>Back to Study</a></p>"
+        else:
+            return "<h1>Session Cleanup</h1><p>Sessions directory not found</p><p><a href='/'>Back to Study</a></p>"
+    else:
+        return "<h1>Session Cleanup</h1><p>Session management not enabled</p><p><a href='/'>Back to Study</a></p>"
+
 @app.route("/done")
 def done():
     pid = request.args.get("pid")
