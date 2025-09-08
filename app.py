@@ -421,7 +421,6 @@ def start_manual():
     if SESSION_MANAGEMENT_ENABLED:
         try:
             existing_session = load_session_state(pid)
-            if existing_session:
             if existing_session and not existing_session.get("session_complete", False):
                 # Resume existing session
                 session["pid"] = pid
