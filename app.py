@@ -753,7 +753,7 @@ def done():
 
 # ----------------------------------------------------------------------------
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8080))
+    port = int(os.environ.get("PORT", 3000))
     print(f"🎯 Starting Facial Trust Study on port {port}")
     print(f"📍 URL: http://localhost:{port}")
     print("🔧 Using localhost binding for Windows compatibility")
