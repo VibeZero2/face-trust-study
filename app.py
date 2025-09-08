@@ -753,18 +753,25 @@ def done():
 
 # ----------------------------------------------------------------------------
 def cleanup_old_sessions():
-    """Clean up old test session files on startup"""
+    """Clean up ONLY specific problematic test session files on startup"""
     if SESSION_MANAGEMENT_ENABLED:
         sessions_dir = Path("data/sessions")
         if sessions_dir.exists():
-            # Remove any test session files (P008, test_participant_*, etc.)
-            test_sessions = list(sessions_dir.glob("*test*.json")) + list(sessions_dir.glob("P*.json"))
-            for session_file in test_sessions:
-                try:
-                    session_file.unlink()
-                    print(f"🧹 Cleaned up old session: {session_file.name}")
-                except Exception as e:
-                    print(f"⚠️ Could not remove {session_file.name}: {e}")
+            # Remove ONLY specific known test sessions (P008, test_participant_*, etc.)
+            # DO NOT remove legitimate participant sessions
+            problematic_sessions = [
+                "P008_session.json",  # Specific problematic session
+                "test_participant_123_session.json"  # Known test session
+            ]
+            
+            for session_name in problematic_sessions:
+                session_file = sessions_dir / session_name
+                if session_file.exists():
+                    try:
+                        session_file.unlink()
+                        print(f"🧹 Cleaned up problematic session: {session_name}")
+                    except Exception as e:
+                        print(f"⚠️ Could not remove {session_name}: {e}")
 
 if __name__ == "__main__":
     # Clean up old session files on startup
