@@ -6,16 +6,9 @@
   <title>Face Task</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
-    .img-full        { max-height: 58vh; object-fit: contain; }
-    .img-half-left   { max-height: 58vh; object-fit: cover; clip-path: inset(0 50% 0 0); }
-    .img-half-right  { max-height: 58vh; object-fit: cover; clip-path: inset(0 0 0 50%); }
-    
-    /* Amazon orange button */
-    .btn-amazon-orange {
-      background-color: #FF9900;
-      color: #000;
-      font-weight: 500;
-    }
+    .img-full        { max-height: 60vh; object-fit: contain; }
+    .img-half-left   { max-height: 60vh; object-fit: cover; clip-path: inset(0 50% 0 0); }
+    .img-half-right  { max-height: 60vh; object-fit: cover; clip-path: inset(0 0 0 50%); }
 
     /* Masculinity/Femininity compare pair */
     .mf-pair{
@@ -24,7 +17,7 @@
       align-items:center;
       gap:0.5rem;
     }
-    .mf-pair img{ flex-shrink:0; max-width: 60vw; max-height: 58vh; }
+    .mf-pair img{ flex-shrink:0; max-width: 60vw; max-height: 60vh; }
     @media (max-width: 900px) {
       .mf-pair { gap: 0.25rem; }
       .mf-pair img { max-width: 98vw; }
@@ -39,7 +32,7 @@
       max-width:100vw;
     }
     /* Half wrappers for compare mode */
-    .half-wrapper{ width:35vw; height:68vh; overflow:hidden; }
+    .half-wrapper{ width:35vw; height:70vh; overflow:hidden; }
     .half-wrapper img{ width:70vw; height:100%; object-fit:cover; }
     
     
@@ -58,51 +51,32 @@
     
     .face-half {
       /* width rule removed for other modes */
-      max-height: 68vh;
+      
+      
+      
+      
+      max-height: 70vh;
       object-fit: cover;
-    }
-    
-    /* Larger, bolder section titles */
-    .section-title {
-      font-size: 1.4rem;
-      font-weight: bold;
-    }
-    
-    /* Tighter spacing */
-    .mb-3 {
-      margin-bottom: 0.75rem !important;
-    }
-    .mt-4 {
-      margin-top: 1.5rem !important;
-    }
-    .mb-4 {
-      margin-bottom: 1.5rem !important;
-    }
-    
-    /* Compact alert */
-    .alert {
-      padding: 0.5rem 1rem;
     }
   </style>
 </head>
-<body class="bg-dark text-white d-flex flex-column align-items-center pt-3">
+<body class="bg-dark text-white d-flex flex-column align-items-center pt-4">
   <!-- Persistent Instructions button -->
   <a class="btn btn-outline-info position-fixed" style="top:15px; right:15px; z-index:1050;" data-bs-toggle="modal" data-bs-target="#instructionsModal">Instructions</a>
   <div class="container text-center">
-    <!-- Combined participant and progress info -->
-    <h4>Participant: {{ pid }} — Face {{ progress }} of {{ total }}</h4>
-    
+    <h4>Participant: {{ pid }}</h4>
+    <p>Face {{ progress }} of {{ total }}</p>
     {% if version == 'toggle' %}
       <img id="face-img" src="{{ image_url }}" class="img-fluid border border-light mb-3 {% if side=='left' %}img-half-left{% else %}img-half-right{% endif %}" alt="half face">
-      <div class="mb-2">
-        <button type="button" class="btn" id="toggle-btn" style="background-color: #FF9900; color: #000;">Toggle Side</button>
+      <div class="mb-3">
+        <button type="button" class="btn btn-secondary" id="toggle-btn">Toggle Side</button>
       </div>
     {% elif version == 'left' %}
-      <img src="{{ image_url }}" class="img-fluid border border-light mb-3 img-half-left" alt="left half">
+      <img src="{{ image_url }}" class="img-fluid border border-light mb-4 img-half-left" alt="left half">
     {% elif version == 'right' %}
-      <img src="{{ image_url }}" class="img-fluid border border-light mb-3 img-half-right" alt="right half">
+      <img src="{{ image_url }}" class="img-fluid border border-light mb-4 img-half-right" alt="right half">
     {% elif version == 'compare' and not show_mf %}
-      <div class="face-pair mb-3">
+      <div class="face-pair mb-4">
         <div class="half-wrapper left-wrap">
           <img src="{{ image_url }}" class="img-fluid border border-light" alt="left half">
         </div>
@@ -111,7 +85,7 @@
         </div>
       </div>
     {% elif not show_mf %}
-      <img src="{{ image_url }}" class="img-fluid border border-light mb-3 img-full" alt="full face">
+      <img src="{{ image_url }}" class="img-fluid border border-light mb-4 img-full" alt="full face">
     {% endif %}
 
     <form method="post">
@@ -119,7 +93,7 @@
       {% if show_trust and version == 'toggle' %}
       <div class="row">
         <div class="col-md-6 mb-3">
-          <label class="form-label section-title">Trustworthiness – Left side</label>
+          <label class="form-label">Trustworthiness – Left side</label>
           <div class="d-flex justify-content-center">
             {% for i in range(1,10) %}
               <div class="form-check form-check-inline">
@@ -131,22 +105,7 @@
           <p class="small text-white mt-1">1 = Not at all trustworthy &nbsp;&nbsp; • &nbsp;&nbsp; 5 = Neutral &nbsp;&nbsp; • &nbsp;&nbsp; 9 = Extremely trustworthy</p>
         </div>
         <div class="col-md-6 mb-3">
-          <label class="form-label section-title">Trustworthiness – Right side</label>
-          <div class="d-flex justify-content-center">
-            {% for i in range(1,10) %}
-              <div class="form-check form-check-inline">
-                <input class="form-check-input" type="radio" name="trust_right" value="{{ i }}" required>
-                <label class="form-check-label">{{ i }}</label>
-              </div>
-            {% endfor %}
-          </div>
-          <p class="small text-white mt-1">1 = Not at all trustworthy &nbsp;&nbsp; • &nbsp;&nbsp; 5 = Neutral &nbsp;&nbsp; • &nbsp;&nbsp; 9 = Extremely trustworthy</p>
-        </div>
-      </div>
-      <div class="row">
-        <!-- Swapped Emotion - Left side and Emotion - Right side -->
-        <div class="col-md-6 mb-3">
-          <label class="form-label section-title">Emotion – Left side</label>
+          <label class="form-label">Emotion – Left side</label>
           <div class="d-flex justify-content-center">
             {% for i in range(1,10) %}
               <div class="form-check form-check-inline">
@@ -157,8 +116,22 @@
           </div>
           <p class="small text-white mt-1">1 = Very Negative Emotion &nbsp;&nbsp; • &nbsp;&nbsp; 5 = Neutral &nbsp;&nbsp; • &nbsp;&nbsp; 9 = Very Positive Emotion</p>
         </div>
+      </div>
+      <div class="row">
         <div class="col-md-6 mb-3">
-          <label class="form-label section-title">Emotion – Right side</label>
+          <label class="form-label">Trustworthiness – Right side</label>
+          <div class="d-flex justify-content-center">
+            {% for i in range(1,10) %}
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="trust_right" value="{{ i }}" required>
+                <label class="form-check-label">{{ i }}</label>
+              </div>
+            {% endfor %}
+          </div>
+          <p class="small text-white mt-1">1 = Not at all trustworthy &nbsp;&nbsp; • &nbsp;&nbsp; 5 = Neutral &nbsp;&nbsp; • &nbsp;&nbsp; 9 = Extremely trustworthy</p>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Emotion – Right side</label>
           <div class="d-flex justify-content-center">
             {% for i in range(1,10) %}
               <div class="form-check form-check-inline">
@@ -171,14 +144,18 @@
         </div>
       </div>
       
-      <div class="row mt-3">
-        <h5 class="mb-2 section-title">Masculinity/Femininity Comparison</h5>
-        <div class="alert alert-info mb-2">
-          <p class="mb-1"><strong>Please answer both questions separately:</strong> Which side of the face appears more masculine?    Which side of the face appears more feminine?</p>
+      <div class="row mt-4">
+        <h5 class="mb-3">Masculinity/Femininity Comparison</h5>
+        <div class="alert alert-info mb-3">
+          <p class="mb-2"><strong>Please answer both questions separately:</strong></p>
+          <ul class="mb-2">
+            <li>Which side of the face appears more masculine?</li>
+            <li>Which side of the face appears more feminine?</li>
+          </ul>
           <p class="mb-0">A face may display masculine and feminine features to different degrees on each side. Your impressions may differ across traits. This is normal and expected. Use your first impression when making each choice.</p>
         </div>
-        <div class="col-md-6 mb-2">
-          <label class="form-label section-title">Which side appears more masculine?</label>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Which side appears more masculine?</label>
           <div class="d-flex justify-content-center">
             <div class="form-check form-check-inline">
               <input class="form-check-input" type="radio" name="masc_toggle" value="left" required>
@@ -198,8 +175,8 @@
             </div>
           </div>
         </div>
-        <div class="col-md-6 mb-2">
-          <label class="form-label section-title">Which side appears more feminine?</label>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Which side appears more feminine?</label>
           <div class="d-flex justify-content-center">
             <div class="form-check form-check-inline">
               <input class="form-check-input" type="radio" name="fem_toggle" value="left" required>
@@ -223,7 +200,7 @@
       {% elif show_trust %}
       <div class="row">
         <div class="col-md-6 mb-3">
-          <label class="form-label section-title">How trustworthy is this face?</label>
+          <label class="form-label">How trustworthy is this face?</label>
           <div class="d-flex justify-content-center">
             {% for i in range(1,10) %}
               <div class="form-check form-check-inline">
@@ -235,7 +212,7 @@
           <p class="small text-white mt-1">1 = Not at all trustworthy &nbsp;&nbsp; • &nbsp;&nbsp; 5 = Neutral &nbsp;&nbsp; • &nbsp;&nbsp; 9 = Extremely trustworthy</p>
         </div>
         <div class="col-md-6 mb-3">
-          <label class="form-label section-title">What emotion does this face appear to express?</label>
+          <label class="form-label">What emotion does this face appear to express?</label>
           <div class="d-flex justify-content-center">
             {% for i in range(1,10) %}
               <div class="form-check form-check-inline">
@@ -248,14 +225,18 @@
         </div>
       </div>
       
-      <div class="row mt-3">
-        <h5 class="mb-2 section-title">Masculinity/Femininity Comparison</h5>
-        <div class="alert alert-info mb-2">
-          <p class="mb-1"><strong>Please answer both questions separately:</strong> Which side of the face appears more masculine?    Which side of the face appears more feminine?</p>
+      <div class="row mt-4">
+        <h5 class="mb-3">Masculinity/Femininity Comparison</h5>
+        <div class="alert alert-info mb-3">
+          <p class="mb-2"><strong>Please answer both questions separately:</strong></p>
+          <ul class="mb-2">
+            <li>Which side of the face appears more masculine?</li>
+            <li>Which side of the face appears more feminine?</li>
+          </ul>
           <p class="mb-0">A face may display masculine and feminine features to different degrees on each side. Your impressions may differ across traits. This is normal and expected. Use your first impression when making each choice.</p>
         </div>
-        <div class="col-md-6 mb-2">
-          <label class="form-label section-title">Which side appears more masculine?</label>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Which side appears more masculine?</label>
           <div class="d-flex justify-content-center">
             <div class="form-check form-check-inline">
               <input class="form-check-input" type="radio" name="masc" value="left" required>
@@ -275,8 +256,8 @@
             </div>
           </div>
         </div>
-        <div class="col-md-6 mb-2">
-          <label class="form-label section-title">Which side appears more feminine?</label>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Which side appears more feminine?</label>
           <div class="d-flex justify-content-center">
             <div class="form-check form-check-inline">
               <input class="form-check-input" type="radio" name="fem" value="left" required>
@@ -304,7 +285,7 @@
       {% endif %}
 
       <!-- Scale descriptions moved under each rating section -->
-      <button type="submit" class="btn btn-success mt-3">Continue</button>
+      <button type="submit" class="btn btn-success">Continue</button>
     </form>
   </div>
   <script>
@@ -369,116 +350,42 @@
 
   <!-- Bootstrap JS Bundle (for modal functionality) -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-  
-  <!-- Both Equally Validation Script -->
+
+  <!-- ⚠️ CRITICAL: Prevent page refresh to protect study data integrity -->
   <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      // Function to check and enforce Both Equally rule
-      function validateBothEqually() {
-        // Check for toggle mode (masc_toggle and fem_toggle)
-        const mascToggle = document.querySelector('input[name="masc_toggle"]:checked');
-        const femToggle = document.querySelector('input[name="fem_toggle"]:checked');
-        
-        // Check for full mode (masc and fem)
-        const masc = document.querySelector('input[name="masc"]:checked');
-        const fem = document.querySelector('input[name="fem"]:checked');
-        
-        let showAlert = false;
-        let alertMessage = '';
-        
-        // Validate toggle mode
-        if (mascToggle && femToggle) {
-          // Both Equally consistency
-          if (mascToggle.value === 'both' && femToggle.value !== 'both') {
-            showAlert = true;
-            alertMessage = 'If you select "Both equally" for masculinity, you must also select "Both equally" for femininity. This ensures consistency in your responses.';
-          } else if (femToggle.value === 'both' && mascToggle.value !== 'both') {
-            showAlert = true;
-            alertMessage = 'If you select "Both equally" for femininity, you must also select "Both equally" for masculinity. This ensures consistency in your responses.';
-          }
-          // Neither consistency
-          else if (mascToggle.value === 'neither' && femToggle.value !== 'neither') {
-            showAlert = true;
-            alertMessage = 'If you select "Neither" for masculinity, you must also select "Neither" for femininity. This ensures consistency in your responses.';
-          } else if (femToggle.value === 'neither' && mascToggle.value !== 'neither') {
-            showAlert = true;
-            alertMessage = 'If you select "Neither" for femininity, you must also select "Neither" for masculinity. This ensures consistency in your responses.';
-          }
-          // Contradictory choices (same side can't be both more masculine and more feminine)
-          else if (mascToggle.value === 'right' && femToggle.value === 'right') {
-            showAlert = true;
-            alertMessage = 'You cannot select the same side (right) as both more masculine and more feminine. Please choose different sides or select "Both equally" or "Neither" for one or both questions.';
-          } else if (mascToggle.value === 'left' && femToggle.value === 'left') {
-            showAlert = true;
-            alertMessage = 'You cannot select the same side (left) as both more masculine and more feminine. Please choose different sides or select "Both equally" or "Neither" for one or both questions.';
-          }
-          // Both Equally + Neither contradiction
-          else if ((mascToggle.value === 'both' && femToggle.value === 'neither') || (mascToggle.value === 'neither' && femToggle.value === 'both')) {
-            showAlert = true;
-            alertMessage = 'You cannot select "Both equally" for one question and "Neither" for the other. These are contradictory responses. Please choose consistent options.';
-          }
-        }
-        
-        // Validate full mode
-        if (masc && fem) {
-          // Both Equally consistency
-          if (masc.value === 'both' && fem.value !== 'both') {
-            showAlert = true;
-            alertMessage = 'If you select "Both equally" for masculinity, you must also select "Both equally" for femininity. This ensures consistency in your responses.';
-          } else if (fem.value === 'both' && masc.value !== 'both') {
-            showAlert = true;
-            alertMessage = 'If you select "Both equally" for femininity, you must also select "Both equally" for masculinity. This ensures consistency in your responses.';
-          }
-          // Neither consistency
-          else if (masc.value === 'neither' && fem.value !== 'neither') {
-            showAlert = true;
-            alertMessage = 'If you select "Neither" for masculinity, you must also select "Neither" for femininity. This ensures consistency in your responses.';
-          } else if (fem.value === 'neither' && masc.value !== 'neither') {
-            showAlert = true;
-            alertMessage = 'If you select "Neither" for femininity, you must also select "Neither" for masculinity. This ensures consistency in your responses.';
-          }
-          // Contradictory choices (same side can't be both more masculine and more feminine)
-          else if (masc.value === 'right' && fem.value === 'right') {
-            showAlert = true;
-            alertMessage = 'You cannot select the same side (right) as both more masculine and more feminine. Please choose different sides or select "Both equally" or "Neither" for one or both questions.';
-          } else if (masc.value === 'left' && fem.value === 'left') {
-            showAlert = true;
-            alertMessage = 'You cannot select the same side (left) as both more masculine and more feminine. Please choose different sides or select "Both equally" or "Neither" for one or both questions.';
-          }
-          // Both Equally + Neither contradiction
-          else if ((masc.value === 'both' && fem.value === 'neither') || (masc.value === 'neither' && fem.value === 'both')) {
-            showAlert = true;
-            alertMessage = 'You cannot select "Both equally" for one question and "Neither" for the other. These are contradictory responses. Please choose consistent options.';
-          }
-        }
-        
-        if (showAlert) {
-          alert(alertMessage);
-          return false;
-        }
-        
-        return true;
+    // This prevents participants from accidentally skipping faces and losing responses
+    window.addEventListener('beforeunload', function(e) {
+      // Show warning when trying to leave/refresh the page
+      e.preventDefault();
+      e.returnValue = 'Are you sure you want to leave? Your progress will be lost and you may skip faces.';
+      return 'Are you sure you want to leave? Your progress will be lost and you may skip faces.';
+    });
+
+    // Prevent F5 refresh key
+    document.addEventListener('keydown', function(e) {
+      // F5 or Ctrl+F5
+      if (e.key === 'F5' || (e.ctrlKey && e.key === 'F5')) {
+        e.preventDefault();
+        alert('Page refresh is disabled during the study to prevent data loss. Please use the Continue button to proceed.');
+        return false;
       }
-      
-      // Add event listeners to all radio buttons
-      const radioButtons = document.querySelectorAll('input[type="radio"]');
-      radioButtons.forEach(function(radio) {
-        radio.addEventListener('change', function() {
-          // Small delay to ensure the radio button is checked before validation
-          setTimeout(validateBothEqually, 100);
-        });
-      });
-      
-      // Add form submission validation
-      const form = document.querySelector('form');
-      if (form) {
-        form.addEventListener('submit', function(e) {
-          if (!validateBothEqually()) {
-            e.preventDefault();
-            return false;
-          }
-        });
+      // Ctrl+R (refresh)
+      if (e.ctrlKey && e.key === 'r') {
+        e.preventDefault();
+        alert('Page refresh is disabled during the study to prevent data loss. Please use the Continue button to proceed.');
+        return false;
       }
+      // Prevent browser back button (Backspace when not in input)
+      if (e.key === 'Backspace' && !['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
+        e.preventDefault();
+        return false;
+      }
+    });
+
+    // Disable right-click context menu to prevent refresh option
+    document.addEventListener('contextmenu', function(e) {
+      e.preventDefault();
+      return false;
     });
   </script>
 </body>
