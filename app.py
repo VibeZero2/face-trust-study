@@ -790,7 +790,9 @@ if __name__ == "__main__":
     print(f"📍 URL: http://localhost:{port}")
     print("🔧 Using localhost binding for Windows compatibility")
     try:
-        app.run(host="127.0.0.1", port=port, debug=False)
+        # Use 0.0.0.0 for Render deployment, localhost for local development
+        host = "0.0.0.0" if os.environ.get("RENDER") else "127.0.0.1"
+        app.run(host=host, port=port, debug=False)
     except OSError as e:
         if "Address already in use" in str(e):
             print(f"❌ Port {port} is already in use. Please stop other services on this port.")
