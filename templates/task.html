@@ -64,8 +64,7 @@
   <!-- Persistent Instructions button -->
   <a class="btn btn-outline-info position-fixed" style="top:15px; right:15px; z-index:1050;" data-bs-toggle="modal" data-bs-target="#instructionsModal">Instructions</a>
   <div class="container text-center">
-    <h4>Participant: {{ pid }}</h4>
-    <p>Face {{ progress }} of {{ total }}</p>
+    <h4>Participant: {{ pid }} — Face {{ progress }} of {{ total }}</h4>
     {% if version == 'toggle' %}
       <img id="face-img" src="{{ image_url }}" class="img-fluid border border-light mb-3 {% if side=='left' %}img-half-left{% else %}img-half-right{% endif %}" alt="half face">
       <div class="mb-3">
@@ -147,11 +146,7 @@
       <div class="row mt-4">
         <h5 class="mb-3">Masculinity/Femininity Comparison</h5>
         <div class="alert alert-info mb-3">
-          <p class="mb-2"><strong>Please answer both questions separately:</strong></p>
-          <ul class="mb-2">
-            <li>Which side of the face appears more masculine?</li>
-            <li>Which side of the face appears more feminine?</li>
-          </ul>
+          <p class="mb-2"><strong>Please answer both questions separately:</strong> Which side of the face appears more masculine? Which side of the face appears more feminine?</p>
           <p class="mb-0">A face may display masculine and feminine features to different degrees on each side. Your impressions may differ across traits. This is normal and expected. Use your first impression when making each choice.</p>
         </div>
         <div class="col-md-6 mb-3">
@@ -228,11 +223,7 @@
       <div class="row mt-4">
         <h5 class="mb-3">Masculinity/Femininity Comparison</h5>
         <div class="alert alert-info mb-3">
-          <p class="mb-2"><strong>Please answer both questions separately:</strong></p>
-          <ul class="mb-2">
-            <li>Which side of the face appears more masculine?</li>
-            <li>Which side of the face appears more feminine?</li>
-          </ul>
+          <p class="mb-2"><strong>Please answer both questions separately:</strong> Which side of the face appears more masculine? Which side of the face appears more feminine?</p>
           <p class="mb-0">A face may display masculine and feminine features to different degrees on each side. Your impressions may differ across traits. This is normal and expected. Use your first impression when making each choice.</p>
         </div>
         <div class="col-md-6 mb-3">
