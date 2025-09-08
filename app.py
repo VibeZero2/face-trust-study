@@ -92,7 +92,6 @@ def save_participant_data(participant_id: str, responses: list, headers: list) -
 
 def create_participant_run(pid: str, prolific_pid: str = None):
     """Initialises session variables for a new participant."""
-    print(f"DEBUG: Creating NEW participant run for {pid}")
     
     # Randomly pick left-first or right-first presentation
     left_first = random.choice([True, False])
@@ -134,7 +133,6 @@ def create_participant_run(pid: str, prolific_pid: str = None):
     if prolific_pid:
         session["prolific_pid"] = prolific_pid
     
-    print(f"DEBUG: Created new session - index: {session['index']}, responses: {len(session['responses'])}")
 
 
 def save_encrypted_csv(pid: str, rows: list):
@@ -421,14 +419,9 @@ def start_manual():
     
     # IRB-Safe: Check for existing session before creating new one
     if SESSION_MANAGEMENT_ENABLED:
-        print(f"DEBUG: Checking for existing session for participant {pid}")
         try:
             existing_session = load_session_state(pid)
-            print(f"DEBUG: Loaded session: {existing_session is not None}")
             if existing_session:
-                print(f"DEBUG: Session complete: {existing_session.get('session_complete', False)}")
-                print(f"DEBUG: Session responses: {len(existing_session.get('responses', []))}")
-                print(f"DEBUG: Session index: {existing_session.get('index', 'N/A')}")
             if existing_session and not existing_session.get("session_complete", False):
                 # Resume existing session
                 session["pid"] = pid
@@ -498,13 +491,9 @@ def start_manual():
             traceback.print_exc()
     
     # Create new session (existing behavior unchanged)
-    print(f"DEBUG: Creating NEW session for participant {pid} (resumption failed or no existing session)")
     create_participant_run(pid, prolific_pid)
-    print(f"DEBUG: NEW session created - index: {session['index']}, sequence length: {len(session['sequence'])}")
     if len(session['sequence']) > 0:
         first_face = session['sequence'][0]
-        print(f"DEBUG: First face: {first_face['face_id']}")
-        print(f"DEBUG: First face order: {[item['version'] for item in first_face['order']]}")
     return redirect(url_for("instructions"))
 
 @app.route("/task", methods=["GET", "POST"])
@@ -513,13 +502,11 @@ def task():
     if "pid" not in session:
         qpid = request.args.get("pid")
         if qpid:
-            print(f"DEBUG: Task route - no session, trying to resume for pid: {qpid}")
             # Try to resume existing session first
             if SESSION_MANAGEMENT_ENABLED:
                 try:
                     existing_session = load_session_state(qpid)
                     if existing_session and not existing_session.get("session_complete", False):
-                        print(f"DEBUG: Task route - found existing session, resuming...")
                         # Resume the session with proper index calculation
                         session["pid"] = existing_session["participant_id"]
                         session["face_order"] = existing_session["face_order"]
@@ -544,7 +531,6 @@ def task():
                         face_index = existing_index // 2  # Each face has 2 stages (toggle, full)
                         stage_in_face = existing_index % 2  # 0 = toggle, 1 = full
                         
-                        print(f"DEBUG: Task route - existing index: {existing_index}, face_index: {face_index}, stage_in_face: {stage_in_face}")
                         
                         # Check if current face is complete (has both toggle and full responses)
                         if face_index < len(face_order):
@@ -552,35 +538,27 @@ def task():
                             has_toggle = any(r[3] == "toggle" for r in face_responses)
                             has_full = any(r[3] == "full" for r in face_responses)
                             
-                            print(f"DEBUG: Task route - Face {face_order[face_index]} responses: toggle={has_toggle}, full={has_full}")
                             
                             # If face is incomplete, resume at the missing stage
                             if not has_toggle:
                                 # Resume at toggle stage of current face
                                 session["index"] = face_index * 2  # toggle stage
-                                print(f"DEBUG: Task route - resuming at toggle stage (index {session['index']})")
                             elif not has_full:
                                 # Resume at full stage of current face
                                 session["index"] = face_index * 2 + 1  # full stage
-                                print(f"DEBUG: Task route - resuming at full stage (index {session['index']})")
                             else:
                                 # Face is complete, move to next face
                                 session["index"] = (face_index + 1) * 2  # toggle stage of next face
-                                print(f"DEBUG: Task route - face complete, moving to next face (index {session['index']})")
                         else:
                             # We're past all faces, keep the existing index
                             session["index"] = existing_index
-                            print(f"DEBUG: Task route - past all faces, keeping index {session['index']}")
                         
                         if existing_session.get("prolific_pid"):
                             session["prolific_pid"] = existing_session["prolific_pid"]
                             
-                        print(f"DEBUG: Task route - resumed session with {len(session['responses'])} responses at index {session['index']}")
                     else:
-                        print(f"DEBUG: Task route - no valid session found, creating new one")
                         create_participant_run(qpid)
                 except Exception as e:
-                    print(f"DEBUG: Task route - session resume failed: {e}")
                     create_participant_run(qpid)
             else:
                 create_participant_run(qpid)
@@ -592,7 +570,6 @@ def task():
         data = session["sequence"][session["index"] // 2]
         face_id = data["face_id"]
         version = request.form["version"]
-        print(f"DEBUG: Saving response - index: {session['index']}, face_id: {face_id}, version: {version}")
         if version == "toggle":
             trust_left = request.form.get("trust_left")
             trust_right = request.form.get("trust_right")
@@ -636,15 +613,11 @@ def task():
         current_index = session["index"]
         session["index"] += 1
         
-        print(f"DEBUG: Advanced from index {current_index} to {session['index']}")
         
         # IRB-Safe: Save session state after each response (non-intrusive addition)
         if SESSION_MANAGEMENT_ENABLED:
             try:
-                print(f"DEBUG: About to save session - responses: {len(session['responses'])}, index: {session['index']}")
                 save_result = save_session_state(session["pid"], dict(session))
-                print(f"DEBUG: Session save result: {save_result}")
-                print(f"DEBUG: Session saved - total responses: {len(session['responses'])}, index: {session['index']}")
                 
                 # Also save a backup copy directly to ensure it works
                 try:
@@ -699,7 +672,6 @@ def task():
                 dict_responses.append(dict_row)
             
             # Save participant data to data/responses directory
-            print(f"DEBUG: About to call save_participant_data with {len(dict_responses)} responses")
             filepath = save_participant_data(save_id, dict_responses, headers)
             if filepath:
                 print(f"✅ Saved live response data to {filepath}")
@@ -744,9 +716,6 @@ def task():
     image_file = image_dict["file"]
     version = image_dict["version"]
     
-    print(f"DEBUG: Task route - index: {session['index']}, face_index: {face_index}, image_index: {image_index}")
-    print(f"DEBUG: Task route - current face: {current['face_id']}, version: {version}")
-    print(f"DEBUG: Task route - face order: {[item['version'] for item in current['order']]}")
     if version == "toggle":
         side = image_dict.get("start", "left")
     else:
