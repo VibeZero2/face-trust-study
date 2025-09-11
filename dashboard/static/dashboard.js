@@ -120,7 +120,7 @@ function initializeDashboardCharts() {
 
 // Function to fetch dashboard data from API
 function fetchDashboardData() {
-    fetch('/api/dashboard/stats')
+    fetch('/api/overview')
         .then(response => {
             if (!response.ok) {
                 throw new Error('Network response was not ok');

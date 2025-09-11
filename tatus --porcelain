@@ -1,0 +1,3 @@
+[33m79d4199[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m FINAL DASHBOARD FIX: Navigation and API fixes deployed
+[33m366ee89[m DEPLOY NAVIGATION FIX: Hardcoded dashboard paths to fix 404 errors
+[33meae17a4[m FIX: Dashboard navigation and mode toggle for unified deployment
