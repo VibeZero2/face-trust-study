@@ -1,4 +1,5 @@
-// Dashboard JavaScript functionality
+// Dashboard JavaScript functionality v2.1 - Updated for /dashboard mount point
+console.log('Loading dashboard.js v2.1 - API calls will use /dashboard/api/ prefix');
 
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize Chart.js charts
