@@ -430,10 +430,10 @@ def dashboard():
                     })
         
         # Load session data (incomplete participants)
-        # Try study program sessions first, then fallback to dashboard sessions
-        sessions_dir = Path("../facial-trust-study/data/sessions")
+        # Now integrated - look in the same repository
+        sessions_dir = Path("data/sessions")
         if not sessions_dir.exists():
-            sessions_dir = Path("data/sessions")
+            sessions_dir = Path("../data/sessions")
         if sessions_dir.exists():
             import json
             # session_data already declared above, don't redeclare it
@@ -1021,9 +1021,9 @@ def reset_participant(participant_id):
         import shutil
         from pathlib import Path
         
-        # Define paths
-        responses_dir = Path("../facial-trust-study/data/responses")
-        sessions_dir = Path("../facial-trust-study/data/sessions")
+        # Define paths - now integrated in same repository
+        responses_dir = Path("data/responses")
+        sessions_dir = Path("data/sessions")
         
         files_removed = 0
         
@@ -1075,7 +1075,7 @@ def toggle_mode():
 @app.route('/debug_sessions', methods=['GET'])
 def debug_sessions():
     """Debug endpoint to show session data format"""
-    sessions_dir = Path("../facial-trust-study/data/sessions")
+    sessions_dir = Path("data/sessions")
     
     if not sessions_dir.exists():
         return f"<h1>Debug Sessions</h1><p>Sessions directory not found: {sessions_dir}</p>"
