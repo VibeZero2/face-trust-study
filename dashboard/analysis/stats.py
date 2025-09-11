@@ -41,16 +41,23 @@ class StatisticalAnalyzer:
             if len(version_data) > 0:
                 trust_ratings = version_data['trust_rating'].dropna()
                 
-                stats_dict[version] = {
-                    'n': len(trust_ratings),
-                    'mean': trust_ratings.mean(),
-                    'std': trust_ratings.std(),
-                    'median': trust_ratings.median(),
-                    'min': trust_ratings.min(),
-                    'max': trust_ratings.max(),
-                    'q25': trust_ratings.quantile(0.25),
-                    'q75': trust_ratings.quantile(0.75)
-                }
+                # Ensure trust_ratings is a pandas Series and has data
+                if len(trust_ratings) > 0 and hasattr(trust_ratings, 'mean'):
+                    stats_dict[version] = {
+                        'n': len(trust_ratings),
+                        'mean': trust_ratings.mean(),
+                        'std': trust_ratings.std(),
+                        'median': trust_ratings.median(),
+                        'min': trust_ratings.min(),
+                        'max': trust_ratings.max(),
+                        'q25': trust_ratings.quantile(0.25),
+                        'q75': trust_ratings.quantile(0.75)
+                    }
+                else:
+                    stats_dict[version] = {
+                        'n': 0, 'mean': np.nan, 'std': np.nan, 'median': np.nan,
+                        'min': np.nan, 'max': np.nan, 'q25': np.nan, 'q75': np.nan
+                    }
             else:
                 stats_dict[version] = {
                     'n': 0, 'mean': np.nan, 'std': np.nan, 'median': np.nan,
