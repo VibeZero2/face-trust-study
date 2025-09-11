@@ -8,11 +8,11 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent
 
 # Data directory configuration
-# Dashboard now reads from the study program's data directory (shared data)
-DATA_DIR = BASE_DIR.parent / "data" / "responses"
+# Dashboard reads from its own data directory which contains both test and production files
+DATA_DIR = BASE_DIR / "data" / "responses"
 
-# Study program data directory (same as DATA_DIR now)
-STUDY_PROGRAM_DATA_DIR = BASE_DIR.parent / "data" / "responses"
+# Study program data directory (for reference)
+STUDY_PROGRAM_DATA_DIR = BASE_DIR.parent / "facial-trust-study" / "data" / "responses"
 
 # Ensure data directory exists
 DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -20,7 +20,7 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 # Dashboard configuration
 DASHBOARD_CONFIG = {
     'host': '0.0.0.0',
-    'port': 8080,  # Changed to 8080 to match your preference
+    'port': 5000,
     'debug': True,
     'secret_key': os.getenv('DASHBOARD_SECRET_KEY', 'dev-secret-key-change-in-production'),
     'live_monitoring': True,  # Enable live file monitoring
