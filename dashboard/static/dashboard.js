@@ -1,12 +1,31 @@
 // Dashboard JavaScript functionality
 
 document.addEventListener('DOMContentLoaded', function() {
+    // FIX NAVIGATION LINKS FOR UNIFIED DEPLOYMENT
+    fixNavigationLinks();
+    
     // Initialize Chart.js charts
     initializeDashboardCharts();
     
     // Fetch dashboard data
     fetchDashboardData();
 });
+
+// Fix navigation links to work with /dashboard/ prefix
+function fixNavigationLinks() {
+    const links = document.querySelectorAll('a[href]');
+    links.forEach(link => {
+        const href = link.getAttribute('href');
+        // Fix relative paths to be absolute /dashboard/ paths
+        if (href === '/participants') link.setAttribute('href', '/dashboard/participants');
+        if (href === '/statistics') link.setAttribute('href', '/dashboard/statistics');
+        if (href === '/images') link.setAttribute('href', '/dashboard/images');
+        if (href === '/exclusions') link.setAttribute('href', '/dashboard/exclusions');
+        if (href === '/logout') link.setAttribute('href', '/dashboard/logout');
+        if (href === '/login') link.setAttribute('href', '/dashboard/login');
+        if (href === '/register') link.setAttribute('href', '/dashboard/register');
+    });
+}
 
 // Function to initialize dashboard charts
 function initializeDashboardCharts() {
