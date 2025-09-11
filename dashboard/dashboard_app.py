@@ -323,9 +323,23 @@ def dashboard():
                              data_files=[],
                              show_incomplete_in_production=show_incomplete_in_production)
         
-        exclusion_summary = data_cleaner.get_exclusion_summary()
-        descriptive_stats = statistical_analyzer.get_descriptive_stats() if statistical_analyzer is not None else {}
-        data_summary = data_cleaner.get_data_summary()
+        try:
+            exclusion_summary = data_cleaner.get_exclusion_summary()
+        except Exception as e:
+            print(f"❌ Error getting exclusion summary: {e}")
+            exclusion_summary = {}
+        
+        try:
+            descriptive_stats = statistical_analyzer.get_descriptive_stats() if statistical_analyzer is not None else {}
+        except Exception as e:
+            print(f"❌ Error getting descriptive stats: {e}")
+            descriptive_stats = {}
+        
+        try:
+            data_summary = data_cleaner.get_data_summary()
+        except Exception as e:
+            print(f"❌ Error getting data summary: {e}")
+            data_summary = {'mode': 'ERROR'}
         
         # Ensure data_summary is consistent with current mode
         if data_cleaner.test_mode:
