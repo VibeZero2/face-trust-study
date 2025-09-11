@@ -25,7 +25,7 @@ WATCHDOG_AVAILABLE = False
 sys.path.append(os.path.join(os.path.dirname(__file__), 'analysis'))
 
 from analysis.cleaning import DataCleaner
-from analysis.stats_fixed import StatisticalAnalyzer
+from analysis.stats import StatisticalAnalyzer
 from analysis.filters import DataFilter
 from config import DATA_DIR
 
@@ -336,18 +336,8 @@ def dashboard():
         
         try:
             descriptive_stats = statistical_analyzer.get_descriptive_stats() if statistical_analyzer is not None else {}
-            # Ensure descriptive_stats has proper structure
-            if not isinstance(descriptive_stats, dict):
-                descriptive_stats = {}
-            # Debug: Check if any values are functions instead of numbers
-            for key, value in descriptive_stats.items():
-                if callable(value):
-                    print(f"❌ WARNING: {key} is a function, not a number: {value}")
-                    descriptive_stats[key] = 0
         except Exception as e:
             print(f"❌ Error getting descriptive stats: {e}")
-            import traceback
-            traceback.print_exc()
             descriptive_stats = {}
         
         try:
