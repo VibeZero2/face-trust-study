@@ -37,9 +37,11 @@ class DataCleaner:
                 if file_path.name.startswith('test_'):
                     files_to_load.append(file_path)
         else:
-            # PRODUCTION MODE: Only participant_200_ files  
+            # PRODUCTION MODE: Only participant 200 files (various formats)
             for file_path in csv_files:
-                if file_path.name.startswith('participant_200_'):
+                if (file_path.name.startswith('participant_200_') or 
+                    file_path.name.startswith('200_') or 
+                    file_path.name == '200.csv'):
                     files_to_load.append(file_path)
         
         
