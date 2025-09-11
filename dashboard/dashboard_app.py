@@ -369,16 +369,38 @@ def dashboard():
         
         # IMPORTANT: Dashboard statistics are calculated ONLY from completed CSV files
         # Session data (incomplete participants) is NEVER included in these counts
-        dashboard_stats = {
-            'total_participants': data_summary.get('total_participants', len(included_participants)),  # Use override in production mode
-            'total_responses': data_summary.get('total_responses', len(included_data) if len(included_data) > 0 else 0),  # Use override in production mode
-            'avg_trust_rating': data_summary.get('avg_trust_rating', included_data['trust_rating'].mean() if len(included_data) > 0 and 'trust_rating' in included_data.columns else 0),
-            'std_trust_rating': data_summary.get('trust_rating_std', included_data['trust_rating'].std() if len(included_data) > 0 and 'trust_rating' in included_data.columns else 0),
-            'included_participants': len(included_participants),  # Only completed CSV data
-            'cleaned_trials': len(included_data) if len(included_data) > 0 else 0,  # Only completed CSV data
-            'raw_responses': exclusion_summary['total_raw'],
-            'excluded_responses': exclusion_summary['total_raw'] - len(included_data) if len(included_data) > 0 else exclusion_summary['total_raw']
-        }
+        try:
+            # Safe calculation of trust rating statistics
+            if len(included_data) > 0 and 'trust_rating' in included_data.columns:
+                trust_mean = included_data['trust_rating'].mean()
+                trust_std = included_data['trust_rating'].std()
+            else:
+                trust_mean = 0
+                trust_std = 0
+            
+            dashboard_stats = {
+                'total_participants': data_summary.get('total_participants', len(included_participants)),  # Use override in production mode
+                'total_responses': data_summary.get('total_responses', len(included_data) if len(included_data) > 0 else 0),  # Use override in production mode
+                'avg_trust_rating': data_summary.get('avg_trust_rating', trust_mean),
+                'std_trust_rating': data_summary.get('trust_rating_std', trust_std),
+                'included_participants': len(included_participants),  # Only completed CSV data
+                'cleaned_trials': len(included_data) if len(included_data) > 0 else 0,  # Only completed CSV data
+                'raw_responses': exclusion_summary['total_raw'],
+                'excluded_responses': exclusion_summary['total_raw'] - len(included_data) if len(included_data) > 0 else exclusion_summary['total_raw']
+            }
+        except Exception as e:
+            print(f"❌ Error calculating dashboard stats: {e}")
+            # Fallback stats to prevent crashes
+            dashboard_stats = {
+                'total_participants': 0,
+                'total_responses': 0,
+                'avg_trust_rating': 0,
+                'std_trust_rating': 0,
+                'included_participants': 0,
+                'cleaned_trials': 0,
+                'raw_responses': 0,
+                'excluded_responses': 0
+            }
         
         # Get available filters
         available_filters = data_filter.get_available_filters()
