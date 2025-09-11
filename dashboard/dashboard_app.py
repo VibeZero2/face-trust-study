@@ -25,7 +25,7 @@ WATCHDOG_AVAILABLE = False
 sys.path.append(os.path.join(os.path.dirname(__file__), 'analysis'))
 
 from analysis.cleaning import DataCleaner
-from analysis.stats import StatisticalAnalyzer
+from analysis.stats_fixed import StatisticalAnalyzer
 from analysis.filters import DataFilter
 from config import DATA_DIR
 
