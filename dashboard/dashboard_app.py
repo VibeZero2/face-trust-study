@@ -311,8 +311,11 @@ def dashboard():
             return render_template('error.html', message="Data initialization failed")
     
     try:
+        print("🔄 DASHBOARD: Starting dashboard function")
+        
         # Get overview statistics
         if not is_data_available():
+            print("🔄 DASHBOARD: No data available")
             flash('No data available. Please upload data files or check data directory.', 'warning')
             return render_template('dashboard.html',
                              exclusion_summary={},
@@ -322,6 +325,8 @@ def dashboard():
                              available_filters={},
                              data_files=[],
                              show_incomplete_in_production=show_incomplete_in_production)
+        
+        print("🔄 DASHBOARD: Data is available, proceeding with calculations")
         
         try:
             exclusion_summary = data_cleaner.get_exclusion_summary()

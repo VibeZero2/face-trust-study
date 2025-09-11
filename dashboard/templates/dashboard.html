@@ -321,12 +321,12 @@
                                             {% for version, stats in descriptive_stats.items() %}
                                             <tr>
                                                 <td><strong>{{ version.title() }}</strong></td>
-                                                <td>{{ stats.n }}</td>
-                                                <td>{{ "%.2f"|format(stats.mean) if stats.mean is not none else "N/A" }}</td>
-                                                <td>{{ "%.2f"|format(stats.std) if stats.std is not none else "N/A" }}</td>
-                                                <td>{{ "%.2f"|format(stats.median) if stats.median is not none else "N/A" }}</td>
-                                                <td>{{ "%.2f"|format(stats.min) if stats.min is not none else "N/A" }}</td>
-                                                <td>{{ "%.2f"|format(stats.max) if stats.max is not none else "N/A" }}</td>
+                                                <td>{{ stats.n if stats and hasattr(stats, 'n') else "N/A" }}</td>
+                                                <td>{{ "%.2f"|format(stats.mean) if stats and hasattr(stats, 'mean') and stats.mean is not none else "N/A" }}</td>
+                                                <td>{{ "%.2f"|format(stats.std) if stats and hasattr(stats, 'std') and stats.std is not none else "N/A" }}</td>
+                                                <td>{{ "%.2f"|format(stats.median) if stats and hasattr(stats, 'median') and stats.median is not none else "N/A" }}</td>
+                                                <td>{{ "%.2f"|format(stats.min) if stats and hasattr(stats, 'min') and stats.min is not none else "N/A" }}</td>
+                                                <td>{{ "%.2f"|format(stats.max) if stats and hasattr(stats, 'max') and stats.max is not none else "N/A" }}</td>
                                             </tr>
                                             {% endfor %}
                                         </tbody>
