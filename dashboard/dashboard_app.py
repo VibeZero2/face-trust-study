@@ -555,7 +555,7 @@ def dashboard():
         # Combine data files and session data
         all_files = data_files + session_data
         
-        return render_template('dashboard.html',
+        return render_template('dashboard_safe.html',
                          exclusion_summary=exclusion_summary,
                          descriptive_stats=descriptive_stats,
                          dashboard_stats=dashboard_stats,

@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Safe Mode{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1>Dashboard - Safe Mode</h1>
+    
+    <div class="alert alert-info">
+        <h4>Debug Information:</h4>
+        <p><strong>Data Summary Mode:</strong> {{ data_summary.mode if data_summary else "No data summary" }}</p>
+        <p><strong>Dashboard Stats Available:</strong> {{ "Yes" if dashboard_stats else "No" }}</p>
+        <p><strong>Descriptive Stats Available:</strong> {{ "Yes" if descriptive_stats else "No" }}</p>
+        <p><strong>Data Files Count:</strong> {{ data_files|length if data_files else 0 }}</p>
+    </div>
+    
+    <!-- Simple Toggle Button -->
+    <div class="card">
+        <div class="card-header">
+            <h5>Mode Toggle</h5>
+        </div>
+        <div class="card-body">
+            <form method="post" action="/dashboard/toggle_mode" style="display: inline;">
+                <button type="submit" class="btn btn-primary">
+                    Switch Mode (Current: {{ data_summary.mode if data_summary and data_summary.mode else "Unknown" }})
+                </button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Basic Stats (Safe) -->
+    <div class="card mt-3">
+        <div class="card-header">
+            <h5>Basic Statistics</h5>
+        </div>
+        <div class="card-body">
+            {% if dashboard_stats %}
+                <p><strong>Total Participants:</strong> {{ dashboard_stats.total_participants }}</p>
+                <p><strong>Total Responses:</strong> {{ dashboard_stats.total_responses }}</p>
+                <p><strong>Average Trust Rating:</strong> {{ dashboard_stats.avg_trust_rating }}</p>
+            {% else %}
+                <p>No dashboard statistics available</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
