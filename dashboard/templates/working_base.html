@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Viewer Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary fixed-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/dashboard/">Dashboard</a>
+            <div class="collapse navbar-collapse">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/dashboard/">Overview</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/dashboard/participants">Participants</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/dashboard/statistics">Statistics</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/dashboard/images">Images</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/dashboard/exclusions">Exclusions</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    <div class="container" style="margin-top: 80px;">
+        {% block content %}{% endblock %}
+    </div>
+    <script>
+    // Fix API calls
+    const originalFetch = window.fetch;
+    window.fetch = function(url, options) {
+        if (typeof url === 'string' && url.startsWith('/api/')) {
+            url = '/dashboard' + url;
+        }
+        return originalFetch(url, options);
+    };
+    </script>
+</body>
+</html>
