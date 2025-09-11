@@ -336,6 +336,9 @@ def dashboard():
         
         try:
             descriptive_stats = statistical_analyzer.get_descriptive_stats() if statistical_analyzer is not None else {}
+            # Ensure descriptive_stats has proper structure
+            if not isinstance(descriptive_stats, dict):
+                descriptive_stats = {}
         except Exception as e:
             print(f"❌ Error getting descriptive stats: {e}")
             descriptive_stats = {}
@@ -555,7 +558,7 @@ def dashboard():
         # Combine data files and session data
         all_files = data_files + session_data
         
-        return render_template('dashboard_safe.html',
+        return render_template('dashboard.html',
                          exclusion_summary=exclusion_summary,
                          descriptive_stats=descriptive_stats,
                          dashboard_stats=dashboard_stats,
