@@ -1070,7 +1070,7 @@ def toggle_mode():
     else:
         flash('Failed to switch modes', 'error')
     
-    return redirect(url_for('dashboard'))
+    return redirect('/')
 
 @app.route('/debug_sessions', methods=['GET'])
 def debug_sessions():
@@ -1151,7 +1151,7 @@ def toggle_incomplete():
     status = "enabled" if show_incomplete_in_production else "disabled"
     flash(f'Show incomplete sessions {status}', 'success')
     
-    return redirect(url_for('dashboard'))
+    return redirect('/')
 
 @app.route('/export/cleaned_data')
 @login_required
