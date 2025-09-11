@@ -112,8 +112,19 @@
         {% block content %}{% endblock %}
     </div>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="{{ url_for('static', filename='navigation_fix.js') }}"></script>
     <script src="{{ url_for('static', filename='dashboard.js') }}"></script>
+    <script>
+    // FIX API CALLS FOR UNIFIED DEPLOYMENT
+    document.addEventListener('DOMContentLoaded', function() {
+        const originalFetch = window.fetch;
+        window.fetch = function(url, options) {
+            if (typeof url === 'string' && url.startsWith('/api/')) {
+                url = '/dashboard' + url;
+            }
+            return originalFetch(url, options);
+        };
+    });
+    </script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

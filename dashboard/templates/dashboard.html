@@ -157,7 +157,7 @@
                             <span class="navbar-text me-3">
                                 Welcome, {{ session.username }}!
                             </span>
-                            <form method="post" action="{{ url_for('toggle_mode') }}" style="display: inline;">
+                            <form method="post" action="/dashboard/toggle_mode" style="display: inline;">
                                 <button type="submit" class="btn btn-outline-{{ 'warning' if data_summary and data_summary.get('mode') == 'PRODUCTION' else 'success' }} btn-sm">
                                     <i class="fas fa-{{ 'flask' if data_summary and data_summary.get('mode') == 'PRODUCTION' else 'shield-alt' }} me-1"></i>
                                     Switch to {{ 'TEST' if data_summary and data_summary.get('mode') == 'PRODUCTION' else 'PRODUCTION' }} Mode
@@ -165,7 +165,7 @@
                             </form>
                             
                             <!-- Show Incomplete Sessions Toggle (All Modes) -->
-                            <form method="post" action="{{ url_for('toggle_incomplete') }}" style="display: inline;" class="ms-2">
+                            <form method="post" action="/dashboard/toggle_incomplete" style="display: inline;" class="ms-2">
                                 <button type="submit" class="btn btn-outline-{{ 'primary' if show_incomplete_in_production else 'secondary' }} btn-sm" 
                                         title="{{ 'Hide' if show_incomplete_in_production else 'Show' }} incomplete sessions">
                                     <i class="fas fa-{{ 'eye-slash' if show_incomplete_in_production else 'eye' }} me-1"></i>
