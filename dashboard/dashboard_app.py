@@ -217,7 +217,7 @@ def load_users():
             pass
     # Default admin user
     default_users = {
-        'admin': {'password': 'admin', 'role': 'admin', 'email': 'admin@example.com'}
+        'admin': {'password': 'admin123', 'role': 'admin', 'email': 'admin@example.com'}
     }
     save_users(default_users)
     return default_users
