@@ -1057,19 +1057,28 @@ def toggle_mode():
     """Toggle between production and test modes."""
     global data_cleaner
     
+    print(f"🔄 TOGGLE CALLED: Current data_cleaner exists: {data_cleaner is not None}")
+    
     # Get current mode
     current_mode = data_cleaner.test_mode if data_cleaner else False
     new_mode = not current_mode
     
+    print(f"🔄 TOGGLE: Current mode: {current_mode}, New mode: {new_mode}")
+    
     # Reinitialize with new mode, forcing the mode (not auto-detecting)
     success = initialize_data(test_mode=new_mode, force_mode=True)
     
+    print(f"🔄 TOGGLE: Initialize success: {success}")
+    
     if success:
         mode_name = "TEST" if new_mode else "PRODUCTION"
+        print(f"🔄 TOGGLE: Successfully switched to {mode_name} mode")
         flash(f'Switched to {mode_name} mode successfully', 'success')
     else:
+        print(f"🔄 TOGGLE: Failed to switch modes")
         flash('Failed to switch modes', 'error')
     
+    print(f"🔄 TOGGLE: Redirecting to /dashboard/")
     return redirect('/dashboard/')
 
 @app.route('/debug_sessions', methods=['GET'])
