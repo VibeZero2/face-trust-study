@@ -15,8 +15,11 @@ import zipfile
 import tempfile
 import threading
 import time
-from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler
+
+# Disable watchdog to fix Render deployment
+Observer = None
+FileSystemEventHandler = None
+WATCHDOG_AVAILABLE = False
 
 # Add the analysis directory to the path
 sys.path.append(os.path.join(os.path.dirname(__file__), 'analysis'))
@@ -41,34 +44,52 @@ data_files_hash = None
 # Dashboard settings
 show_incomplete_in_production = True
 
-class DataFileHandler(FileSystemEventHandler):
-    """Watchdog handler for detecting new data files"""
-    
-    def __init__(self, dashboard_app):
-        self.dashboard_app = dashboard_app
-        self.last_modified = {}
-    
-    def on_created(self, event):
-        if not event.is_directory and event.src_path.endswith('.csv'):
-            filename = Path(event.src_path).name
-            print(f"🆕 New data file detected: {filename}")
-            print(f"   📍 Full path: {event.src_path}")
-            trigger_data_refresh()
-    
-    def on_modified(self, event):
-        if not event.is_directory and event.src_path.endswith('.csv'):
-            # Avoid duplicate triggers for the same file
-            current_time = time.time()
-            if (event.src_path not in self.last_modified or 
-                current_time - self.last_modified[event.src_path] > 1):
+if WATCHDOG_AVAILABLE:
+    class DataFileHandler(FileSystemEventHandler):
+        """Watchdog handler for detecting new data files"""
+        
+        def __init__(self, dashboard_app):
+            self.dashboard_app = dashboard_app
+            self.last_modified = {}
+        
+        def on_created(self, event):
+            if not event.is_directory and event.src_path.endswith('.csv'):
                 filename = Path(event.src_path).name
-                print(f"📝 Data file modified: {filename}")
+                print(f"🆕 New data file detected: {filename}")
                 print(f"   📍 Full path: {event.src_path}")
-                self.last_modified[event.src_path] = current_time
                 trigger_data_refresh()
+        
+        def on_modified(self, event):
+            if not event.is_directory and event.src_path.endswith('.csv'):
+                # Avoid duplicate triggers for the same file
+                current_time = time.time()
+                if (event.src_path not in self.last_modified or 
+                    current_time - self.last_modified[event.src_path] > 1):
+                    filename = Path(event.src_path).name
+                    print(f"📝 Data file modified: {filename}")
+                    print(f"   📍 Full path: {event.src_path}")
+                    self.last_modified[event.src_path] = current_time
+                    trigger_data_refresh()
+else:
+    class DataFileHandler:
+        """Fallback handler when watchdog is not available"""
+        
+        def __init__(self, dashboard_app):
+            self.dashboard_app = dashboard_app
+            self.last_modified = {}
+        
+        def on_created(self, event):
+            pass  # No file watching without watchdog
+        
+        def on_modified(self, event):
+            pass  # No file watching without watchdog
 
 def start_file_watcher():
     """Start watching the data directory for new files"""
+    if not WATCHDOG_AVAILABLE:
+        print("⚠️ Watchdog not available - file monitoring disabled")
+        return None
+        
     try:
         data_dir = DATA_DIR
         if data_dir.exists():

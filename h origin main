@@ -1,0 +1,5 @@
+[33m0f676a7[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m  UNIFIED DEPLOYMENT: Consolidate study program + dashboard
+[33mdcc5adf[m  Fix layout regression: restore original header and remove bullet points
+[33m625104d[m  CRITICAL FIX: Allow Continue button to work without beforeunload warning
+[33mc0ac6d2[m  Add refresh prevention to protect study data integrity
+[33m6597aec[m Remove cleanup functions from study program

@@ -13,3 +13,4 @@ services:
     healthCheckPath: /
     autoDeploy: true
     branch: main
+    # Force redeploy - updated 2025-09-11
