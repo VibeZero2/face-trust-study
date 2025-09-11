@@ -1,0 +1,128 @@
+/* Custom CSS for Face Viewer Dashboard */
+
+/* General styling */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #121212;
+    color: #e9ecef;
+}
+
+/* Card styling for modern dashboard */
+.card {
+    box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+    border-radius: 8px;
+    margin-bottom: 15px;
+    transition: transform 0.2s, box-shadow 0.2s;
+    border: 1px solid #343a40;
+    background-color: #212529;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+}
+
+.card-header {
+    background-color: #343a40;
+    border-bottom: 1px solid #495057;
+    font-weight: 600;
+    padding: 0.75rem 1rem;
+    color: #ffc107;
+}
+
+/* Badge styling */
+.badge.rounded-pill {
+    padding: 0.35em 0.65em;
+    font-size: 0.75em;
+}
+
+.bg-pink {
+    background-color: #e83e8c;
+    color: white;
+}
+
+/* Dashboard specific styling */
+.stats-card {
+    text-align: center;
+    padding: 12px;
+}
+
+.stats-card .value {
+    font-size: 1.75rem;
+    font-weight: bold;
+    color: #ffc107;
+    margin-bottom: 0;
+}
+
+.stats-card .label {
+    font-size: 0.85rem;
+    color: #adb5bd;
+    margin-bottom: 0;
+}
+
+/* Icon styling */
+.card .fas {
+    opacity: 0.8;
+}
+
+/* Card body padding adjustments */
+.card-body.p-2 {
+    padding: 0.75rem !important;
+}
+
+/* Table styling improvements */
+.table-hover tbody tr:hover {
+    background-color: rgba(255, 193, 7, 0.1);
+}
+
+.text-end.fw-bold {
+    font-size: 1.1rem;
+}
+
+/* Table styling */
+.table-responsive {
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.table th {
+    background-color: #343a40;
+    border-top: none;
+    color: #ffc107;
+}
+
+.table {
+    color: #e9ecef;
+}
+
+.table-hover tbody tr:hover {
+    background-color: rgba(255, 193, 7, 0.1);
+}
+
+/* Chart containers */
+.chart-container {
+    position: relative;
+    height: 300px;
+    width: 100%;
+}
+
+/* Analytics page styling */
+.analysis-options .btn {
+    margin-right: 10px;
+    margin-bottom: 10px;
+}
+
+.analysis-result {
+    margin-top: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background-color: #343a40;
+    border: 1px solid #ffc107;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .stats-card .value {
+        font-size: 1.5rem;
+    }
+}

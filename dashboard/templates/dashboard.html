@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Perception Study Dashboard</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .sidebar {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .sidebar .nav-link {
+            color: rgba(255,255,255,0.8);
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            margin: 0.25rem 0;
+        }
+        .sidebar .nav-link:hover, .sidebar .nav-link.active {
+            color: white;
+            background-color: rgba(255,255,255,0.1);
+        }
+        .main-content {
+            background-color: #f8f9fa;
+            min-height: 100vh;
+        }
+        .stat-card {
+            background: white;
+            border-radius: 1rem;
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+            transition: transform 0.2s;
+        }
+        .stat-card:hover {
+            transform: translateY(-2px);
+        }
+        .stat-icon {
+            width: 3rem;
+            height: 3rem;
+            border-radius: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+        .chart-container {
+            background: white;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+            margin-bottom: 1.5rem;
+        }
+        .navbar-brand {
+            font-weight: 600;
+            font-size: 1.25rem;
+        }
+        .alert {
+            border-radius: 0.75rem;
+        }
+        .upload-area {
+            border: 2px dashed #dee2e6;
+            border-radius: 0.5rem;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background-color: #f8f9fa;
+        }
+        .upload-area:hover {
+            border-color: #007bff;
+            background-color: #e3f2fd;
+        }
+        .upload-area.dragover {
+            border-color: #28a745;
+            background-color: #d4edda;
+        }
+        .upload-content {
+            pointer-events: none;
+        }
+        .file-production {
+            background-color: #d4edda !important;
+        }
+        .file-test {
+            background-color: #fff3cd !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-3 col-lg-2 px-0 sidebar">
+                <div class="p-3">
+                    <h4 class="text-white mb-4">
+                        <i class="fas fa-chart-line me-2"></i>
+                        Dashboard
+                    </h4>
+                    <nav class="nav flex-column">
+                        <a class="nav-link active" href="/">
+                            <i class="fas fa-home me-2"></i>Overview
+                        </a>
+                        <a class="nav-link" href="/participants">
+                            <i class="fas fa-users me-2"></i>Participants
+                        </a>
+                        <a class="nav-link" href="/images">
+                            <i class="fas fa-image me-2"></i>Images
+                        </a>
+                        <a class="nav-link" href="/statistics">
+                            <i class="fas fa-chart-bar me-2"></i>Statistics
+                        </a>
+                        <a class="nav-link" href="/exclusions">
+                            <i class="fas fa-filter me-2"></i>Exclusions
+                        </a>
+                        <hr class="text-white-50">
+                        <a class="nav-link" href="/export/csv">
+                            <i class="fas fa-download me-2"></i>Export CSV
+                        </a>
+                        <a class="nav-link" href="/export/cleaned_data">
+                            <i class="fas fa-table me-2"></i>Export Cleaned Data
+                        </a>
+                        <a class="nav-link" href="/export/session_metadata">
+                            <i class="fas fa-users me-2"></i>Export Session Metadata
+                        </a>
+                        <a class="nav-link" href="/export/statistical_results">
+                            <i class="fas fa-chart-bar me-2"></i>Export Statistical Results
+                        </a>
+                        <a class="nav-link" href="/export/participant_list">
+                            <i class="fas fa-list me-2"></i>Export Participant List
+                        </a>
+                        <a class="nav-link" href="/export/all_reports">
+                            <i class="fas fa-file-archive me-2"></i>Export All Reports (ZIP)
+                        </a>
+                        <a class="nav-link" href="/export/analysis_report">
+                            <i class="fas fa-file-alt me-2"></i>Export Analysis Report
+                        </a>
+                        <a class="nav-link" href="/export/methodology_report">
+                            <i class="fas fa-file-pdf me-2"></i>Export Methodology Report (PDF)
+                        </a>
+                        <hr class="text-white-50">
+                        <a class="nav-link" href="/logout">
+                            <i class="fas fa-sign-out-alt me-2"></i>Logout
+                        </a>
+                    </nav>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-md-9 col-lg-10 main-content">
+                <!-- Top Navigation -->
+                <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom">
+                    <div class="container-fluid">
+                        <span class="navbar-brand">Face Perception Study Analytics</span>
+                        <div class="navbar-nav ms-auto">
+                            <span class="navbar-text me-3">
+                                Welcome, {{ session.username }}!
+                            </span>
+                            <form method="post" action="{{ url_for('toggle_mode') }}" style="display: inline;">
+                                <button type="submit" class="btn btn-outline-{{ 'warning' if data_summary and data_summary.get('mode') == 'PRODUCTION' else 'success' }} btn-sm">
+                                    <i class="fas fa-{{ 'flask' if data_summary and data_summary.get('mode') == 'PRODUCTION' else 'shield-alt' }} me-1"></i>
+                                    Switch to {{ 'TEST' if data_summary and data_summary.get('mode') == 'PRODUCTION' else 'PRODUCTION' }} Mode
+                                </button>
+                            </form>
+                            
+                            <!-- Show Incomplete Sessions Toggle (All Modes) -->
+                            <form method="post" action="{{ url_for('toggle_incomplete') }}" style="display: inline;" class="ms-2">
+                                <button type="submit" class="btn btn-outline-{{ 'primary' if show_incomplete_in_production else 'secondary' }} btn-sm" 
+                                        title="{{ 'Hide' if show_incomplete_in_production else 'Show' }} incomplete sessions">
+                                    <i class="fas fa-{{ 'eye-slash' if show_incomplete_in_production else 'eye' }} me-1"></i>
+                                    {{ 'Hide' if show_incomplete_in_production else 'Show' }} Incomplete
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </nav>
+
+                <!-- Content -->
+                <div class="p-4">
+                    <!-- Flash Messages -->
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                                    {{ message }}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+
+                    <!-- Overview Stats -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <h2 class="mb-3">Study Overview</h2>
+                            
+                            <!-- Data Mode Indicator -->
+                            {% if data_summary %}
+                            <div class="alert alert-{{ 'success' if data_summary.get('mode') == 'PRODUCTION' else 'warning' }} mb-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <strong>
+                                            <i class="fas fa-{{ 'shield-alt' if data_summary.get('mode') == 'PRODUCTION' else 'flask' }} me-2"></i>
+                                            {{ data_summary.get('mode', 'UNKNOWN') }} MODE
+                                        </strong>
+                                        <br>
+                                        <small class="text-muted">
+                                            <span id="data-files-info">Data files: {{ data_summary.get('real_participants', 0) }} files loaded | {{ data_summary.get('total_rows', 0) }} trials
+                                            {% if data_summary.get('test_files', 0) > 0 %}
+                                                | {{ data_summary.get('test_files', 0) }} test files excluded
+                                            {% endif %}</span>
+                                            <br>
+                                            <span class="text-info">
+                                                <i class="fas fa-info-circle me-1"></i>
+                                                Participants page shows only those meeting inclusion criteria
+                                            </span>
+                                        </small>
+                                    </div>
+                                    {% if data_summary.get('mode') == 'PRODUCTION' %}
+                                    <span class="badge bg-success">IRB-Approved Data Only</span>
+                                    {% else %}
+                                    <span class="badge bg-warning">Test Data Included</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="row mb-4">
+                        <!-- Total Participants -->
+                        <div class="col-md-3 mb-3">
+                            <div class="stat-card p-3">
+                                <div class="d-flex align-items-center">
+                                    <div class="stat-icon bg-primary text-white me-3">
+                                        <i class="fas fa-users"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="mb-0" id="total-participants">
+                                            {{ dashboard_stats.total_participants if dashboard_stats else 0 }}
+                                        </h3>
+                                        <p class="text-muted mb-0">Total Participants</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Total Responses -->
+                        <div class="col-md-3 mb-3">
+                            <div class="stat-card p-3">
+                                <div class="d-flex align-items-center">
+                                    <div class="stat-icon bg-success text-white me-3">
+                                        <i class="fas fa-clipboard-list"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="mb-0" id="total-responses">
+                                            {{ dashboard_stats.total_responses if dashboard_stats else 0 }}
+                                        </h3>
+                                        <p class="text-muted mb-0">Total Responses</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Average Trust Rating -->
+                        <div class="col-md-3 mb-3">
+                            <div class="stat-card p-3">
+                                <div class="d-flex align-items-center">
+                                    <div class="stat-icon bg-info text-white me-3">
+                                        <i class="fas fa-star"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="mb-0" id="avg-trust-rating">
+                                            {{ "%.1f"|format(dashboard_stats.avg_trust_rating) if dashboard_stats and dashboard_stats.avg_trust_rating else 0 }}
+                                        </h3>
+                                        <p class="text-muted mb-0">Avg. Trust Rating</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Trust Rating StdDev -->
+                        <div class="col-md-3 mb-3">
+                            <div class="stat-card p-3">
+                                <div class="d-flex align-items-center">
+                                    <div class="stat-icon bg-warning text-white me-3">
+                                        <i class="fas fa-chart-bar"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="mb-0" id="std-trust-rating">
+                                            {{ "%.2f"|format(dashboard_stats.std_trust_rating) if dashboard_stats and dashboard_stats.std_trust_rating else 0 }}
+                                        </h3>
+                                        <p class="text-muted mb-0">Trust Rating StdDev</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Trust Ratings by Version -->
+                    {% if descriptive_stats and not descriptive_stats.get('error') %}
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="chart-container">
+                                <h4 class="mb-3">Trust Ratings by Face Version</h4>
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Version</th>
+                                                <th>N</th>
+                                                <th>Mean</th>
+                                                <th>Std</th>
+                                                <th>Median</th>
+                                                <th>Min</th>
+                                                <th>Max</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for version, stats in descriptive_stats.items() %}
+                                            <tr>
+                                                <td><strong>{{ version.title() }}</strong></td>
+                                                <td>{{ stats.n }}</td>
+                                                <td>{{ "%.2f"|format(stats.mean) if stats.mean is not none else "N/A" }}</td>
+                                                <td>{{ "%.2f"|format(stats.std) if stats.std is not none else "N/A" }}</td>
+                                                <td>{{ "%.2f"|format(stats.median) if stats.median is not none else "N/A" }}</td>
+                                                <td>{{ "%.2f"|format(stats.min) if stats.min is not none else "N/A" }}</td>
+                                                <td>{{ "%.2f"|format(stats.max) if stats.max is not none else "N/A" }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="alert alert-info text-center">
+                                <i class="fas fa-info-circle fa-2x mb-3"></i>
+                                <h5>No Statistical Data Available</h5>
+                                <p class="mb-0">Switch to <strong>TEST MODE</strong> to view statistical analysis, or wait for production data to be collected.</p>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Exclusion Summary -->
+                    {% if exclusion_summary and exclusion_summary.session_level.exclusion_reasons %}
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="chart-container">
+                                <h4 class="mb-3">Exclusion Summary</h4>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <h6>Session-Level Exclusions</h6>
+                                        <ul class="list-group list-group-flush">
+                                            {% for reason, count in exclusion_summary.session_level.exclusion_reasons.items() %}
+                                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                {{ reason.replace('_', ' ').title() }}
+                                                <span class="badge bg-danger rounded-pill">{{ count }}</span>
+                                            </li>
+                                            {% endfor %}
+                                        </ul>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6>Trial-Level Exclusions</h6>
+                                        <ul class="list-group list-group-flush">
+                                            {% for reason, count in exclusion_summary.trial_level.exclusion_reasons.items() %}
+                                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                {{ reason.replace('_', ' ').title() }}
+                                                <span class="badge bg-warning rounded-pill">{{ count }}</span>
+                                            </li>
+                                            {% endfor %}
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Data Upload Section -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="chart-container">
+                                <h4 class="mb-3">Data Management</h4>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <h6>Upload Participant Data</h6>
+                                        <form action="/admin/upload" method="post" enctype="multipart/form-data" class="mb-3" id="uploadForm">
+                                            <div class="mb-3">
+                                                <label for="file" class="form-label">Select CSV file with participant responses:</label>
+                                                <div class="upload-area" id="uploadArea">
+                                                    <div class="upload-content">
+                                                        <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-3"></i>
+                                                        <p class="mb-2">Drag and drop CSV files here</p>
+                                                        <p class="text-muted small">or click to browse</p>
+                                                    </div>
+                                                    <input type="file" class="form-control d-none" id="file" name="file" accept=".csv" required>
+                                                </div>
+                                                <div class="form-text">File must contain a "Participant ID" column and be in CSV format.</div>
+                                                <div id="uploadStatus" class="mt-2"></div>
+                                            </div>
+                                            <button type="submit" class="btn btn-primary" id="uploadBtn" disabled>
+                                                <i class="fas fa-upload me-2"></i>Upload Data
+                                            </button>
+                                        </form>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6>Generate Test Data</h6>
+                                        <form action="/admin/generate-test-data" method="post" class="mb-3">
+                                            <div class="row">
+                                                <div class="col-6">
+                                                    <label for="participants" class="form-label">Number of participants:</label>
+                                                    <input type="number" class="form-control" id="participants" name="participants" value="5" min="1" max="50">
+                                                </div>
+                                                <div class="col-6">
+                                                    <label for="responses" class="form-label">Responses per participant:</label>
+                                                    <input type="number" class="form-control" id="responses" name="responses" value="10" min="1" max="100">
+                                                </div>
+                                            </div>
+                                            <button type="submit" class="btn btn-success mt-2">
+                                                <i class="fas fa-magic me-2"></i>Generate Test Data
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                                
+                                <!-- Current Data Files -->
+                                <div class="row mt-4">
+                                    <div class="col-12">
+                                        <h6>Current Data Files</h6>
+                                        <div class="table-responsive">
+                                            <table class="table table-sm table-hover">
+                                                <thead class="table-light">
+                                                    <tr>
+                                                        <th>Participant/Filename</th>
+                                                        <th>Size/Progress</th>
+                                                        <th>Last Modified</th>
+                                                        <th>Status</th>
+                                                        <th>Actions</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {% for file in data_files %}
+                                                    <tr class="{% if file.type == 'Production' %}file-production{% else %}file-test{% endif %}">
+                                                        <td>
+                                                            {{ file.name }}
+                                                            <span class="badge bg-{% if file.type == 'Production' %}success{% else %}warning{% endif %} ms-1">{{ file.type }}</span>
+                                                        </td>
+                                                        <td>{{ file.size }}</td>
+                                                        <td>{{ file.modified }}</td>
+                                                        <td>
+                                                            {% if file.status == 'Complete' %}
+                                                                <span class="badge bg-success">
+                                                                    <i class="fas fa-check-circle me-1"></i>Complete
+                                                                </span>
+                                                            {% else %}
+                                                                <span class="badge bg-warning text-dark">
+                                                                    <i class="fas fa-clock me-1"></i>{{ file.status }}
+                                                                </span>
+                                                            {% endif %}
+                                                        </td>
+                                                        <td>
+                                                            {% if file.status == 'Complete' %}
+                                                                <form action="/admin/delete/{{ file.name }}" method="post" style="display: inline;">
+                                                                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to delete this file?')">
+                                                                        <i class="fas fa-trash"></i>
+                                                                    </button>
+                                                                </form>
+                                                            {% else %}
+                                                                <small class="text-muted">In Progress</small>
+                                                            {% endif %}
+                                                        </td>
+                                                    </tr>
+                                                    {% endfor %}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Actions -->
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="chart-container">
+                                <h4 class="mb-3">Quick Actions</h4>
+                                <div class="row">
+                                    <div class="col-md-3 mb-2">
+                                        <a href="/participants" class="btn btn-outline-primary w-100">
+                                            <i class="fas fa-users me-2"></i>View Participants
+                                        </a>
+                                    </div>
+                                    <div class="col-md-3 mb-2">
+                                        <a href="/images" class="btn btn-outline-success w-100">
+                                            <i class="fas fa-image me-2"></i>Image Analysis
+                                        </a>
+                                    </div>
+                                    <div class="col-md-3 mb-2">
+                                        <a href="/statistics" class="btn btn-outline-info w-100">
+                                            <i class="fas fa-chart-bar me-2"></i>Statistical Tests
+                                        </a>
+                                    </div>
+                                    <div class="col-md-3 mb-2">
+                                        <a href="/export/csv" class="btn btn-outline-secondary w-100">
+                                            <i class="fas fa-download me-2"></i>Export Data
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Footer with timestamp -->
+        <footer class="bg-light border-top mt-5 py-3">
+            <div class="container-fluid">
+                <div class="row">
+                    <div class="col-md-6">
+                        <small class="text-muted">
+                            <i class="fas fa-clock me-1"></i>
+                            Last analyzed: <span id="lastAnalyzed"></span>
+                        </small>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <small class="text-muted">
+                            Face Perception Study Dashboard v1.0
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Drag and drop upload functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const uploadArea = document.getElementById('uploadArea');
+            const fileInput = document.getElementById('file');
+            const uploadBtn = document.getElementById('uploadBtn');
+            const uploadStatus = document.getElementById('uploadStatus');
+            const uploadForm = document.getElementById('uploadForm');
+
+            // Click to browse
+            uploadArea.addEventListener('click', () => fileInput.click());
+
+            // File selection
+            fileInput.addEventListener('change', handleFileSelect);
+
+            // Drag and drop events
+            uploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
+            });
+
+            uploadArea.addEventListener('dragleave', () => {
+                uploadArea.classList.remove('dragover');
+            });
+
+            uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    fileInput.files = files;
+                    handleFileSelect();
+                }
+            });
+
+            function handleFileSelect() {
+                const file = fileInput.files[0];
+                if (file) {
+                    uploadBtn.disabled = false;
+                    uploadStatus.innerHTML = `
+                        <div class="alert alert-info alert-sm">
+                            <i class="fas fa-file-csv me-2"></i>
+                            Selected: ${file.name} (${(file.size / 1024).toFixed(1)} KB)
+                        </div>
+                    `;
+                } else {
+                    uploadBtn.disabled = true;
+                    uploadStatus.innerHTML = '';
+                }
+            }
+
+            // Form submission with feedback
+            uploadForm.addEventListener('submit', function(e) {
+                uploadBtn.disabled = true;
+                uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Uploading...';
+                uploadStatus.innerHTML = `
+                    <div class="alert alert-info alert-sm">
+                        <i class="fas fa-upload me-2"></i>
+                        Processing file...
+                    </div>
+                `;
+            });
+        });
+
+        // Update timestamp
+        function updateTimestamp() {
+            const now = new Date();
+            const timestamp = now.toLocaleString();
+            document.getElementById('lastAnalyzed').textContent = timestamp;
+        }
+        
+        // Update timestamp on page load
+        updateTimestamp();
+        
+        // Auto-refresh data with error handling and circuit breaker
+        let failureCount = 0;
+        const maxFailures = 3;
+        let refreshInterval = 30000; // Start with 30 seconds
+        
+        function refreshData() {
+            // Circuit breaker: if too many failures, increase interval
+            if (failureCount >= maxFailures) {
+                refreshInterval = 120000; // 2 minutes after failures
+                console.log('API errors detected, reducing refresh frequency');
+            }
+            
+            fetch('/api/overview')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Reset failure count on success
+                    failureCount = 0;
+                    refreshInterval = 30000; // Reset to normal interval
+                    
+                    if (data.status === 'success' && data.exclusion_summary) {
+                        // Update elements if they exist
+                        const totalParticipants = document.getElementById('total-participants');
+                        const totalResponses = document.getElementById('total-responses');
+                        const avgTrust = document.getElementById('avg-trust-rating');
+                        const stdTrust = document.getElementById('std-trust-rating');
+                        const dataFilesInfo = document.getElementById('data-files-info');
+                        
+                        if (totalParticipants && data.exclusion_summary.session_level) {
+                            totalParticipants.textContent = data.exclusion_summary.session_level.total_sessions || '0';
+                        }
+                        if (totalResponses) {
+                            totalResponses.textContent = data.exclusion_summary.total_raw || '0';
+                        }
+                        if (avgTrust && data.dashboard_stats) {
+                            avgTrust.textContent = data.dashboard_stats.avg_trust_rating ? data.dashboard_stats.avg_trust_rating.toFixed(1) : '0';        
+                        }
+                        if (stdTrust && data.dashboard_stats) {
+                            stdTrust.textContent = data.dashboard_stats.std_trust_rating ? data.dashboard_stats.std_trust_rating.toFixed(2) : '0';        
+                        }
+                        if (dataFilesInfo && data.data_summary) {
+                            let filesText = `Data files: ${data.data_summary.real_participants} files loaded | ${data.data_summary.total_rows} trials`;
+                            if (data.data_summary.test_files > 0) {
+                                filesText += ` | ${data.data_summary.test_files} test files excluded`;
+                            }
+                            dataFilesInfo.textContent = filesText;
+                            console.log('Updated data-files-info:', filesText);
+                        } else {
+                            console.log('dataFilesInfo:', dataFilesInfo, 'data.data_summary:', data.data_summary);
+                        }
+                    }
+                })
+                .catch(error => {
+                    failureCount++;
+                    console.error(`Error refreshing data (${failureCount}/${maxFailures}):`, error);
+                    
+                    // Optionally show user feedback for repeated failures
+                    if (failureCount >= maxFailures) {
+                        console.warn('Multiple API failures detected. Auto-refresh slowed down.');
+                    }
+                });
+        }
+        
+        // Start auto-refresh with adaptive interval
+        function startAutoRefresh() {
+            refreshData(); // Initial call
+            setTimeout(function() {
+                startAutoRefresh(); // Recursive call with current interval
+            }, refreshInterval);
+        }
+        
+        // Start the adaptive refresh cycle
+        startAutoRefresh();
+    </script>
+</body>
+</html>

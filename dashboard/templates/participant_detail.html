@@ -1,0 +1,325 @@
+{% extends "base.html" %}
+
+{% block title %}Participant {{ pid }} - Face Perception Study{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Top Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom">
+        <div class="container-fluid">
+            <span class="navbar-brand">Participant {{ pid }} - Session Details</span>
+            <div class="navbar-nav ms-auto">
+                <a href="{{ url_for('participants') }}" class="btn btn-outline-secondary btn-sm me-2">
+                    <i class="fas fa-arrow-left me-1"></i>Back to Participants
+                </a>
+                <a href="{{ url_for('dashboard') }}" class="btn btn-outline-primary btn-sm">
+                    <i class="fas fa-home me-1"></i>Dashboard
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="row">
+        <!-- Sidebar -->
+        <nav class="col-md-3 col-lg-2 d-md-block bg-light sidebar">
+            <div class="position-sticky pt-3">
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('dashboard') }}">
+                            <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('participants') }}">
+                            <i class="fas fa-users me-2"></i>Participants
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('images') }}">
+                            <i class="fas fa-images me-2"></i>Images
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('statistics') }}">
+                            <i class="fas fa-chart-bar me-2"></i>Statistics
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('exclusions') }}">
+                            <i class="fas fa-filter me-2"></i>Exclusions
+                        </a>
+                    </li>
+                    <hr class="text-white-50">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('export_csv') }}">
+                            <i class="fas fa-download me-2"></i>Export CSV
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('export_cleaned_data') }}">
+                            <i class="fas fa-table me-2"></i>Export Cleaned Data
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('export_session_metadata') }}">
+                            <i class="fas fa-users me-2"></i>Export Session Metadata
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('export_statistical_results') }}">
+                            <i class="fas fa-chart-bar me-2"></i>Export Statistical Results
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('export_participant_list') }}">
+                            <i class="fas fa-list me-2"></i>Export Participant List
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('export_all_reports') }}">
+                            <i class="fas fa-file-archive me-2"></i>Export All Reports (ZIP)
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('export_analysis_report') }}">
+                            <i class="fas fa-file-alt me-2"></i>Export Analysis Report
+                        </a>
+                    </li>
+                    <hr class="text-white-50">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('logout') }}">
+                            <i class="fas fa-sign-out-alt me-2"></i>Logout
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+            <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                <h1 class="h2">Participant {{ pid }} - Session Details</h1>
+                <div class="btn-toolbar mb-2 mb-md-0">
+                    <div class="btn-group me-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()">
+                            <i class="fas fa-print me-1"></i>Print
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Session Overview Cards -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h5 class="card-title">Total Trials</h5>
+                            <h2 class="text-primary">{{ total_trials }}</h2>
+                            <small class="text-muted">Expected: 60</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h5 class="card-title">Included Trials</h5>
+                            <h2 class="text-success">{{ included_trials }}</h2>
+                            <small class="text-muted">{{ "%.1f"|format(included_trials/total_trials*100) }}% of total</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h5 class="card-title">Completion Rate</h5>
+                            <h2 class="text-info">{{ "%.1f"|format(completion_rate*100) }}%</h2>
+                            <small class="text-muted">{{ "%.1f"|format(completion_rate*60) }}/60 trials</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h5 class="card-title">Avg Trust Rating</h5>
+                            <h2 class="text-warning">{{ "%.2f"|format(trust_stats.mean) }}</h2>
+                            <small class="text-muted">SD: {{ "%.2f"|format(trust_stats.std) }}</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Trust Rating Statistics -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5><i class="fas fa-chart-line me-2"></i>Trust Rating Statistics</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-2">
+                                    <strong>Mean:</strong> {{ "%.2f"|format(trust_stats.mean) }}
+                                </div>
+                                <div class="col-md-2">
+                                    <strong>Median:</strong> {{ "%.2f"|format(trust_stats.median) }}
+                                </div>
+                                <div class="col-md-2">
+                                    <strong>Std Dev:</strong> {{ "%.2f"|format(trust_stats.std) }}
+                                </div>
+                                <div class="col-md-2">
+                                    <strong>Min:</strong> {{ "%.2f"|format(trust_stats.min) }}
+                                </div>
+                                <div class="col-md-2">
+                                    <strong>Max:</strong> {{ "%.2f"|format(trust_stats.max) }}
+                                </div>
+                                <div class="col-md-2">
+                                    <strong>Range:</strong> {{ "%.2f"|format(trust_stats.max - trust_stats.min) }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Version and Face Breakdown -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5><i class="fas fa-eye me-2"></i>Trials by Version</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Version</th>
+                                            <th>Count</th>
+                                            <th>Percentage</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for version, count in version_counts.items() %}
+                                        <tr>
+                                            <td><span class="badge bg-secondary">{{ version }}</span></td>
+                                            <td>{{ count }}</td>
+                                            <td>{{ "%.1f"|format(count/total_trials*100) }}%</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5><i class="fas fa-user me-2"></i>Trials by Face</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Face ID</th>
+                                            <th>Count</th>
+                                            <th>Percentage</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for face_id, count in face_counts.items() %}
+                                        <tr>
+                                            <td><code>{{ face_id }}</code></td>
+                                            <td>{{ count }}</td>
+                                            <td>{{ "%.1f"|format(count/total_trials*100) }}%</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Trial-Level Data Table -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5><i class="fas fa-table me-2"></i>Trial-Level Data</h5>
+                            <small class="text-muted">All trials for participant {{ pid }}</small>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-striped table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Face ID</th>
+                                            <th>Version</th>
+                                            <th>Trust Rating</th>
+                                            <th>Included</th>
+                                            {% if 'timestamp' in participant_data.columns %}
+                                            <th>Timestamp</th>
+                                            {% endif %}
+                                            <th>Source File</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for _, trial in participant_data.iterrows() %}
+                                        <tr>
+                                            <td><code>{{ trial.face_id }}</code></td>
+                                            <td>
+                                                <span class="badge bg-{{ 'success' if trial.version == 'full' else 'info' if trial.version == 'left' else 'warning' }}">
+                                                    {{ trial.version }}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-{{ 'success' if trial.trust_rating >= 4 else 'warning' if trial.trust_rating >= 2.5 else 'danger' }}">
+                                                    {{ "%.1f"|format(trial.trust_rating) }}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                {% if trial.include_in_primary %}
+                                                <span class="badge bg-success"><i class="fas fa-check"></i></span>
+                                                {% else %}
+                                                <span class="badge bg-danger"><i class="fas fa-times"></i></span>
+                                                {% endif %}
+                                            </td>
+                                            {% if 'timestamp' in participant_data.columns %}
+                                            <td><small>{{ trial.timestamp }}</small></td>
+                                            {% endif %}
+                                            <td><small>{{ trial.source_file }}</small></td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Export Footer -->
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-info-circle me-2"></i>Export Information</h6>
+                        <p class="mb-2">
+                            <strong>Generated by:</strong> Face Perception Study Dashboard v1.0<br>
+                            <strong>Mode:</strong> {{ data_summary.mode if data_summary else 'Unknown' }}<br>
+                            <strong>Data Source:</strong> {{ data_summary.real_participants if data_summary else 'Unknown' }} real participants<br>
+                            <strong>Generated:</strong> {{ moment().format('YYYY-MM-DD HH:mm:ss') }}
+                        </p>
+                        <small class="text-muted">
+                            This participant session data is part of the IRB-approved face perception study. 
+                            All data has been processed according to the study's exclusion criteria.
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+{% endblock %}

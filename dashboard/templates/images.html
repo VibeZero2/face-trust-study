@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Analysis - Face Perception Study Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .sidebar {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .sidebar .nav-link {
+            color: rgba(255,255,255,0.8);
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            margin: 0.25rem 0;
+        }
+        .sidebar .nav-link:hover, .sidebar .nav-link.active {
+            color: white;
+            background-color: rgba(255,255,255,0.1);
+        }
+        .main-content {
+            background-color: #f8f9fa;
+            min-height: 100vh;
+        }
+        .stat-card {
+            background: white;
+            border-radius: 1rem;
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+            transition: transform 0.2s;
+            margin-bottom: 1.5rem;
+        }
+        .stat-card:hover {
+            transform: translateY(-2px);
+        }
+        .navbar-brand {
+            font-weight: 600;
+            font-size: 1.25rem;
+        }
+        .alert {
+            border-radius: 0.75rem;
+        }
+        .image-row {
+            background: #f8f9fa;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        .difference-positive {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .difference-negative {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .difference-zero {
+            color: #6c757d;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-3 col-lg-2 px-0 sidebar">
+                <div class="p-3">
+                    <h4 class="text-white mb-4">
+                        <i class="fas fa-chart-line me-2"></i>
+                        Dashboard
+                    </h4>
+                    <nav class="nav flex-column">
+                        <a class="nav-link" href="/">
+                            <i class="fas fa-home me-2"></i>Overview
+                        </a>
+                        <a class="nav-link" href="/participants">
+                            <i class="fas fa-users me-2"></i>Participants
+                        </a>
+                        <a class="nav-link active" href="/images">
+                            <i class="fas fa-image me-2"></i>Images
+                        </a>
+                        <a class="nav-link" href="/statistics">
+                            <i class="fas fa-chart-bar me-2"></i>Statistics
+                        </a>
+                        <a class="nav-link" href="/exclusions">
+                            <i class="fas fa-filter me-2"></i>Exclusions
+                        </a>
+                        <hr class="text-white-50">
+                        <a class="nav-link" href="/export/csv">
+                            <i class="fas fa-download me-2"></i>Export CSV
+                        </a>
+                        <a class="nav-link" href="/export/analysis_report">
+                            <i class="fas fa-file-alt me-2"></i>Export Report
+                        </a>
+                        <hr class="text-white-50">
+                        <a class="nav-link" href="/logout">
+                            <i class="fas fa-sign-out-alt me-2"></i>Logout
+                        </a>
+                    </nav>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-md-9 col-lg-10 main-content">
+                <!-- Top Navigation -->
+                <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom">
+                    <div class="container-fluid">
+                        <span class="navbar-brand">Image Analysis</span>
+                        <div class="navbar-nav ms-auto">
+                            <span class="navbar-text">
+                                Welcome, {{ session.username }}!
+                            </span>
+                        </div>
+                    </div>
+                </nav>
+
+                <!-- Content -->
+                <div class="p-4">
+                    <!-- Flash Messages -->
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                                    {{ message }}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+
+                    <h2 class="mb-4">Image-Level Analysis</h2>
+
+                    {% if not images %}
+                        <!-- Empty State -->
+                        <div class="alert alert-info text-center">
+                            <i class="fas fa-info-circle fa-3x mb-3"></i>
+                            <h4>No Image Data Available</h4>
+                            <p class="mb-0">Switch to <strong>TEST MODE</strong> to view test data, or wait for production data to be collected.</p>
+                        </div>
+                    {% else %}
+                        <!-- Summary Stats -->
+                        <div class="stat-card p-4 mb-4">
+                            <h4 class="mb-3">
+                                <i class="fas fa-chart-pie me-2 text-primary"></i>
+                                Summary Statistics
+                            </h4>
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <div class="text-center">
+                                        <h3 class="text-primary">{{ images|length }}</h3>
+                                        <p class="text-muted">Total Images</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="text-center">
+                                        <h3 class="text-success">
+                                            {% set total_ratings = images|sum(attribute='rating_count') %}
+                                            {{ total_ratings }}
+                                        </h3>
+                                        <p class="text-muted">Total Ratings</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="text-center">
+                                        <h3 class="text-info">
+                                            {% set avg_trust = (images|sum(attribute='mean_trust') / images|length) if images else 0 %}
+                                            {{ "%.2f"|format(avg_trust) }}
+                                        </h3>
+                                        <p class="text-muted">Avg Trust Rating</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="text-center">
+                                        <h3 class="text-warning">
+                                            {% set images_with_diff = images|selectattr('full_minus_half_diff', 'defined')|list %}
+                                            {{ images_with_diff|length }}
+                                        </h3>
+                                        <p class="text-muted">Images with Comparison</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Enhanced Face ID Summary Table -->
+                        <div class="stat-card p-4">
+                            <h4 class="mb-3">
+                                <i class="fas fa-table me-2 text-success"></i>
+                                Face ID Summary Table
+                            </h4>
+                            <div class="table-responsive">
+                                <table class="table table-hover" id="faceSummaryTable">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th style="cursor: pointer;" onclick="sortTable(0)">
+                                                Face ID <i class="fas fa-sort"></i>
+                                            </th>
+                                            <th style="cursor: pointer;" onclick="sortTable(1)">
+                                                Mean Left <i class="fas fa-sort"></i>
+                                            </th>
+                                            <th style="cursor: pointer;" onclick="sortTable(2)">
+                                                Mean Right <i class="fas fa-sort"></i>
+                                            </th>
+                                            <th style="cursor: pointer;" onclick="sortTable(3)">
+                                                Mean Full <i class="fas fa-sort"></i>
+                                            </th>
+                                            <th style="cursor: pointer;" onclick="sortTable(4)">
+                                                Trust Delta <i class="fas fa-sort"></i>
+                                            </th>
+                                            <th style="cursor: pointer;" onclick="sortTable(5)">
+                                                Total Ratings <i class="fas fa-sort"></i>
+                                            </th>
+                                            <th style="cursor: pointer;" onclick="sortTable(6)">
+                                                Std Dev <i class="fas fa-sort"></i>
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for image in images %}
+                                        <tr>
+                                            <td><strong>{{ image.face_id }}</strong></td>
+                                            <td>
+                                                {% if image.half_face_avg is not none %}
+                                                    {{ "%.2f"|format(image.half_face_avg) }}
+                                                {% else %}
+                                                    <span class="text-muted">N/A</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if image.half_face_avg is not none %}
+                                                    {{ "%.2f"|format(image.half_face_avg) }}
+                                                {% else %}
+                                                    <span class="text-muted">N/A</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if image.mean_trust is not none %}
+                                                    {{ "%.2f"|format(image.mean_trust) }}
+                                                {% else %}
+                                                    <span class="text-muted">N/A</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if image.full_minus_half_diff is not none %}
+                                                    {% if image.full_minus_half_diff > 0 %}
+                                                        <span class="difference-positive">+{{ "%.2f"|format(image.full_minus_half_diff) }}</span>
+                                                    {% elif image.full_minus_half_diff < 0 %}
+                                                        <span class="difference-negative">{{ "%.2f"|format(image.full_minus_half_diff) }}</span>
+                                                    {% else %}
+                                                        <span class="difference-zero">{{ "%.2f"|format(image.full_minus_half_diff) }}</span>
+                                                    {% endif %}
+                                                {% else %}
+                                                    <span class="text-muted">N/A</span>
+                                                {% endif %}
+                                            </td>
+                                            <td><span class="badge bg-primary">{{ image.rating_count }}</span></td>
+                                            <td>
+                                                {% if image.std_trust is not none %}
+                                                    {{ "%.2f"|format(image.std_trust) }}
+                                                {% else %}
+                                                    <span class="text-muted">N/A</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Individual Image Statistics -->
+                        <div class="stat-card p-4">
+                            <h4 class="mb-3">
+                                <i class="fas fa-images me-2 text-success"></i>
+                                Individual Image Statistics
+                            </h4>
+                            
+                            <div class="table-responsive">
+                                <table class="table table-hover" id="imagesTable">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th style="cursor: pointer;" onclick="sortTable(0)">
+                                                Face ID <i class="fas fa-sort"></i>
+                                            </th>
+                                            <th style="cursor: pointer;" onclick="sortTable(1)">
+                                                Full Face <i class="fas fa-sort"></i>
+                                            </th>
+                                            <th style="cursor: pointer;" onclick="sortTable(2)">
+                                                Half Face Avg <i class="fas fa-sort"></i>
+                                            </th>
+                                            <th style="cursor: pointer;" onclick="sortTable(3)">
+                                                Difference <i class="fas fa-sort"></i>
+                                            </th>
+                                            <th style="cursor: pointer;" onclick="sortTable(4)">
+                                                Total Ratings <i class="fas fa-sort"></i>
+                                            </th>
+                                            <th style="cursor: pointer;" onclick="sortTable(5)">
+                                                Std Dev <i class="fas fa-sort"></i>
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for image in images %}
+                                        <tr>
+                                            <td>
+                                                <strong>{{ image.face_id }}</strong>
+                                            </td>
+                                            <td>
+                                                {% if image.mean_trust is not none %}
+                                                    {{ "%.2f"|format(image.mean_trust) }}
+                                                    <small class="text-muted">(n={{ image.rating_count }})</small>
+                                                {% else %}
+                                                    <span class="text-muted">N/A</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if image.half_face_avg is not none %}
+                                                    {{ "%.2f"|format(image.half_face_avg) }}
+                                                {% else %}
+                                                    <span class="text-muted">N/A</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if image.full_minus_half_diff is not none %}
+                                                    {% if image.full_minus_half_diff > 0 %}
+                                                        <span class="difference-positive">+{{ "%.2f"|format(image.full_minus_half_diff) }}</span>
+                                                    {% elif image.full_minus_half_diff < 0 %}
+                                                        <span class="difference-negative">{{ "%.2f"|format(image.full_minus_half_diff) }}</span>
+                                                    {% else %}
+                                                        <span class="difference-zero">{{ "%.2f"|format(image.full_minus_half_diff) }}</span>
+                                                    {% endif %}
+                                                {% else %}
+                                                    <span class="text-muted">N/A</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-primary">{{ image.rating_count }}</span>
+                                            </td>
+                                            <td>
+                                                {% if image.std_trust is not none %}
+                                                    {{ "%.2f"|format(image.std_trust) }}
+                                                {% else %}
+                                                    <span class="text-muted">N/A</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Charts Section -->
+                        <div class="stat-card p-4 mb-4">
+                            <h4 class="mb-3">
+                                <i class="fas fa-chart-line me-2 text-info"></i>
+                                Visual Analysis
+                            </h4>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h6><i class="fas fa-chart-bar me-2"></i>Mean Trust by Face ID</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <canvas id="faceTrustChart" width="300" height="200"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h6><i class="fas fa-chart-line me-2"></i>Trust Shift: Left → Right → Full</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <canvas id="trustShiftChart" width="300" height="200"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Detailed Analysis -->
+                        <div class="stat-card p-4">
+                            <h4 class="mb-3">
+                                <i class="fas fa-chart-bar me-2 text-info"></i>
+                                Detailed Analysis
+                            </h4>
+                           
+                           <!-- Trust Rating Distribution -->
+                           <div class="row mb-4">
+                               <div class="col-md-6">
+                                   <h6>Trust Rating Distribution</h6>
+                                   <div class="image-row">
+                                       {% set trust_ratings = images|map(attribute='mean_trust')|list %}
+                                       {% set min_trust = trust_ratings|min %}
+                                       {% set max_trust = trust_ratings|max %}
+                                       {% set avg_trust = (trust_ratings|sum / trust_ratings|length) %}
+                                       
+                                       <p><strong>Range:</strong> {{ "%.2f"|format(min_trust) }} - {{ "%.2f"|format(max_trust) }}</p>
+                                       <p><strong>Mean:</strong> {{ "%.2f"|format(avg_trust) }}</p>
+                                       <p><strong>Images above mean:</strong> {{ (trust_ratings|select('>', avg_trust)|list)|length }}</p>
+                                       <p><strong>Images below mean:</strong> {{ (trust_ratings|select('<', avg_trust)|list)|length }}</p>
+                                   </div>
+                               </div>
+                               <div class="col-md-6">
+                                   <h6>Full vs Half Face Comparison</h6>
+                                   <div class="image-row">
+                                       {% set differences = images|selectattr('full_minus_half_diff', 'defined')|map(attribute='full_minus_half_diff')|list %}
+                                       {% if differences %}
+                                           {% set positive_diff = (differences|select('>', 0)|list)|length %}
+                                           {% set negative_diff = (differences|select('<', 0)|list)|length %}
+                                           {% set zero_diff = (differences|select('==', 0)|list)|length %}
+                                           
+                                           <p><strong>Full > Half:</strong> {{ positive_diff }} images</p>
+                                           <p><strong>Full < Half:</strong> {{ negative_diff }} images</p>
+                                           <p><strong>No difference:</strong> {{ zero_diff }} images</p>
+                                           <p><strong>Mean difference:</strong> {{ "%.2f"|format(differences|sum / differences|length) }}</p>
+                                       {% else %}
+                                           <p class="text-muted">No comparison data available</p>
+                                       {% endif %}
+                                   </div>
+                               </div>
+                           </div>
+
+                           <!-- Top and Bottom Images -->
+                           <div class="row">
+                               <div class="col-md-6">
+                                   <h6>Highest Trust Ratings</h6>
+                                   <div class="image-row">
+                                       {% set sorted_by_trust = images|sort(attribute='mean_trust', reverse=true) %}
+                                       {% for image in sorted_by_trust[:5] %}
+                                           <div class="d-flex justify-content-between align-items-center mb-2">
+                                               <span>{{ image.face_id }}</span>
+                                               <span class="badge bg-success">{{ "%.2f"|format(image.mean_trust) }}</span>
+                                           </div>
+                                       {% endfor %}
+                                   </div>
+                               </div>
+                               <div class="col-md-6">
+                                   <h6>Lowest Trust Ratings</h6>
+                                   <div class="image-row">
+                                       {% set sorted_by_trust = images|sort(attribute='mean_trust') %}
+                                       {% for image in sorted_by_trust[:5] %}
+                                           <div class="d-flex justify-content-between align-items-center mb-2">
+                                               <span>{{ image.face_id }}</span>
+                                               <span class="badge bg-danger">{{ "%.2f"|format(image.mean_trust) }}</span>
+                                           </div>
+                                       {% endfor %}
+                                   </div>
+                               </div>
+                           </div>
+                       </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // Table sorting functionality
+        let sortDirection = 1; // 1 for ascending, -1 for descending
+        let lastSortedColumn = -1;
+
+        function sortTable(columnIndex) {
+            const table = document.getElementById('imagesTable');
+            const tbody = table.getElementsByTagName('tbody')[0];
+            const rows = Array.from(tbody.getElementsByTagName('tr'));
+            
+            // Reset sort direction if clicking a different column
+            if (lastSortedColumn !== columnIndex) {
+                sortDirection = 1;
+                lastSortedColumn = columnIndex;
+            } else {
+                sortDirection *= -1;
+            }
+            
+            // Update sort icons
+            updateSortIcons(columnIndex, sortDirection);
+            
+            // Sort rows
+            rows.sort((a, b) => {
+                const aValue = getCellValue(a.cells[columnIndex], columnIndex);
+                const bValue = getCellValue(b.cells[columnIndex], columnIndex);
+                
+                if (aValue < bValue) return -1 * sortDirection;
+                if (aValue > bValue) return 1 * sortDirection;
+                return 0;
+            });
+            
+            // Reorder rows
+            rows.forEach(row => tbody.appendChild(row));
+            
+            // Highlight top/bottom performers after sorting
+            highlightPerformers();
+        }
+        
+        function getCellValue(cell, columnIndex) {
+            let text = cell.textContent.trim();
+            
+            // Handle different column types
+            if (columnIndex === 0) { // Face ID
+                return text;
+            } else if (columnIndex === 3) { // Difference
+                // Extract numeric value from difference column
+                const match = text.match(/[+-]?\d+\.?\d*/);
+                return match ? parseFloat(match[0]) : 0;
+            } else if (columnIndex === 4) { // Total Ratings
+                return parseInt(text) || 0;
+            } else { // Numeric columns
+                return parseFloat(text) || 0;
+            }
+        }
+        
+        function updateSortIcons(columnIndex, direction) {
+            const headers = document.querySelectorAll('#imagesTable th');
+            headers.forEach((header, index) => {
+                const icon = header.querySelector('i');
+                if (index === columnIndex) {
+                    icon.className = direction === 1 ? 'fas fa-sort-up' : 'fas fa-sort-down';
+                } else {
+                    icon.className = 'fas fa-sort';
+                }
+            });
+        }
+        
+        function highlightPerformers() {
+            const rows = document.querySelectorAll('#imagesTable tbody tr');
+            
+            // Remove existing highlights
+            rows.forEach(row => {
+                row.classList.remove('table-success', 'table-danger', 'table-warning');
+            });
+            
+            // Highlight top 3 positive differences
+            const positiveRows = Array.from(rows).filter(row => {
+                const diffCell = row.cells[3];
+                const diffText = diffCell.textContent.trim();
+                const match = diffText.match(/[+]?\d+\.?\d*/);
+                return match && parseFloat(match[0]) > 0;
+            }).sort((a, b) => {
+                const aDiff = parseFloat(a.cells[3].textContent.match(/[+]?\d+\.?\d*/)[0]);
+                const bDiff = parseFloat(b.cells[3].textContent.match(/[+]?\d+\.?\d*/)[0]);
+                return bDiff - aDiff;
+            });
+            
+            positiveRows.slice(0, 3).forEach(row => {
+                row.classList.add('table-success');
+            });
+            
+            // Highlight top 3 negative differences
+            const negativeRows = Array.from(rows).filter(row => {
+                const diffCell = row.cells[3];
+                const diffText = diffCell.textContent.trim();
+                const match = diffText.match(/[-]\d+\.?\d*/);
+                return match && parseFloat(match[0]) < 0;
+            }).sort((a, b) => {
+                const aDiff = parseFloat(a.cells[3].textContent.match(/[-]\d+\.?\d*/)[0]);
+                const bDiff = parseFloat(b.cells[3].textContent.match(/[-]\d+\.?\d*/)[0]);
+                return aDiff - bDiff;
+            });
+            
+            negativeRows.slice(0, 3).forEach(row => {
+                row.classList.add('table-danger');
+            });
+        }
+        
+                 // Initialize highlighting on page load
+         document.addEventListener('DOMContentLoaded', function() {
+             highlightPerformers();
+             
+             // Face Trust Chart
+             const faceCtx = document.getElementById('faceTrustChart');
+             if (faceCtx) {
+                 const faceData = {
+                     labels: [
+                         {% for image in images[:10] %}
+                         '{{ image.face_id }}'{% if not loop.last %},{% endif %}
+                         {% endfor %}
+                     ],
+                     datasets: [{
+                         label: 'Mean Trust Rating',
+                         data: [
+                             {% for image in images[:10] %}
+                             {{ image.mean_trust if image.mean_trust else 0 }}{% if not loop.last %},{% endif %}
+                             {% endfor %}
+                         ],
+                         backgroundColor: 'rgba(54, 162, 235, 0.8)',
+                         borderColor: 'rgba(54, 162, 235, 1)',
+                         borderWidth: 1
+                     }]
+                 };
+                 
+                 new Chart(faceCtx, {
+                     type: 'bar',
+                     data: faceData,
+                     options: {
+                         responsive: true,
+                         scales: {
+                             y: {
+                                 beginAtZero: true,
+                                 max: 7,
+                                 title: {
+                                     display: true,
+                                     text: 'Trust Rating'
+                                 }
+                             },
+                             x: {
+                                 title: {
+                                     display: true,
+                                     text: 'Face ID'
+                                 }
+                             }
+                         },
+                         plugins: {
+                             legend: {
+                                 display: false
+                             }
+                         }
+                     }
+                 });
+             }
+             
+             // Trust Shift Chart
+             const shiftCtx = document.getElementById('trustShiftChart');
+             if (shiftCtx) {
+                 const shiftData = {
+                     labels: ['Left', 'Right', 'Full'],
+                     datasets: [
+                         {% for image in images[:5] %}
+                         {
+                             label: '{{ image.face_id }}',
+                             data: [
+                                 {{ image.half_face_avg if image.half_face_avg else 0 }},
+                                 {{ image.half_face_avg if image.half_face_avg else 0 }},
+                                 {{ image.mean_trust if image.mean_trust else 0 }}
+                             ],
+                             borderColor: 'hsl({{ loop.index * 60 }}, 70%, 50%)',
+                             backgroundColor: 'transparent',
+                             tension: 0.1
+                         }{% if not loop.last %},{% endif %}
+                         {% endfor %}
+                     ]
+                 };
+                 
+                 new Chart(shiftCtx, {
+                     type: 'line',
+                     data: shiftData,
+                     options: {
+                         responsive: true,
+                         scales: {
+                             y: {
+                                 beginAtZero: true,
+                                 max: 7,
+                                 title: {
+                                     display: true,
+                                     text: 'Trust Rating'
+                                 }
+                             },
+                             x: {
+                                 title: {
+                                     display: true,
+                                     text: 'Face Version'
+                                 }
+                             }
+                         },
+                         plugins: {
+                             legend: {
+                                 display: true,
+                                 position: 'top'
+                             }
+                         }
+                     }
+                 });
+             }
+         });
+    </script>
+</body>
+</html>

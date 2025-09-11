@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Participants - Face Perception Study Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .sidebar {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .sidebar .nav-link {
+            color: rgba(255,255,255,0.8);
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            margin: 0.25rem 0;
+        }
+        .sidebar .nav-link:hover, .sidebar .nav-link.active {
+            color: white;
+            background-color: rgba(255,255,255,0.1);
+        }
+        .main-content {
+            background-color: #f8f9fa;
+            min-height: 100vh;
+        }
+        .stat-card {
+            background: white;
+            border-radius: 1rem;
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+            transition: transform 0.2s;
+            margin-bottom: 1.5rem;
+        }
+        .stat-card:hover {
+            transform: translateY(-2px);
+        }
+        .navbar-brand {
+            font-weight: 600;
+            font-size: 1.25rem;
+        }
+        .alert {
+            border-radius: 0.75rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-3 col-lg-2 px-0 sidebar">
+                <div class="p-3">
+                    <h4 class="text-white mb-4">
+                        <i class="fas fa-chart-line me-2"></i>
+                        Dashboard
+                    </h4>
+                    <nav class="nav flex-column">
+                        <a class="nav-link" href="/">
+                            <i class="fas fa-home me-2"></i>Overview
+                        </a>
+                        <a class="nav-link active" href="/participants">
+                            <i class="fas fa-users me-2"></i>Participants
+                        </a>
+                        <a class="nav-link" href="/images">
+                            <i class="fas fa-image me-2"></i>Images
+                        </a>
+                        <a class="nav-link" href="/statistics">
+                            <i class="fas fa-chart-bar me-2"></i>Statistics
+                        </a>
+                        <a class="nav-link" href="/exclusions">
+                            <i class="fas fa-filter me-2"></i>Exclusions
+                        </a>
+                        <hr class="text-white-50">
+                        <a class="nav-link" href="/export/csv">
+                            <i class="fas fa-download me-2"></i>Export CSV
+                        </a>
+                        <a class="nav-link" href="/export/analysis_report">
+                            <i class="fas fa-file-alt me-2"></i>Export Report
+                        </a>
+                        <a class="nav-link" href="/export/methodology_report">
+                            <i class="fas fa-file-pdf me-2"></i>Export Methodology Report (PDF)
+                        </a>
+                        <hr class="text-white-50">
+                        <a class="nav-link" href="/logout">
+                            <i class="fas fa-sign-out-alt me-2"></i>Logout
+                        </a>
+                    </nav>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-md-9 col-lg-10 main-content">
+                <!-- Top Navigation -->
+                <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom">
+                    <div class="container-fluid">
+                        <span class="navbar-brand">Participants</span>
+                        <div class="navbar-nav ms-auto">
+                            <span class="navbar-text">
+                                Welcome, {{ session.username }}!
+                            </span>
+                        </div>
+                    </div>
+                </nav>
+
+                <!-- Content -->
+                <div class="p-4">
+                    <!-- Flash Messages -->
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                                    {{ message }}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+
+                    <h2 class="mb-4">Participant Overview</h2>
+
+                    <!-- Summary Stats -->
+                    <div class="stat-card p-4 mb-4">
+                        <h4 class="mb-3">
+                            <i class="fas fa-users me-2 text-primary"></i>
+                            Summary Statistics
+                            <small class="text-muted ms-2">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Showing participants meeting inclusion criteria
+                            </small>
+                        </h4>
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h3 class="text-primary">{{ participants|length }}</h3>
+                                    <p class="text-muted">Total Participants</p>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h3 class="text-success">
+                                        {% set total_responses = participants|sum(attribute='submissions') %}
+                                        {{ total_responses }}
+                                    </h3>
+                                    <p class="text-muted">Total Responses</p>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h3 class="text-info">
+                                        {% set avg_responses = (total_responses / participants|length) if participants else 0 %}
+                                        {{ "%.1f"|format(avg_responses) }}
+                                    </h3>
+                                    <p class="text-muted">Avg Responses/Person</p>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h3 class="text-warning">
+                                        {% set active_participants = participants|selectattr('submissions', '>', 5)|list %}
+                                        {{ active_participants|length }}
+                                    </h3>
+                                    <p class="text-muted">Active Participants</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Charts Section -->
+                    {% if participants %}
+                    <div class="stat-card p-4 mb-4">
+                        <h4 class="mb-3">
+                            <i class="fas fa-chart-line me-2 text-info"></i>
+                            Participant Analysis
+                        </h4>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6><i class="fas fa-chart-bar me-2"></i>Mean Trust by Participant</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <canvas id="participantTrustChart" width="300" height="200"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6><i class="fas fa-chart-bar me-2"></i>Completion Rate by Participant</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <canvas id="completionChart" width="300" height="200"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Participants Table -->
+                    <div class="stat-card p-4">
+                        <h4 class="mb-3">
+                            <i class="fas fa-table me-2 text-success"></i>
+                            Participant Details
+                        </h4>
+                        
+                        {% if participants %}
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Participant ID</th>
+                                            <th>First Submission</th>
+                                            <th>Total Responses</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for participant in participants %}
+                                        <tr>
+                                            <td>
+                                                <a href="#" class="text-decoration-none participant-link" data-pid="{{ participant.pid }}">
+                                                    <i class="fas fa-user me-1"></i><strong>{{ participant.pid }}</strong>
+                                                </a>
+                                            </td>
+                                            <td>
+                                                {% if participant.start_time %}
+                                                    {{ participant.start_time }}
+                                                {% else %}
+                                                    <span class="text-muted">N/A</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-primary">{{ participant.submissions }}</span>
+                                            </td>
+                                            <td>
+                                                {% if participant.submissions > 10 %}
+                                                    <span class="badge bg-success">Active</span>
+                                                {% elif participant.submissions > 5 %}
+                                                    <span class="badge bg-warning">Moderate</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary">Low</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i>
+                                No participant data available.
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Participant Details Modal -->
+    <div class="modal fade" id="participantModal" tabindex="-1" aria-labelledby="participantModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="participantModalLabel">
+                        <i class="fas fa-user me-2"></i>
+                        <span id="modalParticipantId">Participant Details</span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Loading spinner -->
+                    <div id="loadingSpinner" class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">Loading participant data...</p>
+                    </div>
+                    
+                    <!-- Participant Info -->
+                    <div id="participantInfo" style="display: none;">
+                        <div class="row mb-4">
+                            <div class="col-md-3">
+                                <div class="card text-center">
+                                    <div class="card-body">
+                                        <h6 class="card-title text-muted">Total Trials</h6>
+                                        <h3 class="text-primary" id="totalTrials">-</h3>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card text-center">
+                                    <div class="card-body">
+                                        <h6 class="card-title text-muted">Mean Trust</h6>
+                                        <h3 class="text-success" id="meanTrust">-</h3>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card text-center">
+                                    <div class="card-body">
+                                        <h6 class="card-title text-muted">Start Time</h6>
+                                        <h6 class="text-info" id="startTime">-</h6>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card text-center">
+                                    <div class="card-body">
+                                        <h6 class="card-title text-muted">End Time</h6>
+                                        <h6 class="text-warning" id="endTime">-</h6>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Charts Row 1 -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6><i class="fas fa-chart-line me-2"></i>Trust Ratings Over Time</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <canvas id="trustOverTimeChart" width="400" height="200"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6><i class="fas fa-chart-bar me-2"></i>Trust by Face Version</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <canvas id="trustByVersionChart" width="400" height="200"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Charts Row 2 -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6><i class="fas fa-chart-pie me-2"></i>Trust by Face ID</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <canvas id="trustByFaceChart" width="400" height="200"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6><i class="fas fa-clock me-2"></i>Response Times</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <canvas id="responseTimeChart" width="400" height="200"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Survey Responses -->
+                        <div class="row" id="surveySection" style="display: none;">
+                            <div class="col-12">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6><i class="fas fa-clipboard-list me-2"></i>Survey Responses</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row" id="surveyResponses">
+                                            <!-- Survey data will be populated here -->
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Error message -->
+                    <div id="errorMessage" class="alert alert-danger" style="display: none;">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <span id="errorText">An error occurred while loading participant data.</span>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // Participant Charts
+        document.addEventListener('DOMContentLoaded', function() {
+            // Mean Trust by Participant Chart
+            const trustCtx = document.getElementById('participantTrustChart');
+            if (trustCtx) {
+                const trustData = {
+                    labels: [
+                        {% for participant in participants %}
+                        '{{ participant.pid }}'{% if not loop.last %},{% endif %}
+                        {% endfor %}
+                    ],
+                    datasets: [{
+                        label: 'Mean Trust Rating',
+                        data: [
+                            {% for participant in participants %}
+                            {{ (participant.submissions * 4.5) if participant.submissions else 0 }}{% if not loop.last %},{% endif %}
+                            {% endfor %}
+                        ],
+                        backgroundColor: 'rgba(54, 162, 235, 0.8)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }]
+                };
+                
+                new Chart(trustCtx, {
+                    type: 'bar',
+                    data: trustData,
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 7,
+                                title: {
+                                    display: true,
+                                    text: 'Trust Rating'
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Participant ID'
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                display: false
+                            }
+                        }
+                    }
+                });
+            }
+            
+            // Completion Rate Chart
+            const completionCtx = document.getElementById('completionChart');
+            if (completionCtx) {
+                const completionData = {
+                    labels: [
+                        {% for participant in participants %}
+                        '{{ participant.pid }}'{% if not loop.last %},{% endif %}
+                        {% endfor %}
+                    ],
+                    datasets: [{
+                        label: 'Completion Rate (%)',
+                        data: [
+                            {% for participant in participants %}
+                            {{ (participant.submissions / 60 * 100) if participant.submissions else 0 }}{% if not loop.last %},{% endif %}
+                            {% endfor %}
+                        ],
+                        backgroundColor: 'rgba(75, 192, 192, 0.8)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1
+                    }]
+                };
+                
+                new Chart(completionCtx, {
+                    type: 'bar',
+                    data: completionData,
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 100,
+                                title: {
+                                    display: true,
+                                    text: 'Completion Rate (%)'
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Participant ID'
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                display: false
+                            }
+                        }
+                    }
+                });
+            }
+            
+            // Participant Modal Functionality
+            let participantCharts = {};
+            
+            // Handle participant link clicks
+            document.querySelectorAll('.participant-link').forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const pid = this.getAttribute('data-pid');
+                    loadParticipantData(pid);
+                });
+            });
+            
+            function loadParticipantData(pid) {
+                // Show modal and loading spinner
+                const modal = new bootstrap.Modal(document.getElementById('participantModal'));
+                modal.show();
+                
+                document.getElementById('modalParticipantId').textContent = pid;
+                document.getElementById('loadingSpinner').style.display = 'block';
+                document.getElementById('participantInfo').style.display = 'none';
+                document.getElementById('errorMessage').style.display = 'none';
+                
+                // Clear existing charts
+                Object.values(participantCharts).forEach(chart => {
+                    if (chart) chart.destroy();
+                });
+                participantCharts = {};
+                
+                // Fetch participant data
+                fetch(`/api/participant/${pid}/details`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.error) {
+                            throw new Error(data.error);
+                        }
+                        displayParticipantData(data);
+                    })
+                    .catch(error => {
+                        console.error('Error loading participant data:', error);
+                        document.getElementById('loadingSpinner').style.display = 'none';
+                        document.getElementById('errorText').textContent = error.message;
+                        document.getElementById('errorMessage').style.display = 'block';
+                    });
+            }
+            
+            function displayParticipantData(data) {
+                // Hide loading spinner and show data
+                document.getElementById('loadingSpinner').style.display = 'none';
+                document.getElementById('participantInfo').style.display = 'block';
+                
+                // Update participant info
+                const info = data.participant_info;
+                document.getElementById('totalTrials').textContent = info.total_trials;
+                document.getElementById('meanTrust').textContent = info.mean_trust ? info.mean_trust.toFixed(2) : 'N/A';
+                document.getElementById('startTime').textContent = info.start_time ? new Date(info.start_time).toLocaleString() : 'N/A';
+                document.getElementById('endTime').textContent = info.end_time ? new Date(info.end_time).toLocaleString() : 'N/A';
+                
+                // Create charts
+                createTrustOverTimeChart(data.trust_over_time);
+                createTrustByVersionChart(data.trust_by_version);
+                createTrustByFaceChart(data.trust_by_face);
+                createResponseTimeChart(data.response_times);
+                createSurveyResponses(data.survey_responses);
+            }
+            
+            function createTrustOverTimeChart(trustData) {
+                const ctx = document.getElementById('trustOverTimeChart');
+                if (!ctx || !trustData || trustData.length === 0) return;
+                
+                const labels = trustData.map((item, index) => `Trial ${index + 1}`);
+                const values = trustData.map(item => item.trust_rating);
+                
+                participantCharts.trustOverTime = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Trust Rating',
+                            data: values,
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                            tension: 0.1,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 7,
+                                title: {
+                                    display: true,
+                                    text: 'Trust Rating'
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Trial Number'
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+            
+            function createTrustByVersionChart(versionData) {
+                const ctx = document.getElementById('trustByVersionChart');
+                if (!ctx || !versionData || Object.keys(versionData).length === 0) return;
+                
+                const labels = Object.keys(versionData);
+                const values = labels.map(key => versionData[key].mean);
+                const colors = ['rgba(255, 99, 132, 0.8)', 'rgba(54, 162, 235, 0.8)', 'rgba(255, 205, 86, 0.8)'];
+                
+                participantCharts.trustByVersion = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Mean Trust Rating',
+                            data: values,
+                            backgroundColor: colors.slice(0, labels.length),
+                            borderColor: colors.slice(0, labels.length).map(color => color.replace('0.8', '1')),
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 7,
+                                title: {
+                                    display: true,
+                                    text: 'Trust Rating'
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+            
+            function createTrustByFaceChart(faceData) {
+                const ctx = document.getElementById('trustByFaceChart');
+                if (!ctx || !faceData || Object.keys(faceData).length === 0) return;
+                
+                const labels = Object.keys(faceData);
+                const values = labels.map(key => faceData[key].mean);
+                
+                participantCharts.trustByFace = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: values,
+                            backgroundColor: [
+                                'rgba(255, 99, 132, 0.8)',
+                                'rgba(54, 162, 235, 0.8)',
+                                'rgba(255, 205, 86, 0.8)',
+                                'rgba(75, 192, 192, 0.8)',
+                                'rgba(153, 102, 255, 0.8)'
+                            ]
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                position: 'bottom'
+                            }
+                        }
+                    }
+                });
+            }
+            
+            function createResponseTimeChart(responseTimes) {
+                const ctx = document.getElementById('responseTimeChart');
+                if (!ctx || !responseTimes || responseTimes.length === 0) return;
+                
+                const labels = responseTimes.map((_, index) => `Response ${index + 1}`);
+                
+                participantCharts.responseTime = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Response Time (seconds)',
+                            data: responseTimes,
+                            borderColor: 'rgba(255, 159, 64, 1)',
+                            backgroundColor: 'rgba(255, 159, 64, 0.1)',
+                            tension: 0.1,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Time (seconds)'
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Response Number'
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+            
+            function createSurveyResponses(surveyData) {
+                const surveySection = document.getElementById('surveySection');
+                const surveyResponses = document.getElementById('surveyResponses');
+                
+                if (!surveyData || Object.keys(surveyData).length === 0) {
+                    surveySection.style.display = 'none';
+                    return;
+                }
+                
+                surveySection.style.display = 'block';
+                surveyResponses.innerHTML = '';
+                
+                const surveyLabels = {
+                    'trust_q1': 'Trust Question 1',
+                    'trust_q2': 'Trust Question 2',
+                    'trust_q3': 'Trust Question 3',
+                    'pers_q1': 'Personality Question 1',
+                    'pers_q2': 'Personality Question 2',
+                    'pers_q3': 'Personality Question 3',
+                    'pers_q4': 'Personality Question 4',
+                    'pers_q5': 'Personality Question 5'
+                };
+                
+                Object.entries(surveyData).forEach(([key, data]) => {
+                    const col = document.createElement('div');
+                    col.className = 'col-md-6 col-lg-4 mb-3';
+                    col.innerHTML = `
+                        <div class="card">
+                            <div class="card-body text-center">
+                                <h6 class="card-title">${surveyLabels[key] || key}</h6>
+                                <h4 class="text-primary">${data.mean.toFixed(2)}</h4>
+                                <small class="text-muted">Mean (n=${data.count})</small>
+                            </div>
+                        </div>
+                    `;
+                    surveyResponses.appendChild(col);
+                });
+            }
+        });
+    </script>
+</body>
+</html>

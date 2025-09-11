@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exclusions - Face Perception Study Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .sidebar {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .sidebar .nav-link {
+            color: rgba(255,255,255,0.8);
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            margin: 0.25rem 0;
+        }
+        .sidebar .nav-link:hover, .sidebar .nav-link.active {
+            color: white;
+            background-color: rgba(255,255,255,0.1);
+        }
+        .main-content {
+            background-color: #f8f9fa;
+            min-height: 100vh;
+        }
+        .stat-card {
+            background: white;
+            border-radius: 1rem;
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+            transition: transform 0.2s;
+            margin-bottom: 1.5rem;
+        }
+        .stat-card:hover {
+            transform: translateY(-2px);
+        }
+        .navbar-brand {
+            font-weight: 600;
+            font-size: 1.25rem;
+        }
+        .alert {
+            border-radius: 0.75rem;
+        }
+        .exclusion-reason {
+            font-size: 0.9rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            margin: 0.1rem;
+            display: inline-block;
+        }
+        .reason-attention { background-color: #ffe6e6; color: #d63384; }
+        .reason-completion { background-color: #fff3cd; color: #856404; }
+        .reason-device { background-color: #d1ecf1; color: #0c5460; }
+        .reason-rt { background-color: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-3 col-lg-2 px-0 sidebar">
+                <div class="p-3">
+                    <h4 class="text-white mb-4">
+                        <i class="fas fa-chart-line me-2"></i>
+                        Dashboard
+                    </h4>
+                    <nav class="nav flex-column">
+                        <a class="nav-link" href="/">
+                            <i class="fas fa-home me-2"></i>Overview
+                        </a>
+                        <a class="nav-link" href="/participants">
+                            <i class="fas fa-users me-2"></i>Participants
+                        </a>
+                        <a class="nav-link" href="/images">
+                            <i class="fas fa-image me-2"></i>Images
+                        </a>
+                        <a class="nav-link" href="/statistics">
+                            <i class="fas fa-chart-bar me-2"></i>Statistics
+                        </a>
+                        <a class="nav-link active" href="/exclusions">
+                            <i class="fas fa-filter me-2"></i>Exclusions
+                        </a>
+                        <hr class="text-white-50">
+                        <a class="nav-link" href="/export/csv">
+                            <i class="fas fa-download me-2"></i>Export CSV
+                        </a>
+                        <a class="nav-link" href="/export/analysis_report">
+                            <i class="fas fa-file-alt me-2"></i>Export Report
+                        </a>
+                        <hr class="text-white-50">
+                        <a class="nav-link" href="/logout">
+                            <i class="fas fa-sign-out-alt me-2"></i>Logout
+                        </a>
+                    </nav>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-md-9 col-lg-10 main-content">
+                <!-- Top Navigation -->
+                <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom">
+                    <div class="container-fluid">
+                        <span class="navbar-brand">Data Exclusions</span>
+                        <div class="navbar-nav ms-auto">
+                            <span class="navbar-text">
+                                Welcome, {{ session.username }}!
+                            </span>
+                        </div>
+                    </div>
+                </nav>
+
+                <!-- Content -->
+                <div class="p-4">
+                    <!-- Flash Messages -->
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                                    {{ message }}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+
+                    <h2 class="mb-4">Data Exclusion Summary</h2>
+
+                    <!-- Summary Stats -->
+                    <div class="stat-card p-4 mb-4">
+                        <h4 class="mb-3">
+                            <i class="fas fa-chart-pie me-2 text-primary"></i>
+                            Exclusion Overview
+                        </h4>
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h3 class="text-primary">{{ exclusion_summary.total_raw }}</h3>
+                                    <p class="text-muted">Total Raw Responses</p>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h3 class="text-success">{{ exclusion_summary.total_cleaned }}</h3>
+                                    <p class="text-muted">Included Responses</p>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h3 class="text-danger">{{ exclusion_summary.total_raw - exclusion_summary.total_cleaned }}</h3>
+                                    <p class="text-muted">Excluded Responses</p>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h3 class="text-info">
+                                        {% set inclusion_rate = (exclusion_summary.total_cleaned / exclusion_summary.total_raw * 100) if exclusion_summary.total_raw > 0 else 0 %}
+                                        {{ "%.1f"|format(inclusion_rate) }}%
+                                    </h3>
+                                    <p class="text-muted">Inclusion Rate</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Session-Level Exclusions -->
+                    <div class="stat-card p-4 mb-4">
+                        <h4 class="mb-3">
+                            <i class="fas fa-users me-2 text-warning"></i>
+                            Session-Level Exclusions
+                        </h4>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <div class="card bg-light">
+                                    <div class="card-body">
+                                        <h6 class="card-title">Summary</h6>
+                                        <p class="mb-1"><strong>Total Sessions:</strong> {{ exclusion_summary.session_level.total_sessions }}</p>
+                                        <p class="mb-1"><strong>Excluded Sessions:</strong> {{ exclusion_summary.session_level.excluded_sessions }}</p>
+                                        <p class="mb-0"><strong>Included Sessions:</strong> {{ exclusion_summary.session_level.total_sessions - exclusion_summary.session_level.excluded_sessions }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card bg-light">
+                                    <div class="card-body">
+                                        <h6 class="card-title">Exclusion Reasons</h6>
+                                        {% if exclusion_summary.session_level.exclusion_reasons %}
+                                            {% for reason, count in exclusion_summary.session_level.exclusion_reasons.items() %}
+                                                <div class="d-flex justify-content-between">
+                                                    <span class="exclusion-reason reason-{{ reason.split('_')[0] }}">{{ reason.replace('_', ' ').title() }}</span>
+                                                    <span class="badge bg-danger">{{ count }}</span>
+                                                </div>
+                                            {% endfor %}
+                                        {% else %}
+                                            <p class="text-muted mb-0">No session-level exclusions</p>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Session Details Table -->
+                        {% if session_details %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Participant ID</th>
+                                        <th>Total Trials</th>
+                                        <th>Completion Rate</th>
+                                        <th>Exclusion Reasons</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for session in session_details %}
+                                    <tr>
+                                        <td><strong>{{ session.pid }}</strong></td>
+                                        <td>{{ session.total_trials }}</td>
+                                        <td>
+                                            {% set completion_rate = (session.total_trials / 60 * 100) if session.total_trials else 0 %}
+                                            <div class="progress" style="height: 20px;">
+                                                <div class="progress-bar {% if completion_rate >= 80 %}bg-success{% elif completion_rate >= 50 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                                     style="width: {{ completion_rate }}%">
+                                                    {{ "%.0f"|format(completion_rate) }}%
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            {% if session.exclusion_reasons %}
+                                                {% for reason in session.exclusion_reasons %}
+                                                    <span class="exclusion-reason reason-{{ reason.split('_')[0] }}">{{ reason.replace('_', ' ').title() }}</span>
+                                                {% endfor %}
+                                            {% else %}
+                                                <span class="text-muted">None</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if session.included %}
+                                                <span class="badge bg-success">Included</span>
+                                            {% else %}
+                                                <span class="badge bg-danger">Excluded</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            No session details available.
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Trial-Level Exclusions -->
+                    <div class="stat-card p-4">
+                        <h4 class="mb-3">
+                            <i class="fas fa-clock me-2 text-info"></i>
+                            Trial-Level Exclusions
+                        </h4>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <div class="card bg-light">
+                                    <div class="card-body">
+                                        <h6 class="card-title">Summary</h6>
+                                        <p class="mb-1"><strong>Total Trials:</strong> {{ exclusion_summary.trial_level.total_trials }}</p>
+                                        <p class="mb-1"><strong>Excluded Trials:</strong> {{ exclusion_summary.trial_level.excluded_trials }}</p>
+                                        <p class="mb-0"><strong>Included Trials:</strong> {{ exclusion_summary.trial_level.total_trials - exclusion_summary.trial_level.excluded_trials }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card bg-light">
+                                    <div class="card-body">
+                                        <h6 class="card-title">Exclusion Reasons</h6>
+                                        {% if exclusion_summary.trial_level.exclusion_reasons %}
+                                            {% for reason, count in exclusion_summary.trial_level.exclusion_reasons.items() %}
+                                                <div class="d-flex justify-content-between">
+                                                    <span class="exclusion-reason reason-{{ reason.split('_')[0] }}">{{ reason.replace('_', ' ').title() }}</span>
+                                                    <span class="badge bg-danger">{{ count }}</span>
+                                                </div>
+                                            {% endfor %}
+                                        {% else %}
+                                            <p class="text-muted mb-0">No trial-level exclusions</p>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                                                         <div class="col-md-4">
+                                 <div class="card bg-light">
+                                     <div class="card-body">
+                                         <h6 class="card-title">Visual Summary</h6>
+                                         <div class="text-center">
+                                             <div class="d-flex justify-content-center align-items-center" style="height: 150px;">
+                                                 <div>
+                                                     <div class="mb-2">
+                                                         <span class="badge bg-success me-2">Included</span>
+                                                         <span class="text-muted">{{ exclusion_summary.trial_level.total_trials - exclusion_summary.trial_level.excluded_trials }}</span>
+                                                     </div>
+                                                     <div>
+                                                         <span class="badge bg-danger me-2">Excluded</span>
+                                                         <span class="text-muted">{{ exclusion_summary.trial_level.excluded_trials }}</span>
+                                                     </div>
+                                                 </div>
+                                             </div>
+                                         </div>
+                                     </div>
+                                 </div>
+                             </div>
+                        </div>
+
+                        <!-- Trial Details Table -->
+                        {% if trial_details %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Participant ID</th>
+                                        <th>Face ID</th>
+                                        <th>Version</th>
+                                        <th>Trust Rating</th>
+                                        <th>Reaction Time</th>
+                                        <th>Exclusion Flags</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for trial in trial_details %}
+                                    <tr>
+                                        <td>{{ trial.pid }}</td>
+                                        <td>{{ trial.face_id }}</td>
+                                        <td>
+                                            <span class="badge bg-secondary">{{ trial.version }}</span>
+                                        </td>
+                                        <td>{{ trial.trust_rating }}</td>
+                                        <td>
+                                            {% if trial.reaction_time %}
+                                                {{ "%.0f"|format(trial.reaction_time) }}ms
+                                            {% else %}
+                                                <span class="text-muted">N/A</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if trial.excl_fast_rt %}
+                                                <span class="exclusion-reason reason-rt">Fast RT</span>
+                                            {% endif %}
+                                            {% if trial.excl_slow_rt %}
+                                                <span class="exclusion-reason reason-rt">Slow RT</span>
+                                            {% endif %}
+                                            {% if not trial.excl_fast_rt and not trial.excl_slow_rt %}
+                                                <span class="text-muted">None</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if trial.include_in_primary %}
+                                                <span class="badge bg-success">Included</span>
+                                            {% else %}
+                                                <span class="badge bg-danger">Excluded</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            No trial details available.
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Exclusion Reason Breakdown Table -->
+                    <div class="stat-card p-4">
+                        <h4 class="mb-3">
+                            <i class="fas fa-table me-2 text-warning"></i>
+                            Exclusion Reason Breakdown
+                        </h4>
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Exclusion Type</th>
+                                        <th>Reason</th>
+                                        <th>Count</th>
+                                        <th>Percentage</th>
+                                        <th>Description</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><span class="badge bg-danger">Session-Level</span></td>
+                                        <td>Low Completion Rate</td>
+                                        <td>{{ exclusion_summary.session_level.exclusion_reasons.get('low_completion', 0) if exclusion_summary.session_level.exclusion_reasons else 0 }}</td>
+                                        <td>
+                                            {% set total_sessions = exclusion_summary.session_level.total_sessions %}
+                                            {% set low_comp = exclusion_summary.session_level.exclusion_reasons.get('low_completion', 0) if exclusion_summary.session_level.exclusion_reasons else 0 %}
+                                            {{ "%.1f"|format(low_comp / total_sessions * 100) if total_sessions > 0 else 0 }}%
+                                        </td>
+                                        <td>Participants with < 80% completion rate</td>
+                                    </tr>
+                                    <tr>
+                                        <td><span class="badge bg-danger">Session-Level</span></td>
+                                        <td>Attention Check Failed</td>
+                                        <td>{{ exclusion_summary.session_level.exclusion_reasons.get('attention_failed', 0) if exclusion_summary.session_level.exclusion_reasons else 0 }}</td>
+                                        <td>
+                                            {% set att_fail = exclusion_summary.session_level.exclusion_reasons.get('attention_failed', 0) if exclusion_summary.session_level.exclusion_reasons else 0 %}
+                                            {{ "%.1f"|format(att_fail / total_sessions * 100) if total_sessions > 0 else 0 }}%
+                                        </td>
+                                        <td>Failed attention check questions</td>
+                                    </tr>
+                                    <tr>
+                                        <td><span class="badge bg-danger">Session-Level</span></td>
+                                        <td>Device Violation</td>
+                                        <td>{{ exclusion_summary.session_level.exclusion_reasons.get('device_violation', 0) if exclusion_summary.session_level.exclusion_reasons else 0 }}</td>
+                                        <td>
+                                            {% set dev_viol = exclusion_summary.session_level.exclusion_reasons.get('device_violation', 0) if exclusion_summary.session_level.exclusion_reasons else 0 %}
+                                            {{ "%.1f"|format(dev_viol / total_sessions * 100) if total_sessions > 0 else 0 }}%
+                                        </td>
+                                        <td>Mobile device or incompatible browser</td>
+                                    </tr>
+                                    <tr>
+                                        <td><span class="badge bg-warning">Trial-Level</span></td>
+                                        <td>Fast Reaction Time</td>
+                                        <td>{{ exclusion_summary.trial_level.exclusion_reasons.get('fast_rt', 0) if exclusion_summary.trial_level.exclusion_reasons else 0 }}</td>
+                                        <td>
+                                            {% set total_trials = exclusion_summary.trial_level.total_trials %}
+                                            {% set fast_rt = exclusion_summary.trial_level.exclusion_reasons.get('fast_rt', 0) if exclusion_summary.trial_level.exclusion_reasons else 0 %}
+                                            {{ "%.1f"|format(fast_rt / total_trials * 100) if total_trials > 0 else 0 }}%
+                                        </td>
+                                        <td>RT < 200ms (likely random responding)</td>
+                                    </tr>
+                                    <tr>
+                                        <td><span class="badge bg-warning">Trial-Level</span></td>
+                                        <td>Slow Reaction Time</td>
+                                        <td>{{ exclusion_summary.trial_level.exclusion_reasons.get('slow_rt', 0) if exclusion_summary.trial_level.exclusion_reasons else 0 }}</td>
+                                        <td>
+                                            {% set slow_rt = exclusion_summary.trial_level.exclusion_reasons.get('slow_rt', 0) if exclusion_summary.trial_level.exclusion_reasons else 0 %}
+                                            {{ "%.1f"|format(slow_rt / total_trials * 100) if total_trials > 0 else 0 }}%
+                                        </td>
+                                        <td>RT > 10000ms (likely distracted)</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

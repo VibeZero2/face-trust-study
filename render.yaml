@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: facial-trust-study-unified
+    env: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: python wsgi_unified.py
+    envVars:
+      - key: RENDER
+        value: "true"
+      - key: PYTHONPATH
+        value: "/opt/render/project/src"
+    healthCheckPath: /
+    autoDeploy: true
+    branch: main
