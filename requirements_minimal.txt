@@ -1,0 +1,8 @@
+# Minimal requirements for Render deployment
+flask==2.3.2
+pandas
+scipy
+numpy
+cryptography
+python-dotenv==1.0.0
+openpyxl==3.1.2
