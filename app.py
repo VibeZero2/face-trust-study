@@ -28,9 +28,9 @@ app.secret_key = os.getenv("FLASK_SECRET_KEY", os.urandom(24))
 from dashboard import dashboard_blueprint
 app.register_blueprint(dashboard_blueprint, url_prefix='/dashboard')
 
-# Configure dashboard specific settings
+# Configure dashboard specific settings - use same secret key for session compatibility
 app.config.update(
-    DASHBOARD_SECRET_KEY=os.getenv('DASHBOARD_SECRET_KEY', 'dev-secret-key-change-in-production'),
+    DASHBOARD_SECRET_KEY=os.getenv("FLASK_SECRET_KEY", os.urandom(24)),
     DASHBOARD_DEBUG=True,
     DASHBOARD_TEMPLATES_AUTO_RELOAD=True
 )
@@ -416,8 +416,12 @@ def landing():
     pid = request.args.get("pid")
     prolific_pid = request.args.get("PROLIFIC_PID", "")
     
+    print(f"🔍 LANDING DEBUG: PID from URL: {pid}")
+    print(f"🔍 LANDING DEBUG: Prolific PID from URL: {prolific_pid}")
+    
     if pid:
         # Start session immediately
+        print(f"🔍 LANDING DEBUG: Creating session for PID: {pid}")
         create_participant_run(pid, prolific_pid)
         return redirect(url_for("task", pid=pid))
     
@@ -434,11 +438,13 @@ def instructions():
 @app.route("/start", methods=["POST"])
 def start_manual():
     pid = request.form.get("pid", "").strip()
+    print(f"🔍 START DEBUG: Received start request for PID: {pid}")
     if not pid:
         abort(400)
     
     # Capture Prolific ID if provided
     prolific_pid = request.form.get("prolific_pid", "").strip()
+    print(f"🔍 START DEBUG: Prolific PID: {prolific_pid}")
     
     # IRB-Safe: Check for existing session before creating new one
     if SESSION_MANAGEMENT_ENABLED:

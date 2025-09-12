@@ -1904,7 +1904,8 @@ def delete_file(filename):
 from flask import Flask
 
 app = Flask(__name__)
-app.secret_key = os.getenv('DASHBOARD_SECRET_KEY', 'dev-secret-key-change-in-production')
+# Use the same secret key as main app for session compatibility
+app.secret_key = os.getenv("FLASK_SECRET_KEY", os.urandom(24))
 app.register_blueprint(dashboard_bp)
 
 # Initialize data when the blueprint is registered
