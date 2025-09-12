@@ -1899,6 +1899,13 @@ def delete_file(filename):
         flash(f'Error deleting file: {str(e)}', 'error')
         return redirect(url_for('dashboard'))
 
+# Create Flask app for standalone dashboard
+from flask import Flask
+
+app = Flask(__name__)
+app.secret_key = os.getenv('DASHBOARD_SECRET_KEY', 'dev-secret-key-change-in-production')
+app.register_blueprint(dashboard_bp)
+
 # Initialize data when the blueprint is registered
 def init_dashboard():
     if initialize_data(force_mode=False):
