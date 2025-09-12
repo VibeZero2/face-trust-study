@@ -768,11 +768,9 @@ def participants():
             # Convert timestamp to datetime and handle NaT values
             included['timestamp'] = pd.to_datetime(included['timestamp'], errors='coerce')
             summary_df = included.groupby('pid').agg(
-                start_time=('timestamp', 'min'),
-                submissions=('trust_rating', 'count')
+                submissions=('trust_rating', 'count'),
+                start_time=('timestamp', 'min')
             ).reset_index()
-            
-            # Format datetime for display, handle NaT values
             summary_df['start_time'] = summary_df['start_time'].apply(
                 lambda x: x.strftime('%Y-%m-%d %H:%M:%S') if pd.notna(x) else 'N/A'
             )
@@ -781,6 +779,16 @@ def participants():
                 submissions=('trust_rating', 'count')
             ).reset_index()
             summary_df['start_time'] = 'N/A'
+
+        # Sort participants numerically instead of alphabetically
+        def extract_numeric_pid(pid):
+            """Extract numeric part from participant ID for sorting"""
+            import re
+            match = re.search(r'(\d+)', str(pid))
+            return int(match.group(1)) if match else 0
+        
+        summary_df['sort_key'] = summary_df['pid'].apply(extract_numeric_pid)
+        summary_df = summary_df.sort_values('sort_key').drop('sort_key', axis=1)
 
         # Render the new participants template
         return render_template('participants.html', participants=summary_df.to_dict('records'))
