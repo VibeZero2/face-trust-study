@@ -318,40 +318,6 @@ def dashboard():
     try:
         print("🔄 DASHBOARD: Starting dashboard function")
         
-        # DEBUG: Check face files from main app
-        from pathlib import Path
-        main_app_base_dir = Path(__file__).resolve().parent.parent
-        main_app_images_dir = main_app_base_dir / "static" / "images"
-        print(f"🔍 DASHBOARD DEBUG: Main app base dir = {main_app_base_dir}")
-        print(f"🔍 DASHBOARD DEBUG: Main app images dir = {main_app_images_dir}")
-        print(f"🔍 DASHBOARD DEBUG: Images dir exists = {main_app_images_dir.exists()}")
-        
-        if main_app_images_dir.exists():
-            try:
-                all_image_files = list(main_app_images_dir.iterdir())
-                print(f"🔍 DASHBOARD DEBUG: Found {len(all_image_files)} total files in images directory")
-                
-                # Check for face files specifically
-                face_files_debug = []
-                for pattern in ("*.jpg", "*.jpeg", "*.JPG", "*.JPEG"):
-                    matched = [p.name for p in main_app_images_dir.glob(pattern)]
-                    print(f"🔍 DASHBOARD DEBUG: Pattern {pattern} matched {len(matched)} files: {matched}")
-                    face_files_debug.extend(matched)
-                
-                # Deduplicate
-                unique_debug = {}
-                for fname in face_files_debug:
-                    stem = Path(fname).stem
-                    if stem not in unique_debug:
-                        unique_debug[stem] = fname
-                
-                final_face_files = sorted(unique_debug.values())
-                print(f"🔍 DASHBOARD DEBUG: Final face files count: {len(final_face_files)}")
-                print(f"🔍 DASHBOARD DEBUG: Final face files: {final_face_files}")
-                
-            except Exception as e:
-                print(f"🔍 DASHBOARD DEBUG: Error checking face files: {e}")
-
         # Get overview statistics
         if not is_data_available():
             print("🔄 DASHBOARD: No data available")

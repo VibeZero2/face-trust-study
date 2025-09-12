@@ -13,14 +13,28 @@ from typing import Dict, Any, Optional
 
 # Session storage directory
 SESSIONS_DIR = Path(__file__).parent / "data" / "sessions"
-try:
-    SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
-except (OSError, PermissionError) as e:
-    print(f"Warning: Could not create sessions directory: {e}")
-    # Create a fallback directory in temp
-    import tempfile
-    SESSIONS_DIR = Path(tempfile.gettempdir()) / "facial_trust_sessions"
-    SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
+
+def ensure_sessions_dir():
+    """Ensure sessions directory exists, with fallback options."""
+    global SESSIONS_DIR
+    try:
+        SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
+        return True
+    except (OSError, PermissionError) as e:
+        print(f"Warning: Could not create sessions directory: {e}")
+        try:
+            # Create a fallback directory in temp
+            import tempfile
+            SESSIONS_DIR = Path(tempfile.gettempdir()) / "facial_trust_sessions"
+            SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
+            print(f"Using fallback sessions directory: {SESSIONS_DIR}")
+            return True
+        except Exception as e2:
+            print(f"Error: Could not create fallback sessions directory: {e2}")
+            return False
+
+# Initialize sessions directory
+_sessions_available = ensure_sessions_dir()
 
 def save_session_state(participant_id: str, session_data: Dict[str, Any]) -> bool:
     """
@@ -34,6 +48,11 @@ def save_session_state(participant_id: str, session_data: Dict[str, Any]) -> boo
         bool: True if saved successfully, False otherwise
     """
     try:
+        # Ensure directory exists before saving
+        if not _sessions_available:
+            if not ensure_sessions_dir():
+                return False
+                
         # Create a safe filename
         safe_id = participant_id.replace(" ", "_").replace("/", "_").replace("\\", "_")
         session_file = SESSIONS_DIR / f"{safe_id}_session.json"
