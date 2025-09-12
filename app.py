@@ -134,6 +134,13 @@ def create_participant_run(pid: str, prolific_pid: str = None):
             "order": [{"version": "toggle", "file": fname, "start": ("left" if left_first else "right")}, {"version": "full", "file": fname}]
         })
     
+    # CRITICAL DEBUG: Log the sequence creation
+    print(f"🔍 SEQUENCE DEBUG: Creating session for participant {pid}")
+    print(f"🔍 SEQUENCE DEBUG: FACE_FILES count: {len(FACE_FILES)}")
+    print(f"🔍 SEQUENCE DEBUG: randomized_faces count: {len(randomized_faces)}")
+    print(f"🔍 SEQUENCE DEBUG: sequence count: {len(sequence)}")
+    print(f"🔍 SEQUENCE DEBUG: face_order count: {len(face_order)}")
+    
     session["pid"] = pid
     session["index"] = 0  # index in sequence
     session["sequence"] = sequence
@@ -144,6 +151,10 @@ def create_participant_run(pid: str, prolific_pid: str = None):
     # Store Prolific ID if provided
     if prolific_pid:
         session["prolific_pid"] = prolific_pid
+        
+    # FINAL DEBUG: Confirm session values
+    print(f"🔍 SEQUENCE DEBUG: Final session sequence count: {len(session['sequence'])}")
+    print(f"🔍 SEQUENCE DEBUG: Final session face_order count: {len(session['face_order'])}")
     
 
 
@@ -737,6 +748,13 @@ def task():
     show_trust_questions = version in ("toggle", "full")
 
     progress = face_index + 1
+    
+    # CRITICAL DEBUG: Log the display values
+    print(f"🔍 DISPLAY DEBUG: Participant {session['pid']} - Face {progress} of {len(session['sequence'])}")
+    print(f"🔍 DISPLAY DEBUG: session['index']: {session['index']}")
+    print(f"🔍 DISPLAY DEBUG: face_index: {face_index}")
+    print(f"🔍 DISPLAY DEBUG: len(session['sequence']): {len(session['sequence'])}")
+    
     return render_template(
         "task.html",
         pid=session["pid"],
