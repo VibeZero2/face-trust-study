@@ -13,7 +13,7 @@ from typing import Dict, Any, Optional
 
 # Session storage directory
 SESSIONS_DIR = Path(__file__).parent / "data" / "sessions"
-SESSIONS_DIR.mkdir(exist_ok=True)
+SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
 
 def save_session_state(participant_id: str, session_data: Dict[str, Any]) -> bool:
     """
