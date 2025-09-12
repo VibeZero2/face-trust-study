@@ -214,12 +214,19 @@ class DataCleaner:
                 df.loc[face_id_pattern, 'face_id'] = 'face_' + df.loc[face_id_pattern, 'face_id'].str.extract(r'Face ID \((\d+)\)')[0]
                 logger.info("Converted 'Face ID (X)' format to study program format")
             
-            # Handle simple numeric face IDs like "1", "2", "3" from test data
+            # Handle simple numeric face IDs like "1", "2", "3" from old test data
             numeric_pattern = df['face_id'].str.match(r'^\d+$', na=False)
             if numeric_pattern.any():
                 # Convert "1" to "face_1", "2" to "face_2", etc.
                 df.loc[numeric_pattern, 'face_id'] = 'face_' + df.loc[numeric_pattern, 'face_id']
                 logger.info("Converted numeric face IDs to study program format")
+            
+            # Handle new test data format (face_01, face_02, etc.) - ensure consistent format
+            face_xx_pattern = df['face_id'].str.match(r'face_(\d+)$', na=False)
+            if face_xx_pattern.any():
+                # Convert face_01 to face_1, face_02 to face_2, etc.
+                df.loc[face_xx_pattern, 'face_id'] = 'face_' + df.loc[face_xx_pattern, 'face_id'].str.extract(r'face_(\d+)$')[0].astype(int).astype(str)
+                logger.info("Converted face_XX format to face_X format")
         
         # Ensure version exists and has data (study program uses 'version')
         if 'faceversion' in df.columns and 'version' in df.columns:
