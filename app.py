@@ -51,16 +51,46 @@ DATA_DIR.mkdir(exist_ok=True)
 # We accept any JPG/PNG in the folder and will present the SAME image three times
 # (left crop, right crop, full) using CSS clipping.
 # Accept .jpg or .jpeg in any capitalization
+
+print("🔍 DEBUG: Starting face file loading process...")
+print(f"🔍 DEBUG: IMAGES_DIR = {IMAGES_DIR}")
+print(f"🔍 DEBUG: IMAGES_DIR exists = {IMAGES_DIR.exists()}")
+print(f"🔍 DEBUG: IMAGES_DIR is_dir = {IMAGES_DIR.is_dir()}")
+
+# List all files in the directory for debugging
+try:
+    all_files = list(IMAGES_DIR.iterdir())
+    print(f"🔍 DEBUG: All files in IMAGES_DIR ({len(all_files)} total):")
+    for i, file_path in enumerate(all_files):
+        print(f"🔍 DEBUG:   {i+1}. {file_path.name} (is_file: {file_path.is_file()})")
+except Exception as e:
+    print(f"🔍 DEBUG: Error listing directory contents: {e}")
+
 FACE_FILES = []
 for pattern in ("*.jpg", "*.jpeg", "*.JPG", "*.JPEG"):
-    FACE_FILES.extend([p.name for p in IMAGES_DIR.glob(pattern)])
+    print(f"🔍 DEBUG: Searching for pattern: {pattern}")
+    matched_files = [p.name for p in IMAGES_DIR.glob(pattern)]
+    print(f"🔍 DEBUG: Found {len(matched_files)} files for pattern {pattern}: {matched_files}")
+    FACE_FILES.extend(matched_files)
+
+print(f"🔍 DEBUG: Total FACE_FILES before deduplication: {len(FACE_FILES)}")
+print(f"🔍 DEBUG: FACE_FILES before deduplication: {FACE_FILES}")
+
 # Deduplicate by filename stem (without extension) to avoid counting duplicates
 unique = {}
 for fname in FACE_FILES:
     stem = Path(fname).stem
+    print(f"🔍 DEBUG: Processing file '{fname}' -> stem '{stem}'")
     if stem not in unique:
         unique[stem] = fname  # keep first occurrence
+        print(f"🔍 DEBUG:   Added '{fname}' as first occurrence of stem '{stem}'")
+    else:
+        print(f"🔍 DEBUG:   Skipped '{fname}' - stem '{stem}' already exists with '{unique[stem]}'")
+
 FACE_FILES = sorted(unique.values())
+print(f"🔍 DEBUG: Final FACE_FILES count: {len(FACE_FILES)}")
+print(f"🔍 DEBUG: Final FACE_FILES list: {FACE_FILES}")
+
 assert FACE_FILES, "No face images found. Place images in static/images/."
 
 # ----------------------------------------------------------------------------
