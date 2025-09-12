@@ -743,7 +743,7 @@ def task():
         face_id=current["face_id"],
         version=version,
         progress=progress,
-        total=len(FACE_FILES),
+        total=len(session["sequence"]),
         show_mf=show_mf_questions,
         show_trust=show_trust_questions,
         side=side,
