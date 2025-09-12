@@ -756,10 +756,11 @@ def task():
     progress = face_index + 1
     
     # CRITICAL DEBUG: Log the display values
-    print(f"🔍 DISPLAY DEBUG: Participant {session['pid']} - Face {progress} of {len(session['sequence'])}")
+    print(f"🔍 DISPLAY DEBUG: Participant {session['pid']} - Face {progress} of {len(session['face_order'])}")
     print(f"🔍 DISPLAY DEBUG: session['index']: {session['index']}")
     print(f"🔍 DISPLAY DEBUG: face_index: {face_index}")
     print(f"🔍 DISPLAY DEBUG: len(session['sequence']): {len(session['sequence'])}")
+    print(f"🔍 DISPLAY DEBUG: len(session['face_order']): {len(session['face_order'])}")
     
     return render_template(
         "task.html",
@@ -768,7 +769,7 @@ def task():
         face_id=current["face_id"],
         version=version,
         progress=progress,
-        total=len(session["sequence"]),
+        total=len(session["face_order"]),  # Show number of faces, not phases
         show_mf=show_mf_questions,
         show_trust=show_trust_questions,
         side=side,
