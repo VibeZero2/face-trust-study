@@ -13,7 +13,14 @@ from typing import Dict, Any, Optional
 
 # Session storage directory
 SESSIONS_DIR = Path(__file__).parent / "data" / "sessions"
-SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
+try:
+    SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
+except (OSError, PermissionError) as e:
+    print(f"Warning: Could not create sessions directory: {e}")
+    # Create a fallback directory in temp
+    import tempfile
+    SESSIONS_DIR = Path(tempfile.gettempdir()) / "facial_trust_sessions"
+    SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
 
 def save_session_state(participant_id: str, session_data: Dict[str, Any]) -> bool:
     """
