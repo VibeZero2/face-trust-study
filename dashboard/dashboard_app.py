@@ -573,6 +573,7 @@ def dashboard():
         return render_template('error.html', message=str(e))
 
 @dashboard_bp.route('/api/overview')
+@dashboard_bp.route('/dashboard/api/overview')
 # @login_required  # Temporarily disabled for Render deployment
 def api_overview():
     """API endpoint for overview statistics."""
