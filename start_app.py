@@ -1,0 +1,26 @@
+"""
+Simple launcher for the Facial Trust Study application.
+"""
+import os
+import sys
+from pathlib import Path
+
+# Add the project root to the Python path
+project_root = str(Path(__file__).resolve().parent)
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+# Import and run the app
+from app import app
+
+if __name__ == "__main__":
+    print("\n🚀 Starting Facial Trust Study...")
+    print(f"🌐 Access the application at: http://localhost:3000")
+    print(f"📊 Access the dashboard at: http://localhost:3000/dashboard")
+    print("🛑 Press Ctrl+C to stop the server\n")
+    
+    # Create necessary directories
+    (Path(project_root) / "data" / "responses").mkdir(parents=True, exist_ok=True)
+    
+    # Run the application
+    app.run(host='0.0.0.0', port=3000, debug=True)

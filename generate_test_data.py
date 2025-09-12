@@ -1,0 +1,118 @@
+"""
+Test Data Generator for Facial Trust Study
+
+This script generates realistic test data for the facial trust study with the following structure:
+- 60 test participants (test_001 to test_060)
+- 35 face images (face_01 to face_35)
+- Each participant rates each face in two phases:
+  Phase 1: Half-face ratings (6 questions)
+  Phase 2: Full-face ratings (4 questions)
+"""
+
+import os
+import random
+import pandas as pd
+from pathlib import Path
+from datetime import datetime, timedelta
+
+# Configuration - EXACTLY 60 participants as per IRB protocol
+NUM_PARTICIPANTS = 60
+NUM_FACES = 35
+OUTPUT_DIR = Path("data/responses")
+
+# Ensure output directory exists
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+# Response options
+MASCULINITY_CHOICES = ["Left", "Right", "Both Equally", "Neither"]
+FEMININITY_CHOICES = ["Left", "Right", "Both Equally", "Neither"]
+LIKERT_SCALE = list(range(1, 10))  # 1-9 scale
+
+def generate_participant_data(participant_id, num_faces):
+    """Generate test data for a single participant."""
+    data = []
+    
+    # Generate start time for this participant (spread over several days)
+    start_time = datetime.now() - timedelta(hours=random.randint(1, 48))
+    
+    for face_num in range(1, num_faces + 1):
+        face_id = f"face_{face_num:02d}"
+        
+        # Generate realistic ratings (1-7 scale)
+        trust_rating = random.randint(1, 7)
+        emotion_rating = random.randint(1, 7)
+        
+        # Generate comparison choices (matching study format)
+        masc_choice = random.choice(['left', 'right', 'equal', 'neither'])
+        fem_choice = random.choice(['left', 'right', 'equal', 'neither'])
+        
+        # Generate survey responses (trust_q2, trust_q3, pers_q1-q5)
+        trust_q2 = random.randint(1, 7)
+        trust_q3 = random.randint(1, 7)
+        pers_q1 = random.randint(1, 7)
+        pers_q2 = random.randint(1, 7)
+        pers_q3 = random.randint(1, 7)
+        pers_q4 = random.randint(1, 7)
+        pers_q5 = random.randint(1, 7)
+        
+        # Add some time variation between faces
+        timestamp = start_time + timedelta(seconds=random.randint(30, 120))
+        
+        # Match the exact IRB-approved study format
+        data.append({
+            'pid': participant_id,
+            'timestamp': timestamp.isoformat(),
+            'face_id': face_id,
+            'version': random.choice(['left', 'right', 'full', 'toggle']),
+            'order_presented': face_num,
+            'trust_rating': trust_rating,
+            'masc_choice': masc_choice,
+            'fem_choice': fem_choice,
+            'emotion_rating': emotion_rating,
+            'trust_q2': trust_q2,
+            'trust_q3': trust_q3,
+            'pers_q1': pers_q1,
+            'pers_q2': pers_q2,
+            'pers_q3': pers_q3,
+            'pers_q4': pers_q4,
+            'pers_q5': pers_q5,
+            'prolific_pid': f"test_{participant_id}"
+        })
+        
+        # Increment time for next face
+        start_time = timestamp + timedelta(seconds=random.randint(30, 120))
+    
+    return pd.DataFrame(data)
+
+def generate_all_data():
+    """Generate test data for all participants and save to files."""
+    all_data = []
+    
+    # Generate data for each participant
+    for i in range(1, NUM_PARTICIPANTS + 1):
+        participant_id = f"test_{i:03d}"
+        print(f"Generating data for {participant_id}...")
+        
+        # Generate individual participant data
+        df_participant = generate_participant_data(participant_id, NUM_FACES)
+        
+        # Save individual participant file with test prefix for dashboard detection
+        output_file = OUTPUT_DIR / f"test_participant_{participant_id}.csv"
+        df_participant.to_csv(output_file, index=False)
+        
+        # Add to combined dataset
+        all_data.append(df_participant)
+    
+    # Combine all participant data
+    if all_data:
+        df_all = pd.concat(all_data, ignore_index=True)
+        combined_file = OUTPUT_DIR / "test_participants_combined.csv"
+        df_all.to_csv(combined_file, index=False)
+        print(f"\nGenerated data for {NUM_PARTICIPANTS} participants with {NUM_FACES} faces each.")
+        print(f"Individual files saved to: {OUTPUT_DIR}/test_*.csv")
+        print(f"Combined data saved to: {combined_file}")
+    else:
+        print("No data was generated.")
+
+if __name__ == "__main__":
+    generate_all_data()

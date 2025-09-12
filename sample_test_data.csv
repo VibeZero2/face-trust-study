@@ -1,0 +1,6 @@
+pid,timestamp,face_id,version,order_presented,trust_rating,masc_choice,fem_choice,emotion_rating,trust_q2,trust_q3,pers_q1,pers_q2,pers_q3,pers_q4,pers_q5,prolific_pid
+test_001,2025-09-12T10:24:53,face_01,full,1,6,left,right,4,5,3,7,2,6,4,5,test_test_001
+test_001,2025-09-12T10:26:15,face_02,toggle,2,3,equal,neither,7,2,6,4,7,3,5,2,test_test_001
+test_001,2025-09-12T10:27:42,face_03,left,3,7,right,left,2,4,5,6,3,7,2,4,test_test_001
+test_001,2025-09-12T10:29:18,face_04,right,4,2,neither,equal,6,7,2,3,5,4,6,7,test_test_001
+test_001,2025-09-12T10:30:55,face_05,full,5,5,left,right,3,6,4,2,6,5,3,6,test_test_001

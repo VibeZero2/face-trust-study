@@ -3,7 +3,7 @@ import csv
 import random
 from datetime import datetime
 from pathlib import Path
-from flask import Flask, render_template, request, redirect, url_for, session, abort
+from flask import Flask, render_template, request, redirect, url_for, session, abort, Blueprint
 from cryptography.fernet import Fernet
 from dotenv import load_dotenv
 
@@ -22,6 +22,17 @@ load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", os.urandom(24))
+
+# Import and register dashboard blueprint
+from dashboard import dashboard_blueprint
+app.register_blueprint(dashboard_blueprint, url_prefix='/dashboard')
+
+# Configure dashboard specific settings
+app.config.update(
+    DASHBOARD_SECRET_KEY=os.getenv('DASHBOARD_SECRET_KEY', 'dev-secret-key-change-in-production'),
+    DASHBOARD_DEBUG=True,
+    DASHBOARD_TEMPLATES_AUTO_RELOAD=True
+)
 
 # Encryption key (must be 32 url-safe base64-encoded bytes)
 FERNET_KEY = os.getenv("FERNET_KEY")
@@ -754,8 +765,8 @@ def done():
 
 # ----------------------------------------------------------------------------
 if __name__ == "__main__":
-    
-    port = int(os.environ.get("PORT", 3000))
+    # Set default port to 3000
+    port = 3000
     print(f"🎯 Starting Facial Trust Study on port {port}")
     print(f"📍 URL: http://localhost:{port}")
     print("🔧 Using localhost binding for Windows compatibility")

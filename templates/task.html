@@ -342,6 +342,118 @@
   <!-- Bootstrap JS Bundle (for modal functionality) -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
+  <!-- Both Equally Validation Script -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Function to check and enforce Both Equally rule
+      function validateBothEqually() {
+        // Check for toggle mode (masc_toggle and fem_toggle)
+        const mascToggle = document.querySelector('input[name="masc_toggle"]:checked');
+        const femToggle = document.querySelector('input[name="fem_toggle"]:checked');
+        
+        // Check for full mode (masc and fem)
+        const masc = document.querySelector('input[name="masc"]:checked');
+        const fem = document.querySelector('input[name="fem"]:checked');
+        
+        let showAlert = false;
+        let alertMessage = '';
+        
+        // Validate toggle mode
+        if (mascToggle && femToggle) {
+          // Both Equally consistency
+          if (mascToggle.value === 'both' && femToggle.value !== 'both') {
+            showAlert = true;
+            alertMessage = 'If you select "Both equally" for masculinity, you must also select "Both equally" for femininity. This ensures consistency in your responses.';
+          } else if (femToggle.value === 'both' && mascToggle.value !== 'both') {
+            showAlert = true;
+            alertMessage = 'If you select "Both equally" for femininity, you must also select "Both equally" for masculinity. This ensures consistency in your responses.';
+          }
+          // Neither consistency
+          else if (mascToggle.value === 'neither' && femToggle.value !== 'neither') {
+            showAlert = true;
+            alertMessage = 'If you select "Neither" for masculinity, you must also select "Neither" for femininity. This ensures consistency in your responses.';
+          } else if (femToggle.value === 'neither' && mascToggle.value !== 'neither') {
+            showAlert = true;
+            alertMessage = 'If you select "Neither" for femininity, you must also select "Neither" for masculinity. This ensures consistency in your responses.';
+          }
+          // Contradictory choices (same side can't be both more masculine and more feminine)
+          else if (mascToggle.value === 'right' && femToggle.value === 'right') {
+            showAlert = true;
+            alertMessage = 'You cannot select the same side (right) as both more masculine and more feminine. Please choose different sides or select "Both equally" or "Neither" for one or both questions.';
+          } else if (mascToggle.value === 'left' && femToggle.value === 'left') {
+            showAlert = true;
+            alertMessage = 'You cannot select the same side (left) as both more masculine and more feminine. Please choose different sides or select "Both equally" or "Neither" for one or both questions.';
+          }
+          // Both Equally + Neither contradiction
+          else if ((mascToggle.value === 'both' && femToggle.value === 'neither') || (mascToggle.value === 'neither' && femToggle.value === 'both')) {
+            showAlert = true;
+            alertMessage = 'You cannot select "Both equally" for one question and "Neither" for the other. These are contradictory responses. Please choose consistent options.';
+          }
+        }
+        
+        // Validate full mode
+        if (masc && fem) {
+          // Both Equally consistency
+          if (masc.value === 'both' && fem.value !== 'both') {
+            showAlert = true;
+            alertMessage = 'If you select "Both equally" for masculinity, you must also select "Both equally" for femininity. This ensures consistency in your responses.';
+          } else if (fem.value === 'both' && masc.value !== 'both') {
+            showAlert = true;
+            alertMessage = 'If you select "Both equally" for femininity, you must also select "Both equally" for masculinity. This ensures consistency in your responses.';
+          }
+          // Neither consistency
+          else if (masc.value === 'neither' && fem.value !== 'neither') {
+            showAlert = true;
+            alertMessage = 'If you select "Neither" for masculinity, you must also select "Neither" for femininity. This ensures consistency in your responses.';
+          } else if (fem.value === 'neither' && masc.value !== 'neither') {
+            showAlert = true;
+            alertMessage = 'If you select "Neither" for femininity, you must also select "Neither" for masculinity. This ensures consistency in your responses.';
+          }
+          // Contradictory choices (same side can't be both more masculine and more feminine)
+          else if (masc.value === 'right' && fem.value === 'right') {
+            showAlert = true;
+            alertMessage = 'You cannot select the same side (right) as both more masculine and more feminine. Please choose different sides or select "Both equally" or "Neither" for one or both questions.';
+          } else if (masc.value === 'left' && fem.value === 'left') {
+            showAlert = true;
+            alertMessage = 'You cannot select the same side (left) as both more masculine and more feminine. Please choose different sides or select "Both equally" or "Neither" for one or both questions.';
+          }
+          // Both Equally + Neither contradiction
+          else if ((masc.value === 'both' && fem.value === 'neither') || (masc.value === 'neither' && fem.value === 'both')) {
+            showAlert = true;
+            alertMessage = 'You cannot select "Both equally" for one question and "Neither" for the other. These are contradictory responses. Please choose consistent options.';
+          }
+        }
+        
+        if (showAlert) {
+          alert(alertMessage);
+          return false;
+        }
+        
+        return true;
+      }
+      
+      // Add event listeners to all radio buttons
+      const radioButtons = document.querySelectorAll('input[type="radio"]');
+      radioButtons.forEach(function(radio) {
+        radio.addEventListener('change', function() {
+          // Small delay to ensure the radio button is checked before validation
+          setTimeout(validateBothEqually, 100);
+        });
+      });
+      
+      // Add form submission validation
+      const form = document.querySelector('form');
+      if (form) {
+        form.addEventListener('submit', function(e) {
+          if (!validateBothEqually()) {
+            e.preventDefault();
+            return false;
+          }
+        });
+      }
+    });
+  </script>
+
   <!-- ⚠️ CRITICAL: Prevent page refresh to protect study data integrity -->
   <script>
     // Track if user is legitimately submitting the form

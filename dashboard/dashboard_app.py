@@ -1,6 +1,6 @@
 """
-Face Viewer Dashboard - Direct Template Renderer
-Renders the dashboard template directly on port 5000
+Face Viewer Dashboard - Integrated with main app
+Renders the dashboard template at /dashboard
 """
 import os
 import sys
@@ -8,7 +8,7 @@ import pandas as pd
 import json
 from datetime import datetime
 from pathlib import Path
-from flask import Flask, render_template, request, jsonify, send_file, session, redirect, url_for, flash
+from flask import Blueprint, render_template, request, jsonify, send_file, session, redirect, url_for, flash, current_app
 from functools import wraps
 import io
 import zipfile
@@ -21,19 +21,17 @@ Observer = None
 FileSystemEventHandler = None
 WATCHDOG_AVAILABLE = False
 
-# Add the analysis directory to the path
-sys.path.append(os.path.join(os.path.dirname(__file__), 'analysis'))
+# Import from the dashboard.analysis package
+from .analysis.cleaning import DataCleaner
+from .analysis.stats import StatisticalAnalyzer
+from .analysis.filters import DataFilter
+from .config import DATA_DIR
 
-from analysis.cleaning import DataCleaner
-from analysis.stats import StatisticalAnalyzer
-from analysis.filters import DataFilter
-from config import DATA_DIR
-
-# Initialize Flask app
-app = Flask(__name__)
-app.config['SECRET_KEY'] = os.getenv('DASHBOARD_SECRET_KEY', 'dev-secret-key-change-in-production')
-app.config['DEBUG'] = True
-app.config['TEMPLATES_AUTO_RELOAD'] = True
+# Create a blueprint for dashboard routes
+dashboard_bp = Blueprint('dashboard', __name__,
+                        template_folder='templates',
+                        static_folder='static',
+                        static_url_path='/dashboard/static')
 
 # Global variables for data management
 data_cleaner = None
@@ -130,10 +128,17 @@ def initialize_data(test_mode=False, force_mode=False):
                 if not real_files and test_files:
                     print("Auto-detected: Only test files available, switching to TEST MODE")
                     test_mode = True
+                elif real_files and not test_files:
+                    print("Auto-detected: Only production files available, switching to PRODUCTION MODE")
+                    test_mode = False
+                elif real_files and test_files:
+                    print("Auto-detected: Both test and production files available, defaulting to PRODUCTION MODE")
+                    test_mode = False
                 elif not csv_files:
                     raise FileNotFoundError(f"No CSV files found in {data_dir}")
             else:
                 print(f"Force mode enabled: Using specified test_mode={test_mode}")
+                print(f"Available files: {len(test_files)} test files, {len(real_files)} production files")
         
         # Use detected or specified mode
         data_cleaner = DataCleaner(str(data_dir), test_mode=test_mode)
@@ -234,11 +239,11 @@ def login_required(f):
     def decorated_function(*args, **kwargs):
         if 'authenticated' not in session:
             flash('Please log in to access this page', 'warning')
-            return redirect(url_for('login'))
+            return redirect(url_for('dashboard.login'))
         return f(*args, **kwargs)
     return decorated_function
 
-@app.route('/login', methods=['GET', 'POST'])
+@dashboard_bp.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         username = request.form.get('username')
@@ -251,13 +256,13 @@ def login():
             session['username'] = username
             session['role'] = users[username].get('role', 'user')
             flash('Login successful!', 'success')
-            return redirect(url_for('dashboard'))
+            return redirect(url_for('dashboard.dashboard'))
         else:
             flash('Invalid username or password', 'error')
     
     return render_template('login.html')
 
-@app.route('/register', methods=['GET', 'POST'])
+@dashboard_bp.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
         username = request.form.get('username')
@@ -289,17 +294,17 @@ def register():
         save_users(users)
         
         flash('Registration successful! Please log in.', 'success')
-        return redirect(url_for('login'))
+        return redirect(url_for('dashboard.login'))
     
     return render_template('register.html')
 
-@app.route('/logout')
+@dashboard_bp.route('/logout')
 def logout():
     session.clear()
     flash('Logged out successfully', 'success')
-    return redirect(url_for('login'))
+    return redirect(url_for('dashboard.login'))
 
-@app.route('/')
+@dashboard_bp.route('/')
 # @login_required  # Temporarily disabled for Render deployment
 def dashboard():
     """Main dashboard page."""
@@ -567,7 +572,7 @@ def dashboard():
         flash(f'Error loading dashboard: {str(e)}', 'error')
         return render_template('error.html', message=str(e))
 
-@app.route('/api/overview')
+@dashboard_bp.route('/api/overview')
 # @login_required  # Temporarily disabled for Render deployment
 def api_overview():
     """API endpoint for overview statistics."""
@@ -621,7 +626,7 @@ def api_overview():
         traceback.print_exc()
         return jsonify({'error': error_msg, 'status': 'error'}), 500
 
-@app.route('/api/statistical_tests')
+@dashboard_bp.route('/api/statistical-tests')
 @login_required
 def api_statistical_tests():
     """API endpoint for statistical test results."""
@@ -643,7 +648,7 @@ def api_statistical_tests():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/image_summary')
+@dashboard_bp.route('/api/image-summary')
 @login_required
 def api_image_summary():
     """API endpoint for image-level summary statistics."""
@@ -653,7 +658,7 @@ def api_image_summary():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/filtered_data', methods=['POST'])
+@dashboard_bp.route('/api/filtered-data', methods=['POST'])
 @login_required
 def api_filtered_data():
     """API endpoint for filtered data."""
@@ -678,7 +683,7 @@ def api_filtered_data():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/available_filters')
+@dashboard_bp.route('/api/available-filters')
 @login_required
 def api_available_filters():
     """API endpoint for available filter options."""
@@ -693,7 +698,7 @@ def api_available_filters():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/export/csv')
+@dashboard_bp.route('/export/csv')
 @login_required
 def export_csv():
     """Export filtered data as CSV."""
@@ -726,7 +731,7 @@ def export_csv():
         flash(f'Export error: {str(e)}', 'error')
         return redirect(url_for('dashboard'))
 
-@app.route('/export/analysis_report')
+@dashboard_bp.route('/export/analysis-report')
 @login_required
 def export_analysis_report():
     """Export comprehensive analysis report."""
@@ -748,7 +753,7 @@ def export_analysis_report():
         flash(f'Export error: {str(e)}', 'error')
         return redirect(url_for('dashboard'))
 
-@app.route('/participants')
+@dashboard_bp.route('/participants')
 @login_required
 def participants():
     """Participants overview page."""
@@ -782,7 +787,7 @@ def participants():
         flash(f'Error loading participants: {str(e)}', 'error')
         return render_template('error.html', message=str(e))
 
-@app.route('/images')
+@dashboard_bp.route('/images')
 # @login_required  # Temporarily disabled for Render deployment
 def images():
     """Images analysis page."""
@@ -797,7 +802,7 @@ def images():
         flash(f'Error loading images: {str(e)}', 'error')
         return render_template('error.html', message=str(e))
 
-@app.route('/statistics')
+@dashboard_bp.route('/statistics')
 @login_required
 def statistics():
     """Statistical tests page."""
@@ -819,7 +824,7 @@ def statistics():
         flash(f'Error loading statistics: {str(e)}', 'error')
         return render_template('error.html', message=str(e))
 
-@app.route('/exclusions')
+@dashboard_bp.route('/exclusions')
 @login_required
 def exclusions():
     """Data exclusions page."""
@@ -893,7 +898,7 @@ def exclusions():
         flash(f'Error loading exclusions: {str(e)}', 'error')
         return render_template('error.html', message=str(e))
 
-@app.route('/participant/<pid>')
+@dashboard_bp.route('/participant/<pid>')
 @login_required
 def participant_detail(pid):
     """Show detailed view of a specific participant's session."""
@@ -903,7 +908,7 @@ def participant_detail(pid):
         
         if participant_data.empty:
             flash(f'Participant {pid} not found', 'error')
-            return redirect(url_for('participants'))
+            return redirect(url_for('dashboard.participants'))
         
         # Calculate session summary
         total_trials = len(participant_data)
@@ -950,7 +955,7 @@ def participant_detail(pid):
         flash(f'Error loading participant data: {str(e)}', 'error')
         return redirect(url_for('participants'))
 
-@app.route('/health')
+@dashboard_bp.route('/health')
 def health():
     """Health check endpoint."""
     try:
@@ -971,7 +976,7 @@ def health():
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
-@app.route('/api/refresh_data', methods=['POST'])
+@dashboard_bp.route('/api/refresh-data', methods=['POST'])
 @login_required
 def api_refresh_data():
     """API endpoint to manually refresh data."""
@@ -987,7 +992,7 @@ def api_refresh_data():
         print(f"❌ Manual refresh failed: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
-@app.route('/api/data_status')
+@dashboard_bp.route('/api/data-status')
 @login_required
 def api_data_status():
     """API endpoint to get current data status."""
@@ -1024,7 +1029,7 @@ def api_data_status():
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
-@app.route('/api/live_updates')
+@dashboard_bp.route('/api/live-updates')
 @login_required
 def api_live_updates():
     """API endpoint for live data updates (for real-time dashboard updates)."""
@@ -1054,7 +1059,7 @@ def api_live_updates():
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
-@app.route('/reset_participant/<participant_id>', methods=['POST'])
+@dashboard_bp.route('/reset-participant/<participant_id>', methods=['POST'])
 def reset_participant(participant_id):
     """Reset all data for a specific participant"""
     try:
@@ -1092,7 +1097,8 @@ def reset_participant(participant_id):
         flash(f'Error resetting participant {participant_id}: {str(e)}', 'error')
         return redirect(url_for('dashboard'))
 
-@app.route('/toggle_mode', methods=['GET', 'POST'])
+@dashboard_bp.route('/toggle-mode', methods=['GET', 'POST'])
+@dashboard_bp.route('/toggle_mode', methods=['GET', 'POST'])
 # @login_required  # Temporarily disabled for Render deployment
 def toggle_mode():
     """Toggle between production and test modes."""
@@ -1122,7 +1128,7 @@ def toggle_mode():
     print(f"🔄 TOGGLE: Redirecting to /dashboard/")
     return redirect('/dashboard/')
 
-@app.route('/debug_sessions', methods=['GET'])
+@dashboard_bp.route('/debug/sessions', methods=['GET'])
 def debug_sessions():
     """Debug endpoint to show session data format"""
     sessions_dir = Path("data/sessions")
@@ -1150,7 +1156,7 @@ def debug_sessions():
     
     return output
 
-@app.route('/cleanup_p008', methods=['GET', 'POST'])
+@dashboard_bp.route('/cleanup-p008', methods=['GET', 'POST'])
 def cleanup_p008():
     """Delete P008 files from dashboard data directories"""
     
@@ -1191,7 +1197,7 @@ def cleanup_p008():
     <p><strong>DELETED:</strong><br>{deleted_list}</p>
     <p><a href='/'>Back to Dashboard</a></p>"""
 
-@app.route('/toggle_incomplete', methods=['POST'])
+@dashboard_bp.route('/toggle-incomplete', methods=['POST'])
 # @login_required  # Temporarily disabled for Render deployment
 def toggle_incomplete():
     """Toggle showing incomplete sessions in production mode."""
@@ -1203,7 +1209,7 @@ def toggle_incomplete():
     
     return redirect('/dashboard/')
 
-@app.route('/export/cleaned_data')
+@dashboard_bp.route('/export/cleaned-data')
 @login_required
 def export_cleaned_data():
     """Export cleaned trial-level dataset with exclusion flags."""
@@ -1241,7 +1247,7 @@ def export_cleaned_data():
         flash(f'Export error: {str(e)}', 'error')
         return redirect(url_for('dashboard'))
 
-@app.route('/export/session_metadata')
+@dashboard_bp.route('/export/session-metadata')
 @login_required
 def export_session_metadata():
     """Export session-level metadata with exclusion information."""
@@ -1291,7 +1297,7 @@ def export_session_metadata():
         flash(f'Export error: {str(e)}', 'error')
         return redirect(url_for('dashboard'))
 
-@app.route('/export/statistical_results')
+@dashboard_bp.route('/export/statistical-results')
 @login_required
 def export_statistical_results():
     """Export comprehensive statistical results as JSON."""
@@ -1340,7 +1346,7 @@ def export_statistical_results():
         flash(f'Export error: {str(e)}', 'error')
         return redirect(url_for('dashboard'))
 
-@app.route('/export/participant_list')
+@dashboard_bp.route('/export/participant-list')
 @login_required
 def export_participant_list():
     """Export list of participants used in each statistical test."""
@@ -1392,7 +1398,7 @@ def export_participant_list():
         flash(f'Export error: {str(e)}', 'error')
         return redirect(url_for('dashboard'))
 
-@app.route('/export/all_reports')
+@dashboard_bp.route('/export/all-reports')
 @login_required
 def export_all_reports():
     """Export all reports as a ZIP file."""
@@ -1446,7 +1452,7 @@ def export_all_reports():
         flash(f'Export error: {str(e)}', 'error')
         return redirect(url_for('dashboard'))
 
-@app.route('/export/methodology_report')
+@dashboard_bp.route('/export/methodology-report')
 @login_required
 def export_methodology_report():
     """Export comprehensive methodology report as PDF."""
@@ -1757,7 +1763,7 @@ def export_methodology_report():
         flash(f'PDF generation error: {str(e)}', 'error')
         return redirect(url_for('dashboard'))
 
-@app.route('/api/participant/<pid>/details')
+@dashboard_bp.route('/api/participant/<pid>/details')
 @login_required
 def api_participant_details(pid):
     """API endpoint to get detailed participant data for popup graphs."""
@@ -1856,7 +1862,7 @@ def api_participant_details(pid):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/admin/delete/<filename>', methods=['POST'])
+@dashboard_bp.route('/delete-file/<filename>', methods=['POST'])
 @login_required
 def delete_file(filename):
     """Delete a participant data file."""
@@ -1867,7 +1873,7 @@ def delete_file(filename):
         # Security check: ensure filename is safe
         if not filename or '..' in filename or '/' in filename or '\\' in filename:
             flash('Invalid filename', 'error')
-            return redirect(url_for('dashboard'))
+            return redirect(url_for('dashboard.dashboard'))
         
         # Define the data directory
         data_dir = DATA_DIR
@@ -1876,7 +1882,7 @@ def delete_file(filename):
         file_path = data_dir / filename
         if not file_path.exists():
             flash(f'File {filename} not found', 'error')
-            return redirect(url_for('dashboard'))
+            return redirect(url_for('dashboard.dashboard'))
         
         # Delete the file
         file_path.unlink()
@@ -1893,11 +1899,8 @@ def delete_file(filename):
         flash(f'Error deleting file: {str(e)}', 'error')
         return redirect(url_for('dashboard'))
 
-if __name__ == '__main__':
-    # Initialize data on startup
+# Initialize data when the blueprint is registered
+def init_dashboard():
     if initialize_data(force_mode=False):
-        print("Dashboard ready to start")
-    else:
-        print("Warning: Data initialization failed")
-    
-    app.run(host='127.0.0.1', port=5000, debug=False)
+        print("📊 Dashboard initialized")
+    return app
