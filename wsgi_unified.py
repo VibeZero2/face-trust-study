@@ -1,28 +1,22 @@
 #!/usr/bin/env python3
 """
 WSGI application for unified deployment on Render
-Serves both study program and dashboard from single process
+Serves both study program and dashboard from single Flask app
 """
 import os
 import sys
 from pathlib import Path
-from werkzeug.middleware.dispatcher import DispatcherMiddleware
 from werkzeug.serving import run_simple
 
 # Add current directory to Python path
 current_dir = Path(__file__).resolve().parent
 sys.path.insert(0, str(current_dir))
-sys.path.insert(0, str(current_dir / 'dashboard'))
 
-# Import both applications
-from app import app as study_app
-from dashboard.dashboard_app import app as dashboard_app
+# Import the main application (which already has dashboard blueprint registered)
+from app import app
 
-# Create the combined WSGI application
-# Study program on main domain, dashboard on /dashboard path
-application = DispatcherMiddleware(study_app, {
-    '/dashboard': dashboard_app
-})
+# Use the single Flask app instead of DispatcherMiddleware
+application = app
 
 if __name__ == "__main__":
     # For local development
