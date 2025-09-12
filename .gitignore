@@ -1,3 +1,5 @@
 .env
-data/
+data/responses/participant_*
+data/responses/200*
+data/sessions/
 __pycache__/
