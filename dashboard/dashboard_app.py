@@ -1961,6 +1961,76 @@ def download_multiple_files():
         flash(f'Error creating zip file: {str(e)}', 'error')
         return redirect(url_for('dashboard.dashboard'))
 
+@dashboard_bp.route('/delete-multiple-files', methods=['POST'])
+# @login_required  # Temporarily disabled for local testing
+def delete_multiple_files():
+    """Delete multiple files at once."""
+    try:
+        import os
+        from pathlib import Path
+        
+        # Get the list of files from the form
+        files = request.form.getlist('files')
+        
+        if not files:
+            flash('No files selected for deletion', 'error')
+            return redirect(url_for('dashboard.dashboard'))
+        
+        # Security check: ensure all filenames are safe
+        for filename in files:
+            if not filename or '..' in filename or '/' in filename or '\\' in filename:
+                flash(f'Invalid filename: {filename}', 'error')
+                return redirect(url_for('dashboard.dashboard'))
+        
+        # Define the data directory
+        data_dir = DATA_DIR
+        
+        deleted_files = []
+        failed_files = []
+        
+        # Delete each file
+        for filename in files:
+            file_path = data_dir / filename
+            if file_path.exists():
+                try:
+                    file_path.unlink()
+                    deleted_files.append(filename)
+                    print(f"🗑️ BULK DELETE: Successfully deleted {filename}")
+                except Exception as e:
+                    failed_files.append(f"{filename} ({str(e)})")
+                    print(f"🗑️ BULK DELETE ERROR: Failed to delete {filename}: {str(e)}")
+            else:
+                failed_files.append(f"{filename} (file not found)")
+                print(f"🗑️ BULK DELETE: File not found: {filename}")
+        
+        # Provide feedback to user
+        if deleted_files:
+            if len(deleted_files) == 1:
+                flash(f'Successfully deleted file: {deleted_files[0]}', 'success')
+            else:
+                flash(f'Successfully deleted {len(deleted_files)} files', 'success')
+        
+        if failed_files:
+            if len(failed_files) == 1:
+                flash(f'Failed to delete: {failed_files[0]}', 'warning')
+            else:
+                flash(f'Failed to delete {len(failed_files)} files', 'warning')
+        
+        # Reinitialize data to refresh the dashboard
+        print(f"🗑️ BULK DELETE: Reinitializing data...")
+        if initialize_data():
+            print(f"🗑️ BULK DELETE: Data refresh successful")
+        else:
+            print(f"🗑️ BULK DELETE: Data refresh failed")
+            flash('Files deleted but data refresh failed', 'warning')
+        
+        return redirect(url_for('dashboard.dashboard'))
+        
+    except Exception as e:
+        print(f"🗑️ BULK DELETE ERROR: {str(e)}")
+        flash(f'Error deleting files: {str(e)}', 'error')
+        return redirect(url_for('dashboard.dashboard'))
+
 # Create Flask app for standalone dashboard
 from flask import Flask
 

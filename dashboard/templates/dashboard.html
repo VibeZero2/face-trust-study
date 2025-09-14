@@ -438,6 +438,9 @@
                                                 <button type="button" class="btn btn-success btn-sm" onclick="downloadSelectedFiles()" id="downloadBtn" disabled>
                                                     <i class="fas fa-download me-1"></i>Download Selected (<span id="selectedCount">0</span>)
                                                 </button>
+                                                <button type="button" class="btn btn-danger btn-sm" onclick="deleteSelectedFiles()" id="deleteBtn" disabled>
+                                                    <i class="fas fa-trash me-1"></i>Delete Selected (<span id="deleteCount">0</span>)
+                                                </button>
                                             </div>
                                         </div>
                                         <div class="table-responsive">
@@ -768,19 +771,30 @@
         function updateDownloadButton() {
             const selectedCheckboxes = document.querySelectorAll('.file-checkbox:checked');
             const downloadBtn = document.getElementById('downloadBtn');
+            const deleteBtn = document.getElementById('deleteBtn');
             const selectedCount = document.getElementById('selectedCount');
+            const deleteCount = document.getElementById('deleteCount');
             
             const count = selectedCheckboxes.length;
             selectedCount.textContent = count;
+            deleteCount.textContent = count;
             
             if (count > 0) {
                 downloadBtn.disabled = false;
                 downloadBtn.classList.remove('btn-outline-success');
                 downloadBtn.classList.add('btn-success');
+                
+                deleteBtn.disabled = false;
+                deleteBtn.classList.remove('btn-outline-danger');
+                deleteBtn.classList.add('btn-danger');
             } else {
                 downloadBtn.disabled = true;
                 downloadBtn.classList.remove('btn-success');
                 downloadBtn.classList.add('btn-outline-success');
+                
+                deleteBtn.disabled = true;
+                deleteBtn.classList.remove('btn-danger');
+                deleteBtn.classList.add('btn-outline-danger');
             }
         }
         
@@ -830,6 +844,50 @@
             document.body.appendChild(form);
             form.submit();
             document.body.removeChild(form);
+        }
+        
+        function deleteSelectedFiles() {
+            const selectedCheckboxes = document.querySelectorAll('.file-checkbox:checked');
+            const selectedFiles = Array.from(selectedCheckboxes).map(checkbox => checkbox.value);
+            
+            if (selectedFiles.length === 0) {
+                alert('Please select at least one file to delete.');
+                return;
+            }
+            
+            // Confirm deletion
+            const fileList = selectedFiles.join(', ');
+            const confirmMessage = `Are you sure you want to delete the following ${selectedFiles.length} file(s)?\n\n${fileList}\n\nThis action cannot be undone.`;
+            
+            if (confirm(confirmMessage)) {
+                // Create a form to submit multiple files for deletion
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '/dashboard/delete-multiple-files';
+                
+                // Add CSRF token if available
+                const csrfToken = document.querySelector('meta[name="csrf-token"]');
+                if (csrfToken) {
+                    const csrfInput = document.createElement('input');
+                    csrfInput.type = 'hidden';
+                    csrfInput.name = 'csrf_token';
+                    csrfInput.value = csrfToken.getAttribute('content');
+                    form.appendChild(csrfInput);
+                }
+                
+                // Add each filename as a hidden input
+                selectedFiles.forEach(filename => {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = 'files';
+                    input.value = filename;
+                    form.appendChild(input);
+                });
+                
+                document.body.appendChild(form);
+                form.submit();
+                document.body.removeChild(form);
+            }
         }
     </script>
 </body>
