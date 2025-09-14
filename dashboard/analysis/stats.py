@@ -83,14 +83,14 @@ class StatisticalAnalyzer:
         """
         all_stats = {}
         
-        # Get raw data for all questions
-        raw_data = self.data_cleaner.raw_data
+        # Get cleaned data (wide format)
+        cleaned_data = self.data_cleaner.get_cleaned_data()
         
         # Question types to analyze
-        question_types = ['trust', 'emotion', 'masc_choice', 'fem_choice', 'masculinity_full', 'femininity_full']
+        question_types = ['trust_rating', 'emotion_rating', 'masc_choice', 'fem_choice', 'masculinity_full', 'femininity_full']
         
         for question in question_types:
-            if question in raw_data.columns:
+            if question in cleaned_data.columns:
                 question_stats = {}
                 
                 for version in ['left', 'right', 'both']:
@@ -98,26 +98,38 @@ class StatisticalAnalyzer:
                     if question in ['masc_choice', 'fem_choice', 'masculinity_full', 'femininity_full']:
                         # These questions only exist for version='both'
                         if version == 'both':
-                            version_data = raw_data[raw_data['version'] == version]
+                            version_data = cleaned_data[cleaned_data['version'] == version]
                             question_data = version_data[question].dropna()
                         else:
                             question_data = pd.Series(dtype=float)  # Empty series
                     else:
-                        # Trust and emotion exist for all versions
-                        version_data = raw_data[raw_data['version'] == version]
+                        # Trust and emotion ratings exist for all versions
+                        version_data = cleaned_data[cleaned_data['version'] == version]
                         question_data = version_data[question].dropna()
                     
                     if len(question_data) > 0:
-                        question_stats[version] = {
-                            'n': len(question_data),
-                            'mean': question_data.mean(),
-                            'std': question_data.std(),
-                            'median': question_data.median(),
-                            'min': question_data.min(),
-                            'max': question_data.max(),
-                            'q25': question_data.quantile(0.25),
-                            'q75': question_data.quantile(0.75)
-                        }
+                        # Convert to numeric, handling any non-numeric values
+                        try:
+                            question_data = pd.to_numeric(question_data, errors='coerce').dropna()
+                        except:
+                            question_data = pd.Series(dtype=float)
+                        
+                        if len(question_data) > 0:
+                            question_stats[version] = {
+                                'n': len(question_data),
+                                'mean': question_data.mean(),
+                                'std': question_data.std(),
+                                'median': question_data.median(),
+                                'min': question_data.min(),
+                                'max': question_data.max(),
+                                'q25': question_data.quantile(0.25),
+                                'q75': question_data.quantile(0.75)
+                            }
+                        else:
+                            question_stats[version] = {
+                                'n': 0, 'mean': np.nan, 'std': np.nan, 'median': np.nan,
+                                'min': np.nan, 'max': np.nan, 'q25': np.nan, 'q75': np.nan
+                            }
                     else:
                         question_stats[version] = {
                             'n': 0, 'mean': np.nan, 'std': np.nan, 'median': np.nan,
@@ -127,6 +139,209 @@ class StatisticalAnalyzer:
                 all_stats[question] = question_stats
         
         return all_stats
+    
+    def emotion_paired_t_test_half_vs_full(self) -> Dict:
+        """
+        Paired t-test comparing half-face (left/right average) vs full-face emotion ratings.
+        """
+        # Get data for each version
+        left_data = self.data_cleaner.get_data_by_version('left')
+        right_data = self.data_cleaner.get_data_by_version('right')
+        both_data = self.data_cleaner.get_data_by_version('both')
+        
+        if len(left_data) == 0 or len(right_data) == 0 or len(both_data) == 0:
+            return {'error': 'Insufficient data for emotion paired t-test'}
+        
+        # Get emotion ratings
+        left_emotion = left_data['emotion_rating'].dropna()
+        right_emotion = right_data['emotion_rating'].dropna()
+        both_emotion = both_data['emotion_rating'].dropna()
+        
+        # Calculate half-face average for each participant
+        left_means = left_emotion.groupby(left_data['pid']).mean()
+        right_means = right_emotion.groupby(right_data['pid']).mean()
+        both_means = both_emotion.groupby(both_data['pid']).mean()
+        
+        # Find common participants
+        common_participants = list(set(left_means.index) & set(right_means.index) & set(both_means.index))
+        
+        if len(common_participants) < 3:
+            return {'error': 'Insufficient participants for emotion paired t-test'}
+        
+        # Calculate half-face average
+        half_face_means = (left_means.loc[common_participants] + right_means.loc[common_participants]) / 2
+        full_face_means = both_means.loc[common_participants]
+        
+        # Paired t-test
+        from scipy import stats
+        t_stat, p_value = stats.ttest_rel(half_face_means, full_face_means)
+        
+        # Effect size (Cohen's d for paired samples)
+        diff = half_face_means - full_face_means
+        cohens_d = diff.mean() / diff.std() if diff.std() > 0 else 0
+        
+        # Confidence interval for mean difference
+        mean_diff = diff.mean()
+        std_diff = diff.std()
+        n = len(diff)
+        se_diff = std_diff / (n ** 0.5)
+        ci_lower = mean_diff - 1.96 * se_diff
+        ci_upper = mean_diff + 1.96 * se_diff
+        
+        return {
+            'statistic': t_stat,
+            'pvalue': p_value,
+            'df': len(common_participants) - 1,
+            'effect_size': cohens_d,
+            'half_face_mean': half_face_means.mean(),
+            'full_face_mean': full_face_means.mean(),
+            'difference': mean_diff,
+            'ci_lower': ci_lower,
+            'ci_upper': ci_upper,
+            'n_participants': len(common_participants),
+            'included_participants': list(common_participants)
+        }
+    
+    def emotion_repeated_measures_anova(self) -> Dict:
+        """
+        Repeated measures ANOVA for emotion ratings across left, right, and both versions.
+        """
+        # Get data for each version
+        left_data = self.data_cleaner.get_data_by_version('left')
+        right_data = self.data_cleaner.get_data_by_version('right')
+        both_data = self.data_cleaner.get_data_by_version('both')
+        
+        if len(left_data) == 0 or len(right_data) == 0 or len(both_data) == 0:
+            return {'error': 'Insufficient data for emotion repeated measures ANOVA'}
+        
+        # Get emotion ratings
+        left_emotion = left_data['emotion_rating'].dropna()
+        right_emotion = right_data['emotion_rating'].dropna()
+        both_emotion = both_data['emotion_rating'].dropna()
+        
+        # Calculate means for each participant
+        left_means = left_emotion.groupby(left_data['pid']).mean()
+        right_means = right_emotion.groupby(right_data['pid']).mean()
+        both_means = both_emotion.groupby(both_data['pid']).mean()
+        
+        # Find common participants
+        common_participants = list(set(left_means.index) & set(right_means.index) & set(both_means.index))
+        
+        if len(common_participants) < 3:
+            return {'error': 'Insufficient participants for emotion repeated measures ANOVA'}
+        
+        # Create data matrix
+        data_matrix = pd.DataFrame({
+            'left': left_means.loc[common_participants],
+            'right': right_means.loc[common_participants],
+            'both': both_means.loc[common_participants]
+        })
+        
+        # Perform repeated measures ANOVA
+        from scipy import stats
+        f_stat, p_value = stats.f_oneway(
+            data_matrix['left'], 
+            data_matrix['right'], 
+            data_matrix['both']
+        )
+        
+        # Calculate partial eta squared
+        ss_between = data_matrix.var(ddof=0).sum() * len(common_participants)
+        ss_total = data_matrix.values.var(ddof=0) * data_matrix.size
+        partial_eta_squared = ss_between / ss_total if ss_total > 0 else 0
+        
+        return {
+            'f_statistic': f_stat,
+            'pvalue': p_value,
+            'df_between': 2,
+            'df_within': len(common_participants) - 1,
+            'partial_eta_squared': partial_eta_squared,
+            'means': {
+                'left': data_matrix['left'].mean(),
+                'right': data_matrix['right'].mean(),
+                'both': data_matrix['both'].mean()
+            },
+            'n_participants': len(common_participants),
+            'included_participants': list(common_participants)
+        }
+    
+    def choice_preference_analysis(self) -> Dict:
+        """
+        Analyze masc/fem choice preferences and side bias.
+        """
+        # Get data for both version only (choices only exist for full face)
+        both_data = self.data_cleaner.get_data_by_version('both')
+        
+        if len(both_data) == 0:
+            return {'error': 'Insufficient data for choice preference analysis'}
+        
+        # Get choice data
+        masc_choices = both_data['masc_choice'].dropna()
+        fem_choices = both_data['fem_choice'].dropna()
+        
+        if len(masc_choices) == 0 or len(fem_choices) == 0:
+            return {'error': 'No choice data available'}
+        
+        # Calculate choice proportions
+        masc_left = (masc_choices == 'left').sum()
+        masc_right = (masc_choices == 'right').sum()
+        masc_neither = (masc_choices == 'neither').sum()
+        masc_total = len(masc_choices)
+        
+        fem_left = (fem_choices == 'left').sum()
+        fem_right = (fem_choices == 'right').sum()
+        fem_neither = (fem_choices == 'neither').sum()
+        fem_total = len(fem_choices)
+        
+        # Calculate proportions
+        masc_props = {
+            'left': masc_left / masc_total if masc_total > 0 else 0,
+            'right': masc_right / masc_total if masc_total > 0 else 0,
+            'neither': masc_neither / masc_total if masc_total > 0 else 0
+        }
+        
+        fem_props = {
+            'left': fem_left / fem_total if fem_total > 0 else 0,
+            'right': fem_right / fem_total if fem_total > 0 else 0,
+            'neither': fem_neither / fem_total if fem_total > 0 else 0
+        }
+        
+        # Chi-square test for side preference (left vs right, excluding neither)
+        from scipy import stats
+        
+        # Masc choice: left vs right
+        masc_side_counts = [masc_left, masc_right]
+        masc_expected = [sum(masc_side_counts) / 2, sum(masc_side_counts) / 2]
+        masc_chi2, masc_p = stats.chisquare(masc_side_counts, masc_expected) if sum(masc_side_counts) > 0 else (0, 1)
+        
+        # Fem choice: left vs right
+        fem_side_counts = [fem_left, fem_right]
+        fem_expected = [sum(fem_side_counts) / 2, sum(fem_side_counts) / 2]
+        fem_chi2, fem_p = stats.chisquare(fem_side_counts, fem_expected) if sum(fem_side_counts) > 0 else (0, 1)
+        
+        # Overall side preference (combining masc and fem)
+        total_left = masc_left + fem_left
+        total_right = masc_right + fem_right
+        total_side_counts = [total_left, total_right]
+        total_expected = [sum(total_side_counts) / 2, sum(total_side_counts) / 2]
+        total_chi2, total_p = stats.chisquare(total_side_counts, total_expected) if sum(total_side_counts) > 0 else (0, 1)
+        
+        return {
+            'masc_choice': {
+                'counts': {'left': masc_left, 'right': masc_right, 'neither': masc_neither, 'total': masc_total},
+                'proportions': masc_props,
+                'side_preference_test': {'chi2': masc_chi2, 'p_value': masc_p}
+            },
+            'fem_choice': {
+                'counts': {'left': fem_left, 'right': fem_right, 'neither': fem_neither, 'total': fem_total},
+                'proportions': fem_props,
+                'side_preference_test': {'chi2': fem_chi2, 'p_value': fem_p}
+            },
+            'overall_side_preference': {
+                'counts': {'left': total_left, 'right': total_right, 'total': total_left + total_right},
+                'test': {'chi2': total_chi2, 'p_value': total_p}
+            }
+        }
     
     def paired_t_test_half_vs_full(self) -> Dict:
         """
@@ -147,7 +362,7 @@ class StatisticalAnalyzer:
         half_face_means = pd.concat([left_means, right_means], axis=1).mean(axis=1)
         
         # Align data for paired test
-        common_participants = half_face_means.index.intersection(full_means.index)
+        common_participants = list(half_face_means.index.intersection(full_means.index))
         n = len(common_participants)
         if n < 2:
             return {
@@ -222,7 +437,7 @@ class StatisticalAnalyzer:
         full_means = full_data.groupby('pid')['trust_rating'].mean()
         
         # Find common participants across all versions
-        common_participants = left_means.index.intersection(right_means.index).intersection(full_means.index)
+        common_participants = list(left_means.index.intersection(right_means.index).intersection(full_means.index))
         n = len(common_participants)
         k = 3
         if n < 2:

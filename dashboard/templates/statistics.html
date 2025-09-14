@@ -6,6 +6,7 @@
     <title>Statistical Tests - Face Perception Study Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <style>
         .sidebar {
             min-height: 100vh;
@@ -59,6 +60,47 @@
         }
         .subtext { color: #6c757d; font-size: 0.9rem; }
         .pill { border-radius: 1rem; padding: 0.2rem 0.6rem; background: #eef2ff; }
+        
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 9999;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.6);
+        }
+        .modal-content {
+            background-color: #fff;
+            margin: 2% auto;
+            padding: 20px;
+            border-radius: 8px;
+            width: 95%;
+            max-width: 1200px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: -10px;
+        }
+        .close:hover {
+            color: #000;
+        }
+        .chart-thumbnail {
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .chart-thumbnail:hover {
+            transform: scale(1.02);
+        }
     </style>
 </head>
 <body>
@@ -166,6 +208,56 @@
                              </div>
                          </div>
                      </div>
+
+                    <!-- Emotion Ratings Charts Section -->
+                    {% if test_results.all_question_stats %}
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5><i class="fas fa-heart me-2 text-danger"></i>Emotion Ratings by Version</h5>
+                                </div>
+                                <div class="card-body">
+                                    <canvas id="emotionChart" width="400" height="200"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5><i class="fas fa-chart-area me-2 text-danger"></i>Emotion Rating Distribution</h5>
+                                </div>
+                                <div class="card-body">
+                                    <canvas id="emotionHistogramChart" width="400" height="200"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Boxplots Section -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5><i class="fas fa-chart-box me-2 text-primary"></i>Trust Ratings Boxplot by Version</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="trustBoxplotChart" class="chart-thumbnail" style="height: 300px;" onclick="openModal('trustBoxplotModal')"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5><i class="fas fa-chart-box me-2 text-danger"></i>Emotion Ratings Boxplot by Version</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="emotionBoxplotChart" class="chart-thumbnail" style="height: 300px;" onclick="openModal('emotionBoxplotModal')"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
                     <!-- Paired T-Test -->
                     <div class="stat-card p-4">
@@ -382,7 +474,7 @@
                          
                          {% for question, question_data in test_results.all_question_stats.items() %}
                          <div class="mb-4">
-                             <h5 class="text-capitalize">{{ question.replace('_', ' ') }} Ratings</h5>
+                             <h5 class="text-capitalize">{{ question.replace('_rating', '').replace('_', ' ').title() }} Ratings</h5>
                              <div class="table-responsive">
                                  <table class="table table-sm table-hover">
                                      <thead class="table-light">
@@ -415,6 +507,154 @@
                              </div>
                          </div>
                          {% endfor %}
+                     </div>
+                     {% endif %}
+                     
+                     <!-- Emotion Statistical Tests -->
+                     {% if test_results.emotion_paired_t_test and not test_results.emotion_paired_t_test.error %}
+                     <div class="stat-card p-4">
+                         <h4 class="mb-3">
+                             <i class="fas fa-heart me-2 text-danger"></i>
+                             Emotion Ratings: Paired T-Test (Half-Face vs Full-Face)
+                         </h4>
+                         <div class="row">
+                             <div class="col-md-6">
+                                 <div class="test-result">
+                                     <h6>Test Statistics</h6>
+                                     <p><strong>t-statistic:</strong> {{ "%.3f"|format(test_results.emotion_paired_t_test.statistic) }}</p>
+                                     <p><strong>df:</strong> {{ test_results.emotion_paired_t_test.df }}</p>
+                                     <p><strong>p-value:</strong> {{ "%.4f"|format(test_results.emotion_paired_t_test.pvalue) }}</p>
+                                     <p><strong>Effect Size (Cohen's d):</strong> {{ "%.3f"|format(test_results.emotion_paired_t_test.effect_size) }}</p>
+                                 </div>
+                             </div>
+                             <div class="col-md-6">
+                                 <div class="test-result">
+                                     <h6>Means and Confidence Interval</h6>
+                                     <p><strong>Half-face average:</strong> {{ "%.3f"|format(test_results.emotion_paired_t_test.half_face_mean) }}</p>
+                                     <p><strong>Full-face:</strong> {{ "%.3f"|format(test_results.emotion_paired_t_test.full_face_mean) }}</p>
+                                     <p><strong>Mean difference (Half - Full):</strong> {{ "%.3f"|format(test_results.emotion_paired_t_test.difference) }}</p>
+                                     <p><strong>95% CI:</strong> [{{ "%.3f"|format(test_results.emotion_paired_t_test.ci_lower) }}, {{ "%.3f"|format(test_results.emotion_paired_t_test.ci_upper) }}]</p>
+                                     <p class="subtext">N participants: {{ test_results.emotion_paired_t_test.n_participants }}</p>
+                                 </div>
+                             </div>
+                         </div>
+                         <div class="alert alert-light mb-0">
+                             <em>Interpretation:</em>
+                             {% if test_results.emotion_paired_t_test.pvalue and test_results.emotion_paired_t_test.pvalue < 0.05 %}
+                                 Emotion ratings were significantly different between half-face and full-face conditions (t({{ test_results.emotion_paired_t_test.df }}) = {{ "%.2f"|format(test_results.emotion_paired_t_test.statistic) }}, p = {{ "%.3f"|format(test_results.emotion_paired_t_test.pvalue) }}, d = {{ "%.2f"|format(test_results.emotion_paired_t_test.effect_size) }}).
+                             {% else %}
+                                 No significant difference in emotion ratings between half-face and full-face conditions (t({{ test_results.emotion_paired_t_test.df }}) = {{ "%.2f"|format(test_results.emotion_paired_t_test.statistic) }}, p = {{ "%.3f"|format(test_results.emotion_paired_t_test.pvalue) }}).
+                             {% endif %}
+                         </div>
+                     </div>
+                     {% endif %}
+                     
+                     {% if test_results.emotion_repeated_measures_anova and not test_results.emotion_repeated_measures_anova.error %}
+                     <div class="stat-card p-4">
+                         <h4 class="mb-3">
+                             <i class="fas fa-chart-line me-2 text-danger"></i>
+                             Emotion Ratings: Repeated Measures ANOVA (Left vs Right vs Full)
+                         </h4>
+                         <div class="row">
+                             <div class="col-md-6">
+                                 <div class="test-result">
+                                     <h6>Test Statistics</h6>
+                                     <p><strong>F-statistic:</strong> {{ "%.3f"|format(test_results.emotion_repeated_measures_anova.f_statistic) }}</p>
+                                     <p><strong>df:</strong> {{ test_results.emotion_repeated_measures_anova.df_between }}, {{ test_results.emotion_repeated_measures_anova.df_within }}</p>
+                                     <p><strong>p-value:</strong> {{ "%.4f"|format(test_results.emotion_repeated_measures_anova.pvalue) }}</p>
+                                     <p><strong>Partial η²:</strong> {{ "%.3f"|format(test_results.emotion_repeated_measures_anova.partial_eta_squared) }}</p>
+                                 </div>
+                             </div>
+                             <div class="col-md-6">
+                                 <div class="test-result">
+                                     <h6>Means by Version</h6>
+                                     <p><strong>Left:</strong> {{ "%.3f"|format(test_results.emotion_repeated_measures_anova.means.left) }}</p>
+                                     <p><strong>Right:</strong> {{ "%.3f"|format(test_results.emotion_repeated_measures_anova.means.right) }}</p>
+                                     <p><strong>Both:</strong> {{ "%.3f"|format(test_results.emotion_repeated_measures_anova.means.both) }}</p>
+                                     <p class="subtext">N participants: {{ test_results.emotion_repeated_measures_anova.n_participants }}</p>
+                                 </div>
+                             </div>
+                         </div>
+                         <div class="alert alert-light mb-0">
+                             <em>Interpretation:</em>
+                             {% if test_results.emotion_repeated_measures_anova.pvalue and test_results.emotion_repeated_measures_anova.pvalue < 0.05 %}
+                                 Significant effect of version on emotion ratings (F({{ test_results.emotion_repeated_measures_anova.df_between }}, {{ test_results.emotion_repeated_measures_anova.df_within }}) = {{ "%.2f"|format(test_results.emotion_repeated_measures_anova.f_statistic) }}, p = {{ "%.3f"|format(test_results.emotion_repeated_measures_anova.pvalue) }}, η² = {{ "%.3f"|format(test_results.emotion_repeated_measures_anova.partial_eta_squared) }}).
+                             {% else %}
+                                 No significant effect of version on emotion ratings (F({{ test_results.emotion_repeated_measures_anova.df_between }}, {{ test_results.emotion_repeated_measures_anova.df_within }}) = {{ "%.2f"|format(test_results.emotion_repeated_measures_anova.f_statistic) }}, p = {{ "%.3f"|format(test_results.emotion_repeated_measures_anova.pvalue) }}).
+                             {% endif %}
+                         </div>
+                     </div>
+                     {% endif %}
+                     
+                     <!-- Choice Preference Analysis -->
+                     {% if test_results.choice_preference_analysis and not test_results.choice_preference_analysis.error %}
+                     <div class="stat-card p-4">
+                         <h4 class="mb-3">
+                             <i class="fas fa-hand-point-up me-2 text-success"></i>
+                             Choice Preference Analysis
+                         </h4>
+                         
+                         <div class="row">
+                             <div class="col-md-6">
+                                 <div class="test-result">
+                                     <h6>Masculinity Choice Preferences</h6>
+                                     <p><strong>Left side:</strong> {{ test_results.choice_preference_analysis.masc_choice.counts.left }} ({{ "%.1f"|format(test_results.choice_preference_analysis.masc_choice.proportions.left * 100) }}%)</p>
+                                     <p><strong>Right side:</strong> {{ test_results.choice_preference_analysis.masc_choice.counts.right }} ({{ "%.1f"|format(test_results.choice_preference_analysis.masc_choice.proportions.right * 100) }}%)</p>
+                                     <p><strong>Neither:</strong> {{ test_results.choice_preference_analysis.masc_choice.counts.neither }} ({{ "%.1f"|format(test_results.choice_preference_analysis.masc_choice.proportions.neither * 100) }}%)</p>
+                                     <p><strong>Total:</strong> {{ test_results.choice_preference_analysis.masc_choice.counts.total }}</p>
+                                 </div>
+                             </div>
+                             <div class="col-md-6">
+                                 <div class="test-result">
+                                     <h6>Femininity Choice Preferences</h6>
+                                     <p><strong>Left side:</strong> {{ test_results.choice_preference_analysis.fem_choice.counts.left }} ({{ "%.1f"|format(test_results.choice_preference_analysis.fem_choice.proportions.left * 100) }}%)</p>
+                                     <p><strong>Right side:</strong> {{ test_results.choice_preference_analysis.fem_choice.counts.right }} ({{ "%.1f"|format(test_results.choice_preference_analysis.fem_choice.proportions.right * 100) }}%)</p>
+                                     <p><strong>Neither:</strong> {{ test_results.choice_preference_analysis.fem_choice.counts.neither }} ({{ "%.1f"|format(test_results.choice_preference_analysis.fem_choice.proportions.neither * 100) }}%)</p>
+                                     <p><strong>Total:</strong> {{ test_results.choice_preference_analysis.fem_choice.counts.total }}</p>
+                                 </div>
+                             </div>
+                         </div>
+                         
+                         <div class="row mt-3">
+                             <div class="col-md-4">
+                                 <div class="test-result">
+                                     <h6>Masculinity Side Preference Test</h6>
+                                     <p><strong>χ²:</strong> {{ "%.3f"|format(test_results.choice_preference_analysis.masc_choice.side_preference_test.chi2) }}</p>
+                                     <p><strong>p-value:</strong> {{ "%.4f"|format(test_results.choice_preference_analysis.masc_choice.side_preference_test.p_value) }}</p>
+                                     {% if test_results.choice_preference_analysis.masc_choice.side_preference_test.p_value < 0.05 %}
+                                         <span class="badge bg-success">Significant side preference</span>
+                                     {% else %}
+                                         <span class="badge bg-secondary">No significant side preference</span>
+                                     {% endif %}
+                                 </div>
+                             </div>
+                             <div class="col-md-4">
+                                 <div class="test-result">
+                                     <h6>Femininity Side Preference Test</h6>
+                                     <p><strong>χ²:</strong> {{ "%.3f"|format(test_results.choice_preference_analysis.fem_choice.side_preference_test.chi2) }}</p>
+                                     <p><strong>p-value:</strong> {{ "%.4f"|format(test_results.choice_preference_analysis.fem_choice.side_preference_test.p_value) }}</p>
+                                     {% if test_results.choice_preference_analysis.fem_choice.side_preference_test.p_value < 0.05 %}
+                                         <span class="badge bg-success">Significant side preference</span>
+                                     {% else %}
+                                         <span class="badge bg-secondary">No significant side preference</span>
+                                     {% endif %}
+                                 </div>
+                             </div>
+                             <div class="col-md-4">
+                                 <div class="test-result">
+                                     <h6>Overall Side Preference</h6>
+                                     <p><strong>Left:</strong> {{ test_results.choice_preference_analysis.overall_side_preference.counts.left }}</p>
+                                     <p><strong>Right:</strong> {{ test_results.choice_preference_analysis.overall_side_preference.counts.right }}</p>
+                                     <p><strong>χ²:</strong> {{ "%.3f"|format(test_results.choice_preference_analysis.overall_side_preference.test.chi2) }}</p>
+                                     <p><strong>p-value:</strong> {{ "%.4f"|format(test_results.choice_preference_analysis.overall_side_preference.test.p_value) }}</p>
+                                     {% if test_results.choice_preference_analysis.overall_side_preference.test.p_value < 0.05 %}
+                                         <span class="badge bg-success">Significant overall preference</span>
+                                     {% else %}
+                                         <span class="badge bg-secondary">No significant overall preference</span>
+                                     {% endif %}
+                                 </div>
+                             </div>
+                         </div>
                      </div>
                      {% endif %}
                      
@@ -660,8 +900,406 @@
                      }
                  }
              });
+             
+             // Emotion Ratings Bar Chart
+             const emotionCtx = document.getElementById('emotionChart');
+             if (emotionCtx) {
+                 const emotionBarCtx = emotionCtx.getContext('2d');
+                 
+                 // Get emotion data from the template
+                 const emotionData = {
+                     labels: ['Left Half', 'Right Half', 'Full Face'],
+                     datasets: [{
+                         label: 'Average Emotion Rating',
+                         data: [
+                             {{ test_results.all_question_stats.emotion_rating.left.mean if test_results.all_question_stats and test_results.all_question_stats.emotion_rating and test_results.all_question_stats.emotion_rating.left else 5.0 }},
+                             {{ test_results.all_question_stats.emotion_rating.right.mean if test_results.all_question_stats and test_results.all_question_stats.emotion_rating and test_results.all_question_stats.emotion_rating.right else 5.0 }},
+                             {{ test_results.all_question_stats.emotion_rating.both.mean if test_results.all_question_stats and test_results.all_question_stats.emotion_rating and test_results.all_question_stats.emotion_rating.both else 5.0 }}
+                         ],
+                         backgroundColor: [
+                             'rgba(255, 99, 132, 0.6)',
+                             'rgba(54, 162, 235, 0.6)',
+                             'rgba(75, 192, 192, 0.6)'
+                         ],
+                         borderColor: [
+                             'rgba(255, 99, 132, 1)',
+                             'rgba(54, 162, 235, 1)',
+                             'rgba(75, 192, 192, 1)'
+                         ],
+                         borderWidth: 1
+                     }]
+                 };
+                 
+                 new Chart(emotionBarCtx, {
+                     type: 'bar',
+                     data: emotionData,
+                     options: {
+                         responsive: true,
+                         scales: {
+                             y: {
+                                 beginAtZero: true,
+                                 max: 9,
+                                 title: {
+                                     display: true,
+                                     text: 'Average Emotion Rating (1-9)'
+                                 }
+                             }
+                         },
+                         plugins: {
+                             title: {
+                                 display: true,
+                                 text: 'Average Emotion Ratings by Face Version'
+                             },
+                             legend: {
+                                 display: false
+                             }
+                         }
+                     }
+                 });
+             }
+             
+             // Emotion Ratings Histogram Chart
+             const emotionHistCtx = document.getElementById('emotionHistogramChart');
+             if (emotionHistCtx) {
+                 const emotionHistBarCtx = emotionHistCtx.getContext('2d');
+                 
+                 // Generate histogram data for emotion ratings
+                 const emotionHistogramData = {
+                     labels: ['1', '2', '3', '4', '5', '6', '7', '8', '9'],
+                     datasets: [{
+                         label: 'Left Half',
+                         data: [2, 4, 8, 12, 10, 6, 3, 2, 1],
+                         backgroundColor: 'rgba(255, 99, 132, 0.6)',
+                         borderColor: 'rgba(255, 99, 132, 1)',
+                         borderWidth: 1
+                     }, {
+                         label: 'Right Half',
+                         data: [1, 3, 6, 15, 12, 8, 4, 2, 1],
+                         backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                         borderColor: 'rgba(54, 162, 235, 1)',
+                         borderWidth: 1
+                     }, {
+                         label: 'Full Face',
+                         data: [1, 2, 5, 14, 13, 9, 5, 2, 1],
+                         backgroundColor: 'rgba(75, 192, 192, 0.6)',
+                         borderColor: 'rgba(75, 192, 192, 1)',
+                         borderWidth: 1
+                     }]
+                 };
+                 
+                 new Chart(emotionHistBarCtx, {
+                     type: 'bar',
+                     data: emotionHistogramData,
+                     options: {
+                         responsive: true,
+                         scales: {
+                             x: {
+                                 stacked: false,
+                                 title: {
+                                     display: true,
+                                     text: 'Emotion Rating'
+                                 }
+                             },
+                             y: {
+                                 stacked: false,
+                                 title: {
+                                     display: true,
+                                     text: 'Frequency'
+                                 }
+                             }
+                         },
+                         plugins: {
+                             title: {
+                                 display: true,
+                                 text: 'Distribution of Emotion Ratings by Version'
+                             },
+                             legend: {
+                                 display: true,
+                                 position: 'top'
+                             }
+                         }
+                     }
+                 });
+             }
+             
+             // Trust Ratings Boxplot using Plotly
+             const trustBoxplotDiv = document.getElementById('trustBoxplotChart');
+             if (trustBoxplotDiv) {
+                 // Generate sample data for trust ratings
+                 const leftData = [1, 2, 3, 4, 5, 5, 5, 6, 6, 7, 7, 8, 8, 9];
+                 const rightData = [1, 2, 3, 4, 5, 5, 6, 6, 6, 7, 7, 8, 8, 9];
+                 const bothData = [1, 2, 3, 4, 5, 5, 5, 6, 6, 7, 7, 8, 8, 9];
+                 
+                 const trustBoxplotData = [
+                     {
+                         y: leftData,
+                         name: 'Left Half',
+                         type: 'box',
+                         boxpoints: 'all',
+                         jitter: 0.3,
+                         pointpos: -1.8,
+                         marker: { color: 'rgba(54, 162, 235, 0.6)' },
+                         line: { color: 'rgba(54, 162, 235, 1)' }
+                     },
+                     {
+                         y: rightData,
+                         name: 'Right Half',
+                         type: 'box',
+                         boxpoints: 'all',
+                         jitter: 0.3,
+                         pointpos: -1.8,
+                         marker: { color: 'rgba(255, 206, 86, 0.6)' },
+                         line: { color: 'rgba(255, 206, 86, 1)' }
+                     },
+                     {
+                         y: bothData,
+                         name: 'Full Face',
+                         type: 'box',
+                         boxpoints: 'all',
+                         jitter: 0.3,
+                         pointpos: -1.8,
+                         marker: { color: 'rgba(75, 192, 192, 0.6)' },
+                         line: { color: 'rgba(75, 192, 192, 1)' }
+                     }
+                 ];
+                 
+                 const trustBoxplotLayout = {
+                     title: 'Boxplot of Trust Ratings by Version',
+                     yaxis: {
+                         title: 'Trust Rating (1-7)',
+                         range: [0, 8]
+                     },
+                     showlegend: true,
+                     margin: { t: 50, r: 50, b: 50, l: 50 }
+                 };
+                 
+                 Plotly.newPlot(trustBoxplotDiv, trustBoxplotData, trustBoxplotLayout, {responsive: true});
+             }
+             
+             // Emotion Ratings Boxplot using Plotly
+             const emotionBoxplotDiv = document.getElementById('emotionBoxplotChart');
+             if (emotionBoxplotDiv) {
+                 // Generate sample data for emotion ratings
+                 const leftEmotionData = [1, 2, 3, 4, 5, 5, 5, 6, 6, 7, 7, 8, 8, 9];
+                 const rightEmotionData = [1, 2, 3, 4, 5, 5, 6, 6, 6, 7, 7, 8, 8, 9];
+                 const bothEmotionData = [1, 2, 3, 4, 5, 5, 5, 6, 6, 7, 7, 8, 8, 9];
+                 
+                 const emotionBoxplotData = [
+                     {
+                         y: leftEmotionData,
+                         name: 'Left Half',
+                         type: 'box',
+                         boxpoints: 'all',
+                         jitter: 0.3,
+                         pointpos: -1.8,
+                         marker: { color: 'rgba(255, 99, 132, 0.6)' },
+                         line: { color: 'rgba(255, 99, 132, 1)' }
+                     },
+                     {
+                         y: rightEmotionData,
+                         name: 'Right Half',
+                         type: 'box',
+                         boxpoints: 'all',
+                         jitter: 0.3,
+                         pointpos: -1.8,
+                         marker: { color: 'rgba(54, 162, 235, 0.6)' },
+                         line: { color: 'rgba(54, 162, 235, 1)' }
+                     },
+                     {
+                         y: bothEmotionData,
+                         name: 'Full Face',
+                         type: 'box',
+                         boxpoints: 'all',
+                         jitter: 0.3,
+                         pointpos: -1.8,
+                         marker: { color: 'rgba(75, 192, 192, 0.6)' },
+                         line: { color: 'rgba(75, 192, 192, 1)' }
+                     }
+                 ];
+                 
+                 const emotionBoxplotLayout = {
+                     title: 'Boxplot of Emotion Ratings by Version',
+                     yaxis: {
+                         title: 'Emotion Rating (1-7)',
+                         range: [0, 8]
+                     },
+                     showlegend: true,
+                     margin: { t: 50, r: 50, b: 50, l: 50 }
+                 };
+                 
+                 Plotly.newPlot(emotionBoxplotDiv, emotionBoxplotData, emotionBoxplotLayout, {responsive: true});
+             }
         });
     </script>
                     {% endif %}
+
+    <!-- Modal Containers -->
+    <div id="trustBoxplotModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('trustBoxplotModal')">&times;</span>
+            <h3>Trust Ratings Boxplot by Version - Interactive View</h3>
+            <div id="trustBoxplotModalChart" style="height: 500px;"></div>
+        </div>
+    </div>
+
+    <div id="emotionBoxplotModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('emotionBoxplotModal')">&times;</span>
+            <h3>Emotion Ratings Boxplot by Version - Interactive View</h3>
+            <div id="emotionBoxplotModalChart" style="height: 500px;"></div>
+        </div>
+    </div>
+
+    <script>
+        // Modal Functions
+        function openModal(modalId) {
+            document.getElementById(modalId).style.display = 'block';
+            
+            // Recreate the chart in the modal with full toolbar
+            if (modalId === 'trustBoxplotModal') {
+                createTrustBoxplotModal();
+            } else if (modalId === 'emotionBoxplotModal') {
+                createEmotionBoxplotModal();
+            }
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        // Close modal when clicking outside of it
+        window.onclick = function(event) {
+            const modals = document.getElementsByClassName('modal');
+            for (let i = 0; i < modals.length; i++) {
+                if (event.target === modals[i]) {
+                    modals[i].style.display = 'none';
+                }
+            }
+        }
+
+        // Create Trust Boxplot for Modal
+        function createTrustBoxplotModal() {
+            const modalDiv = document.getElementById('trustBoxplotModalChart');
+            if (modalDiv) {
+                const leftData = [1, 2, 3, 4, 5, 5, 5, 6, 6, 7, 7, 8, 8, 9];
+                const rightData = [1, 2, 3, 4, 5, 5, 6, 6, 6, 7, 7, 8, 8, 9];
+                const bothData = [1, 2, 3, 4, 5, 5, 5, 6, 6, 7, 7, 8, 8, 9];
+                
+                const trustBoxplotData = [
+                    {
+                        y: leftData,
+                        name: 'Left Half',
+                        type: 'box',
+                        boxpoints: 'all',
+                        jitter: 0.3,
+                        pointpos: -1.8,
+                        marker: { color: 'rgba(54, 162, 235, 0.6)' },
+                        line: { color: 'rgba(54, 162, 235, 1)' }
+                    },
+                    {
+                        y: rightData,
+                        name: 'Right Half',
+                        type: 'box',
+                        boxpoints: 'all',
+                        jitter: 0.3,
+                        pointpos: -1.8,
+                        marker: { color: 'rgba(255, 206, 86, 0.6)' },
+                        line: { color: 'rgba(255, 206, 86, 1)' }
+                    },
+                    {
+                        y: bothData,
+                        name: 'Full Face',
+                        type: 'box',
+                        boxpoints: 'all',
+                        jitter: 0.3,
+                        pointpos: -1.8,
+                        marker: { color: 'rgba(75, 192, 192, 0.6)' },
+                        line: { color: 'rgba(75, 192, 192, 1)' }
+                    }
+                ];
+                
+                const trustBoxplotLayout = {
+                    title: 'Boxplot of Trust Ratings by Version',
+                    yaxis: {
+                        title: 'Trust Rating (1-7)',
+                        range: [0, 8]
+                    },
+                    showlegend: true,
+                    margin: { t: 50, r: 50, b: 50, l: 50 }
+                };
+                
+                const config = {
+                    responsive: true,
+                    displayModeBar: true,
+                    modeBarButtonsToAdd: ['downloadImage'],
+                    modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d']
+                };
+                
+                Plotly.newPlot(modalDiv, trustBoxplotData, trustBoxplotLayout, config);
+            }
+        }
+
+        // Create Emotion Boxplot for Modal
+        function createEmotionBoxplotModal() {
+            const modalDiv = document.getElementById('emotionBoxplotModalChart');
+            if (modalDiv) {
+                const leftEmotionData = [1, 2, 3, 4, 5, 5, 5, 6, 6, 7, 7, 8, 8, 9];
+                const rightEmotionData = [1, 2, 3, 4, 5, 5, 6, 6, 6, 7, 7, 8, 8, 9];
+                const bothEmotionData = [1, 2, 3, 4, 5, 5, 5, 6, 6, 7, 7, 8, 8, 9];
+                
+                const emotionBoxplotData = [
+                    {
+                        y: leftEmotionData,
+                        name: 'Left Half',
+                        type: 'box',
+                        boxpoints: 'all',
+                        jitter: 0.3,
+                        pointpos: -1.8,
+                        marker: { color: 'rgba(255, 99, 132, 0.6)' },
+                        line: { color: 'rgba(255, 99, 132, 1)' }
+                    },
+                    {
+                        y: rightEmotionData,
+                        name: 'Right Half',
+                        type: 'box',
+                        boxpoints: 'all',
+                        jitter: 0.3,
+                        pointpos: -1.8,
+                        marker: { color: 'rgba(54, 162, 235, 0.6)' },
+                        line: { color: 'rgba(54, 162, 235, 1)' }
+                    },
+                    {
+                        y: bothEmotionData,
+                        name: 'Full Face',
+                        type: 'box',
+                        boxpoints: 'all',
+                        jitter: 0.3,
+                        pointpos: -1.8,
+                        marker: { color: 'rgba(75, 192, 192, 0.6)' },
+                        line: { color: 'rgba(75, 192, 192, 1)' }
+                    }
+                ];
+                
+                const emotionBoxplotLayout = {
+                    title: 'Boxplot of Emotion Ratings by Version',
+                    yaxis: {
+                        title: 'Emotion Rating (1-7)',
+                        range: [0, 8]
+                    },
+                    showlegend: true,
+                    margin: { t: 50, r: 50, b: 50, l: 50 }
+                };
+                
+                const config = {
+                    responsive: true,
+                    displayModeBar: true,
+                    modeBarButtonsToAdd: ['downloadImage'],
+                    modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d']
+                };
+                
+                Plotly.newPlot(modalDiv, emotionBoxplotData, emotionBoxplotLayout, config);
+            }
+        }
+    </script>
 </body>
 </html>

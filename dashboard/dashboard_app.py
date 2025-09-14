@@ -792,7 +792,10 @@ def statistics():
             'repeated_measures_anova': statistical_analyzer.repeated_measures_anova(),
             'inter_rater_reliability': statistical_analyzer.inter_rater_reliability(),
             'split_half_reliability': statistical_analyzer.split_half_reliability(),
-            'all_question_stats': statistical_analyzer.get_all_question_stats()
+            'all_question_stats': statistical_analyzer.get_all_question_stats(),
+            'emotion_paired_t_test': statistical_analyzer.emotion_paired_t_test_half_vs_full(),
+            'emotion_repeated_measures_anova': statistical_analyzer.emotion_repeated_measures_anova(),
+            'choice_preference_analysis': statistical_analyzer.choice_preference_analysis()
         }
         
         return render_template('statistics.html', test_results=test_results)
