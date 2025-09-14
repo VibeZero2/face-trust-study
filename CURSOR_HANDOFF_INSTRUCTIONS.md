@@ -55,3 +55,79 @@ python app.py  # Local testing on port 3000
 
 ## **Critical Issue**
 The issue is urgent and the previous AI (Cascade) was unable to identify the root cause after multiple attempts. User needs this working ASAP.
+
+## **CURRENT PROBLEM: Dashboard Delete Buttons Don't Work**
+
+### STATUS:
+- ✅ Local Flask app running on port 3000
+- ✅ Dashboard accessible at http://localhost:3000/dashboard
+- ✅ Delete buttons ARE visible on dashboard
+- ❌ Delete buttons do NOT work - no server logs when clicked
+
+### WHAT CASCADE TRIED:
+1. **Login Issue**: Temporarily disabled @login_required decorator on delete_file function
+2. **Redirect Bug**: Fixed url_for('dashboard') to url_for('dashboard.dashboard') 
+3. **File Visibility**: Fixed production mode to show production files (not hide all files)
+4. **Debug Logging**: Added extensive debug logging to delete_file function with 🗑️ emojis
+5. **Form Debugging**: Added console.log to button onclick and form onsubmit
+
+### THE CORE PROBLEM:
+Delete buttons exist and are clickable, but clicking them produces:
+- No Flask server logs (🗑️ DELETE FUNCTION CALLED never appears)
+- No network requests visible
+- No errors in browser console
+- Form submission appears to fail silently
+
+### KEY FILES MODIFIED:
+- `/dashboard/dashboard_app.py` - delete_file function (line ~1874)
+- `/dashboard/templates/dashboard.html` - delete button forms (line ~468)
+
+### CURRENT DELETE FUNCTION:
+```python
+@dashboard_bp.route('/delete-file/<filename>', methods=['POST'])
+# @login_required  # Temporarily disabled for local testing
+def delete_file(filename):
+    print(f"🗑️ DELETE FUNCTION CALLED: filename={filename}")
+    # ... extensive debug logging throughout
+```
+
+### CURRENT FORM HTML:
+```html
+<form action="/dashboard/delete-file/{{ file.name }}" method="post" style="display: inline;" onsubmit="console.log('Form submitted for: {{ file.name }}');">
+    <button type="submit" class="btn btn-danger btn-sm" onclick="console.log('Delete button clicked for: {{ file.name }}'); return confirm('Are you sure you want to delete this file?')">
+        <i class="fas fa-trash"></i>
+    </button>
+</form>
+```
+
+### DEBUGGING STEPS FOR CURSOR:
+1. Check browser dev tools console for JavaScript logs when delete clicked
+2. Check browser Network tab for HTTP requests when delete clicked  
+3. Verify form action URL is correct: `/dashboard/delete-file/filename.csv`
+4. Test if route is accessible directly via browser/Postman
+5. Check if there are any JavaScript errors preventing form submission
+
+### SUSPECTED ISSUES:
+- Form action URL might be malformed (spaces in filenames?)
+- JavaScript confirm() dialog might be preventing submission
+- Route registration issue with Flask blueprint
+- CSRF token missing (though not implemented)
+
+### ENVIRONMENT:
+- Windows local development
+- Flask app running on http://127.0.0.1:3000
+- Dashboard at /dashboard/ route
+- Files like "200.csv", "test123.csv" in data/responses/
+
+### GOAL:
+Get delete buttons to actually call the delete_file function and delete CSV files from data/responses directory.
+
+### FILES TO CHECK:
+- `dashboard/dashboard_app.py` (delete_file route)
+- `dashboard/templates/dashboard.html` (form HTML)
+- `app.py` (blueprint registration)
+
+### PREVIOUS RENDER DEPLOYMENT ISSUES (RESOLVED):
+- Face count issue: Fixed (shows 35 faces correctly)
+- Dashboard broken: Fixed (fully functional)
+- Data files missing: Fixed (test data deployed)

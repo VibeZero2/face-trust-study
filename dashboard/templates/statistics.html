@@ -270,7 +270,7 @@
                                         {% if test_results.repeated_measures_anova.means %}
                                             <p><strong>Left:</strong> {{ "%.3f"|format(test_results.repeated_measures_anova.means.left) }}</p>
                                             <p><strong>Right:</strong> {{ "%.3f"|format(test_results.repeated_measures_anova.means.right) }}</p>
-                                            <p><strong>Full:</strong> {{ "%.3f"|format(test_results.repeated_measures_anova.means.full) }}</p>
+                                            <p><strong>Full:</strong> {{ "%.3f"|format(test_results.repeated_measures_anova.means.both) }}</p>
                                         {% else %}
                                             <p class="text-muted">Means not available</p>
                                         {% endif %}
@@ -505,7 +505,7 @@
                      data: [
                          {{ test_results.repeated_measures_anova.means.left if test_results.repeated_measures_anova.means and test_results.repeated_measures_anova.means.left else 0 }},
                          {{ test_results.repeated_measures_anova.means.right if test_results.repeated_measures_anova.means and test_results.repeated_measures_anova.means.right else 0 }},
-                         {{ test_results.repeated_measures_anova.means.full if test_results.repeated_measures_anova.means and test_results.repeated_measures_anova.means.full else 0 }}
+                         {{ test_results.repeated_measures_anova.means.both if test_results.repeated_measures_anova.means and test_results.repeated_measures_anova.means.both else 0 }}
                      ],
                      backgroundColor: [
                          'rgba(54, 162, 235, 0.8)',

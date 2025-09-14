@@ -13,36 +13,37 @@ class DataCleaner:
     Data cleaning and exclusion logic for face perception study data.
     """
     
-    def __init__(self, data_dir: str = "data/responses", test_mode: bool = False):
+    def __init__(self, data_dir: str = "data/responses"):
         self.data_dir = Path(data_dir)
-        self.test_mode = test_mode
         self.raw_data = None
         self.cleaned_data = None
         self.exclusion_summary = {}
         
     
     def load_data(self) -> pd.DataFrame:
-        """Load and merge CSV files from the responses directory based on mode."""
+        """Load and merge CSV files from the responses directory (production only)."""
         csv_files = list(self.data_dir.glob("*.csv"))
         
         if not csv_files:
             raise FileNotFoundError(f"No CSV files found in {self.data_dir}")
         
-        # Filter files based on mode
+        # Load all production files (include test_001.csv to test_060.csv as production data)
         files_to_load = []
+        for file_path in csv_files:
+            # Include all files except old test files, but include test_001.csv, test_002.csv, etc. as production data
+            if (file_path.name.startswith('test_') and len(file_path.name) >= 8 and file_path.name[5:7].isdigit()) or not file_path.name.startswith('test_'):
+                files_to_load.append(file_path)
         
-        if self.test_mode:
-            # TEST MODE: Only test_ files
-            for file_path in csv_files:
-                if file_path.name.startswith('test_'):
-                    files_to_load.append(file_path)
+        # Prioritize new format files (test_001.csv, etc.) over old format files
+        new_format_files = [f for f in files_to_load if f.name.startswith('test_') and len(f.name) >= 8 and f.name[5:7].isdigit()]
+        old_format_files = [f for f in files_to_load if not (f.name.startswith('test_') and len(f.name) >= 8 and f.name[5:7].isdigit())]
+        
+        # If we have new format files, use only those
+        if new_format_files:
+            files_to_load = new_format_files
+            print(f"Using new format files: {len(files_to_load)} files")
         else:
-            # PRODUCTION MODE: Only participant 200 files (various formats)
-            for file_path in csv_files:
-                if (file_path.name.startswith('participant_200_') or 
-                    file_path.name.startswith('200_') or 
-                    file_path.name == '200.csv'):
-                    files_to_load.append(file_path)
+            print(f"Using old format files: {len(files_to_load)} files")
         
         
         if not files_to_load:
@@ -79,24 +80,14 @@ class DataCleaner:
             not hasattr(self.raw_data, 'columns') or 
             'source_file' not in self.raw_data.columns):
             # Empty data - no files loaded
-            if self.test_mode:
-                return {
-                    "mode": "TEST",
-                    "total_rows": 0,
-                    "real_participants": 0,
-                    "test_files": 0,
-                    "real_files": [],
-                    "test_files_list": []
-                }
-            else:
-                return {
-                    "mode": "PRODUCTION",
-                    "total_rows": 0,
-                    "real_participants": 0,
-                    "test_files": 0,
-                    "real_files": [],
-                    "test_files_list": []
-                }
+            return {
+                "mode": "PRODUCTION",
+                "total_rows": 0,
+                "real_participants": 0,
+                "test_files": 0,
+                "real_files": [],
+                "test_files_list": []
+            }
         
         # Get what's actually loaded
         loaded_files = self.raw_data['source_file'].unique()
@@ -106,38 +97,28 @@ class DataCleaner:
         loaded_test_files = []
         
         for file_name in loaded_files:
-            if (file_name.startswith('test_') or 
-                file_name.startswith('test_participant') or
+            # test_001.csv to test_060.csv are production files, not test files
+            if (file_name.startswith('test_participant') or
                 'test_statistical_validation' in file_name or
                 file_name.startswith('PROLIFIC_TEST_') or
                 file_name == 'test789.csv' or
                 file_name == 'test123.csv' or
                 file_name == 'test456.csv' or
-                file_name == 'test_participants_combined.csv'):
+                file_name == 'test_participants_combined.csv' or
+                file_name == 'all_participants_combined.csv'):
                 loaded_test_files.append(file_name)
             else:
                 loaded_real_files.append(file_name)
         
-        if self.test_mode:
-            # In test mode, we show test files as "loaded" and real files as "excluded"
-            return {
-                "mode": "TEST",
-                "total_rows": len(self.raw_data),
-                "real_participants": len(loaded_test_files),  # Test files are the "participants" in test mode
-                "test_files": len(loaded_real_files),  # Real files are "excluded" in test mode
-                "real_files": loaded_test_files,  # In test mode, "real_files" means the test files we're showing
-                "test_files_list": loaded_real_files  # Real files are excluded in test mode
-            }
-        else:
-            # In production mode, we show real files as "loaded" and test files as "excluded"
-            return {
-                "mode": "PRODUCTION",
-                "total_rows": len(self.raw_data),
-                "real_participants": len(loaded_real_files),  # Real files are the "participants" in production mode
-                "test_files": len(loaded_test_files),  # Test files are "excluded" in production mode
-                "real_files": loaded_real_files,  # In production mode, "real_files" means the real files we're showing
-                "test_files_list": loaded_test_files  # Test files are excluded in production mode
-            }
+        # Production mode only - show real files as "loaded" and test files as "excluded"
+        return {
+            "mode": "PRODUCTION",
+            "total_rows": len(self.raw_data),
+            "real_participants": len(loaded_real_files),  # Real files are the "participants"
+            "test_files": len(loaded_test_files),  # Test files are "excluded"
+            "real_files": loaded_real_files,  # Real files we're showing
+            "test_files_list": loaded_test_files  # Test files are excluded
+        }
     
     def standardize_data(self) -> pd.DataFrame:
         """
@@ -178,6 +159,9 @@ class DataCleaner:
             # Study program specific mappings
             'masc_choice': 'masc_choice',
             'fem_choice': 'fem_choice',
+            # New format with question/response columns
+            'question': 'question',
+            'response': 'response',
             'trust_q1': 'trust_q1',
             'trust_q2': 'trust_q2', 
             'trust_q3': 'trust_q3',
@@ -194,6 +178,69 @@ class DataCleaner:
         
         # Rename the columns
         df = df.rename(columns=existing_cols)
+        
+        # Handle new question/response format - create wide format
+        if 'question' in df.columns and 'response' in df.columns:
+            logger.info("Detected question/response format - creating wide format")
+            
+            # For trust and emotion questions, create separate rows for each version
+            # These are the main rating questions that need to be analyzed by version
+            trust_emotion_data = []
+            
+            for _, row in df.iterrows():
+                if row['question'] in ['trust', 'emotion']:
+                    trust_emotion_data.append({
+                        'pid': row['pid'],
+                        'face_id': row['face_id'],
+                        'version': row['version'],
+                        'question': row['question'],
+                        'response': row['response']
+                    })
+            
+            # Create wide format by pivoting trust/emotion data
+            if trust_emotion_data:
+                trust_emotion_df = pd.DataFrame(trust_emotion_data)
+                pivot_df = trust_emotion_df.pivot_table(
+                    index=['pid', 'face_id', 'version'], 
+                    columns='question', 
+                    values='response', 
+                    aggfunc='first'
+                ).reset_index()
+                pivot_df.columns.name = None
+                
+                # Map to expected column names
+                if 'trust' in pivot_df.columns:
+                    pivot_df['trust_rating'] = pivot_df['trust']
+                    pivot_df = pivot_df.drop(columns=['trust'])
+                if 'emotion' in pivot_df.columns:
+                    pivot_df['emotion_rating'] = pivot_df['emotion']
+                    pivot_df = pivot_df.drop(columns=['emotion'])
+                
+                df = pivot_df
+            else:
+                df = pd.DataFrame()
+            
+            # Add other questions as separate columns (these are only for version='both')
+            other_questions = self.raw_data[self.raw_data['question'].isin(['masc_choice', 'fem_choice', 'masculinity_full', 'femininity_full'])]
+            
+            if not other_questions.empty:
+                other_pivot = other_questions.pivot_table(
+                    index=['pid', 'face_id'], 
+                    columns='question', 
+                    values='response', 
+                    aggfunc='first'
+                ).reset_index()
+                other_pivot.columns.name = None
+                
+                # Merge with main data
+                if not df.empty:
+                    df = df.merge(other_pivot, on=['pid', 'face_id'], how='left')
+                else:
+                    df = other_pivot
+            
+            logger.info("Successfully created wide format from question/response data")
+            logger.info(f"After processing: {len(df)} rows, columns: {list(df.columns)}")
+            logger.info(f"Version counts: {df['version'].value_counts().to_dict()}")
         
         # Handle duplicate column names by keeping first occurrence
         if df.columns.duplicated().any():
@@ -277,13 +324,14 @@ class DataCleaner:
             version_mapping = {
                 'left half': 'left',
                 'right half': 'right',
-                'full face': 'full',
+                'full face': 'both',
+                'both': 'both',
                 'left': 'left',
                 'right': 'right',
-                'full': 'full',
+                'full': 'both',
                 'Left Half': 'left',
                 'Right Half': 'right', 
-                'Full Face': 'full'
+                'Full Face': 'both'
             }
             # First try exact mapping
             df['version'] = df['version'].map(version_mapping).fillna(df['version'])
@@ -294,10 +342,10 @@ class DataCleaner:
                 df['version'] = df['version'].str.lower().map({
                     'left half': 'left',
                     'right half': 'right',
-                    'full face': 'full'
+                    'full face': 'both'
                 }).fillna(df['version'])
             
-            # Filter out toggle and survey rows (ignore for now as requested)
+            # Filter out only toggle and survey rows, keep all other versions including 'both'
             df = df[~df['version'].isin(['toggle', 'survey'])]
             logger.info(f"Filtered out toggle/survey rows. Remaining rows: {len(df)}")
         

@@ -53,7 +53,7 @@ class StatisticalAnalyzer:
         """
         stats_dict = {}
         
-        for version in ['left', 'right', 'full']:
+        for version in ['left', 'right', 'both']:
             version_data = self.data_cleaner.get_data_by_version(version)
             
             if len(version_data) > 0:
@@ -85,7 +85,7 @@ class StatisticalAnalyzer:
         # Get data for each version
         left_data = self.data_cleaner.get_data_by_version('left')
         right_data = self.data_cleaner.get_data_by_version('right')
-        full_data = self.data_cleaner.get_data_by_version('full')
+        full_data = self.data_cleaner.get_data_by_version('both')
         
         # Create participant-level averages
         left_means = left_data.groupby('pid')['trust_rating'].mean()
@@ -163,7 +163,7 @@ class StatisticalAnalyzer:
         # Get data for each version
         left_data = self.data_cleaner.get_data_by_version('left')
         right_data = self.data_cleaner.get_data_by_version('right')
-        full_data = self.data_cleaner.get_data_by_version('full')
+        full_data = self.data_cleaner.get_data_by_version('both')
         
         # Create participant-level averages
         left_means = left_data.groupby('pid')['trust_rating'].mean()
@@ -192,7 +192,7 @@ class StatisticalAnalyzer:
         data_matrix = pd.DataFrame({
             'left': left_means.loc[common_participants],
             'right': right_means.loc[common_participants],
-            'full': full_means.loc[common_participants]
+            'both': full_means.loc[common_participants]
         })
         
         # Compute repeated-measures ANOVA components
@@ -252,7 +252,7 @@ class StatisticalAnalyzer:
         Calculate inter-rater reliability (ICC) for trust ratings.
         """
         # Get data for full face only (most reliable for inter-rater reliability)
-        full_data = self.data_cleaner.get_data_by_version('full')
+        full_data = self.data_cleaner.get_data_by_version('both')
         
         if len(full_data) == 0:
             return {
@@ -362,7 +362,7 @@ class StatisticalAnalyzer:
         Calculate split-half reliability for trust ratings.
         """
         # Get data for full face only
-        full_data = self.data_cleaner.get_data_by_version('full')
+        full_data = self.data_cleaner.get_data_by_version('both')
         
         if len(full_data) == 0:
             return {
@@ -469,7 +469,7 @@ class StatisticalAnalyzer:
         image_summary['display_face_id'] = image_summary['face_id'].map(face_id_mapping)
         
         # Calculate difference between full face and half-face average
-        full_face_data = image_summary[image_summary['version'] == 'full'].set_index('display_face_id')
+        full_face_data = image_summary[image_summary['version'] == 'both'].set_index('display_face_id')
         half_face_data = image_summary[image_summary['version'].isin(['left', 'right'])]
         
         if not half_face_data.empty:

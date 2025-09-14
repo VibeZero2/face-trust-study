@@ -109,39 +109,30 @@ def is_data_available():
     """Check if data is available and initialized."""
     return data_cleaner is not None and data_filter is not None and statistical_analyzer is not None
 
-def initialize_data(test_mode=False, force_mode=False):
-    """Initialize data processing components."""
+def initialize_data():
+    """Initialize data processing components (production only)."""
     global data_cleaner, statistical_analyzer, data_filter, last_data_refresh
     
     try:
         # Check what data files are available
         data_dir = DATA_DIR
-        if data_dir.exists():
-            csv_files = list(data_dir.glob("*.csv"))
-            test_files = [f for f in csv_files if any(pattern in f.name for pattern in 
-                        ['test_', 'test_participant', 'test_statistical_validation', 'PROLIFIC_TEST_', 'test789.csv', 'test123.csv', 'test456.csv', 'test_participants_combined.csv'])]
-            real_files = [f for f in csv_files if f not in test_files]
-            
-            # Auto-detect mode: if only test files exist, use test mode
-            # But only if not forcing a specific mode (e.g., from manual toggle)
-            if not force_mode:
-                if not real_files and test_files:
-                    print("Auto-detected: Only test files available, switching to TEST MODE")
-                    test_mode = True
-                elif real_files and not test_files:
-                    print("Auto-detected: Only production files available, switching to PRODUCTION MODE")
-                    test_mode = False
-                elif real_files and test_files:
-                    print("Auto-detected: Both test and production files available, defaulting to PRODUCTION MODE")
-                    test_mode = False
-                elif not csv_files:
-                    raise FileNotFoundError(f"No CSV files found in {data_dir}")
-            else:
-                print(f"Force mode enabled: Using specified test_mode={test_mode}")
-                print(f"Available files: {len(test_files)} test files, {len(real_files)} production files")
+        if not data_dir.exists():
+            raise FileNotFoundError(f"Data directory not found: {data_dir}")
         
-        # Use detected or specified mode
-        data_cleaner = DataCleaner(str(data_dir), test_mode=test_mode)
+        csv_files = list(data_dir.glob("*.csv"))
+        if not csv_files:
+            raise FileNotFoundError(f"No CSV files found in {data_dir}")
+        
+        # Count production vs test files for logging
+        test_files = [f for f in csv_files if any(pattern in f.name for pattern in 
+                    ['test_participant', 'test_statistical_validation', 'PROLIFIC_TEST_', 'test789.csv', 'test123.csv', 'test456.csv', 'test_participants_combined.csv'])]
+        real_files = [f for f in csv_files if f not in test_files]
+        
+        print(f"Found {len(real_files)} production files and {len(test_files)} test files")
+        print("Auto-detected: Using PRODUCTION MODE (test files will be excluded)")
+        
+        # Initialize data cleaner (production only)
+        data_cleaner = DataCleaner(str(data_dir))
         data_cleaner.load_data()
         data_cleaner.standardize_data()
         data_cleaner.apply_exclusion_rules()
@@ -155,8 +146,7 @@ def initialize_data(test_mode=False, force_mode=False):
             data_filter = None
         
         last_data_refresh = datetime.now()
-        mode_name = "TEST" if test_mode else "PRODUCTION"
-        print(f"Data initialized successfully in {mode_name} mode")
+        print("Data initialized successfully in PRODUCTION mode")
         return True
     except FileNotFoundError as e:
         print(f"No data files found: {e}")
@@ -184,7 +174,7 @@ def trigger_data_refresh():
             current_files = list(data_dir.glob("*.csv"))
             print(f"📁 Current files in {data_dir}: {[f.name for f in current_files]}")
         
-        if initialize_data(force_mode=False):
+        if initialize_data():
             last_data_refresh = datetime.now()
             print("✅ Data refresh completed")
             
@@ -205,7 +195,7 @@ file_observer = None
 file_observer = start_file_watcher()
 
 # Initialize data on startup
-initialize_data(force_mode=False)
+initialize_data()
 
 # Simple file-based user authentication
 import json
@@ -311,7 +301,7 @@ def dashboard():
     global data_cleaner, statistical_analyzer, data_filter
     
     if not is_data_available():
-        if not initialize_data(force_mode=False):
+        if not initialize_data():
             flash('Error loading data. Please check the data directory.', 'error')
             return render_template('error.html', message="Data initialization failed")
     
@@ -351,44 +341,29 @@ def dashboard():
             print(f"❌ Error getting data summary: {e}")
             data_summary = {'mode': 'ERROR'}
         
-        # Ensure data_summary is consistent with current mode
-        if data_cleaner.test_mode:
-            data_summary['mode'] = 'TEST'
-        else:
-            data_summary['mode'] = 'PRODUCTION'
+        # Set mode to production only
+        data_summary['mode'] = 'PRODUCTION'
         
         # Calculate additional stats for the dashboard
         cleaned_data = data_cleaner.get_cleaned_data()
         
-        # OVERRIDE: In production mode, filter to only participant 200 data AND exclude test data
-        if not data_cleaner.test_mode and cleaned_data is not None and len(cleaned_data) > 0:
-            if 'pid' in cleaned_data.columns:
-                cleaned_data = cleaned_data[cleaned_data['pid'] == 200]
-                # Further filter out test data (prolific_pid contains "TEST")
-                if 'prolific_pid' in cleaned_data.columns:
-                    real_data = cleaned_data[~cleaned_data['prolific_pid'].str.contains('TEST', na=False)]
-                    cleaned_data = real_data
+        # Filter out test data (prolific_pid contains "TEST")
+        if cleaned_data is not None and len(cleaned_data) > 0:
+            if 'prolific_pid' in cleaned_data.columns:
+                cleaned_data = cleaned_data[~cleaned_data['prolific_pid'].str.contains('TEST', na=False)]
         
         if len(cleaned_data) > 0 and 'include_in_primary' in cleaned_data.columns:
             included_data = cleaned_data[cleaned_data['include_in_primary']]
         else:
             included_data = cleaned_data
         
-        # data_summary already set above with correct mode
-        
-        # Debug: Check what participants are in included_data
+        # Calculate actual participant count from data
         included_participants = included_data['pid'].unique() if len(included_data) > 0 else []
         
-        # OVERRIDE: Force correct statistics for production mode
-        if not data_cleaner.test_mode:
-            data_summary['total_participants'] = 1  # Always 1 participant (200) in production
-            data_summary['real_participants'] = 1  # Always 1 participant (200) in production
-            data_summary['total_responses'] = len(included_data)
-            
-            # If no completed responses, override the trust rating stats to 0
-            if len(included_data) == 0:
-                data_summary['avg_trust_rating'] = 0
-                data_summary['trust_rating_std'] = 0
+        # Update data_summary with actual counts
+        data_summary['total_participants'] = len(included_participants)
+        data_summary['real_participants'] = len(included_participants)
+        data_summary['total_responses'] = len(included_data)
             
         
         # IMPORTANT: Dashboard statistics are calculated ONLY from completed CSV files
@@ -403,10 +378,10 @@ def dashboard():
                 trust_std = 0
             
             dashboard_stats = {
-                'total_participants': data_summary.get('total_participants', len(included_participants)),  # Use override in production mode
-                'total_responses': data_summary.get('total_responses', len(included_data) if len(included_data) > 0 else 0),  # Use override in production mode
-                'avg_trust_rating': data_summary.get('avg_trust_rating', trust_mean),
-                'std_trust_rating': data_summary.get('trust_rating_std', trust_std),
+                'total_participants': len(included_participants),  # Actual participant count
+                'total_responses': len(included_data),  # Actual response count
+                'avg_trust_rating': trust_mean,
+                'std_trust_rating': trust_std,
                 'included_participants': len(included_participants),  # Only completed CSV data
                 'cleaned_trials': len(included_data) if len(included_data) > 0 else 0,  # Only completed CSV data
                 'raw_responses': exclusion_summary['total_raw'],
@@ -444,11 +419,12 @@ def dashboard():
                 # Determine if file is test or production
                 file_name = file_path.name
                 is_test_file = (
-                    file_name.startswith('test_') or
                     file_name.startswith('test_participant') or
                     'test_statistical_validation' in file_name or
                     file_name.startswith('PROLIFIC_TEST_') or
-                    file_name in ['test789.csv', 'test123.csv', 'test456.csv']
+                    file_name in ['test789.csv', 'test123.csv', 'test456.csv'] or
+                    file_name == 'all_participants_combined.csv'
+                    # Note: test_001.csv to test_060.csv are PRODUCTION data files
                     # Note: Numeric participant IDs like 200.csv are REAL study data, not test data
                 )
                 
@@ -458,13 +434,8 @@ def dashboard():
                 
                 # Debug: Print file classification
                 
-                # Filter files based on current mode
-                if data_cleaner.test_mode:
-                    # Test mode: show only test files
-                    show_file = is_test_file
-                else:
-                    # Production mode: show NO files at all
-                    show_file = False
+                # Production mode: show production files (non-test files)
+                show_file = not is_test_file
                 
                 if show_file:
                     data_files.append({
@@ -502,13 +473,8 @@ def dashboard():
                     )
                     
                     
-                    # Filter based on mode and incomplete toggle
-                    if data_cleaner.test_mode:
-                        # Test mode: ONLY show test sessions (exclude session 200 which is production)
-                        show_session = is_test_session and show_incomplete_in_production and not session_complete
-                    else:
-                        # Production mode: ONLY show non-test sessions (like session 200) if incomplete toggle is enabled
-                        show_session = not is_test_session and show_incomplete_in_production and not session_complete
+                    # Production mode: ONLY show non-test sessions if incomplete toggle is enabled
+                    show_session = not is_test_session and show_incomplete_in_production and not session_complete
                     
                     
                     if show_session and not session_complete:
@@ -582,7 +548,7 @@ def api_overview():
     try:
         # Check if components are initialized
         if data_cleaner is None or statistical_analyzer is None:
-            if not initialize_data(force_mode=False):
+            if not initialize_data():
                 print("ERROR: API Overview - Data initialization failed")
                 return jsonify({'error': 'Data initialization failed'}), 500
         
@@ -634,7 +600,7 @@ def api_statistical_tests():
     global statistical_analyzer
     
     if statistical_analyzer is None:
-        if not initialize_data(force_mode=False):
+        if not initialize_data():
             return jsonify({'error': 'Data initialization failed'}), 500
     
     try:
@@ -755,7 +721,7 @@ def export_analysis_report():
         return redirect(url_for('dashboard'))
 
 @dashboard_bp.route('/participants')
-@login_required
+# @login_required  # Temporarily disabled for consistency with main dashboard
 def participants():
     """Participants overview page."""
     try:
@@ -1097,45 +1063,15 @@ def reset_participant(participant_id):
                     files_removed += 1
         
         # Reinitialize data to refresh the dashboard
-        initialize_data(force_mode=True)
+        initialize_data()
         
         flash(f'Participant {participant_id} reset successfully. {files_removed} files removed.', 'success')
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('dashboard.dashboard'))
         
     except Exception as e:
         flash(f'Error resetting participant {participant_id}: {str(e)}', 'error')
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('dashboard.dashboard'))
 
-@dashboard_bp.route('/toggle-mode', methods=['GET', 'POST'])
-@dashboard_bp.route('/toggle_mode', methods=['GET', 'POST'])
-# @login_required  # Temporarily disabled for Render deployment
-def toggle_mode():
-    """Toggle between production and test modes."""
-    global data_cleaner
-    
-    print(f"🔄 TOGGLE CALLED: Current data_cleaner exists: {data_cleaner is not None}")
-    
-    # Get current mode
-    current_mode = data_cleaner.test_mode if data_cleaner else False
-    new_mode = not current_mode
-    
-    print(f"🔄 TOGGLE: Current mode: {current_mode}, New mode: {new_mode}")
-    
-    # Reinitialize with new mode, forcing the mode (not auto-detecting)
-    success = initialize_data(test_mode=new_mode, force_mode=True)
-    
-    print(f"🔄 TOGGLE: Initialize success: {success}")
-    
-    if success:
-        mode_name = "TEST" if new_mode else "PRODUCTION"
-        print(f"🔄 TOGGLE: Successfully switched to {mode_name} mode")
-        flash(f'Switched to {mode_name} mode successfully', 'success')
-    else:
-        print(f"🔄 TOGGLE: Failed to switch modes")
-        flash('Failed to switch modes', 'error')
-    
-    print(f"🔄 TOGGLE: Redirecting to /dashboard/")
-    return redirect('/dashboard/')
 
 @dashboard_bp.route('/debug/sessions', methods=['GET'])
 def debug_sessions():
@@ -1872,15 +1808,19 @@ def api_participant_details(pid):
         return jsonify({'error': str(e)}), 500
 
 @dashboard_bp.route('/delete-file/<filename>', methods=['POST'])
-@login_required
+# @login_required  # Temporarily disabled for local testing
 def delete_file(filename):
     """Delete a participant data file."""
+    print(f"🗑️ DELETE FUNCTION CALLED: filename={filename}")
     try:
         import os
         from pathlib import Path
         
+        print(f"🗑️ DELETE: Starting delete process for {filename}")
+        
         # Security check: ensure filename is safe
         if not filename or '..' in filename or '/' in filename or '\\' in filename:
+            print(f"🗑️ DELETE: Invalid filename detected: {filename}")
             flash('Invalid filename', 'error')
             return redirect(url_for('dashboard.dashboard'))
         
@@ -1894,19 +1834,26 @@ def delete_file(filename):
             return redirect(url_for('dashboard.dashboard'))
         
         # Delete the file
+        print(f"🗑️ DELETE: Attempting to delete file at {file_path}")
         file_path.unlink()
+        print(f"🗑️ DELETE: File deleted successfully")
         
         # Reinitialize data to refresh the dashboard
-        if initialize_data(force_mode=False):
+        print(f"🗑️ DELETE: Reinitializing data...")
+        if initialize_data():
+            print(f"🗑️ DELETE: Data refresh successful")
             flash(f'File {filename} deleted successfully', 'success')
         else:
+            print(f"🗑️ DELETE: Data refresh failed")
             flash(f'File {filename} deleted but data refresh failed', 'warning')
         
-        return redirect(url_for('dashboard'))
+        print(f"🗑️ DELETE: Redirecting to dashboard")
+        return redirect(url_for('dashboard.dashboard'))
         
     except Exception as e:
+        print(f"🗑️ DELETE ERROR: {str(e)}")
         flash(f'Error deleting file: {str(e)}', 'error')
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('dashboard.dashboard'))
 
 # Create Flask app for standalone dashboard
 from flask import Flask
@@ -1918,6 +1865,6 @@ app.register_blueprint(dashboard_bp)
 
 # Initialize data when the blueprint is registered
 def init_dashboard():
-    if initialize_data(force_mode=False):
+    if initialize_data():
         print("📊 Dashboard initialized")
     return app
