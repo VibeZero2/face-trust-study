@@ -893,7 +893,9 @@ def participant_detail(pid):
         total_trials = len(participant_data)
         included_trials = participant_data['include_in_primary'].sum()
         excluded_trials = total_trials - included_trials
-        completion_rate = total_trials / 105.0  # Expected 105 responses (35 faces × 3 versions)
+        # Calculate completion rate based on expected unique combinations
+        unique_combinations = participant_data.groupby(['face_id', 'version']).size().shape[0]
+        completion_rate = total_trials / unique_combinations if unique_combinations > 0 else 1.0
         
         # Get trust rating statistics
         trust_stats = {
@@ -1210,7 +1212,9 @@ def export_session_metadata():
             pdata = cleaned_data[cleaned_data['pid'] == pid]
             included = pdata['include_in_primary'].sum()
             total = len(pdata)
-            completion_rate = total / 105.0  # Expected 105 responses (35 faces × 3 versions)
+            # Calculate completion rate based on expected unique combinations
+            unique_combinations = cleaned_data.groupby(['face_id', 'version']).size().shape[0]
+            completion_rate = total / unique_combinations if unique_combinations > 0 else 1.0
             
             session_metadata.append({
                 'participant_id': pid,
@@ -1374,7 +1378,7 @@ def export_all_reports():
                         'participant_id': pid,
                         'total_trials': len(pdata),
                         'included_trials': pdata['include_in_primary'].sum(),
-                        'completion_rate': len(pdata) / 105.0,  # Expected 105 responses (35 faces × 3 versions)
+                        'completion_rate': len(pdata) / cleaned_data.groupby(['face_id', 'version']).size().shape[0] if cleaned_data.groupby(['face_id', 'version']).size().shape[0] > 0 else 1.0,
                         'mean_trust_rating': pdata['trust_rating'].mean(),
                         'versions_seen': pdata['version'].nunique()
                     })
@@ -1486,9 +1490,16 @@ def export_methodology_report():
             
             # Calculate completion rates
             completion_rates = []
+            # Get the expected number of unique face_id and version combinations
+            unique_combinations = cleaned_data.groupby(['face_id', 'version']).size().shape[0]
+            
             for pid in cleaned_data['pid'].unique():
                 pdata = cleaned_data[cleaned_data['pid'] == pid]
-                completion_rate = len(pdata) / 105.0 * 100  # Expected 105 responses (35 faces × 3 versions)
+                # Calculate completion rate based on expected unique combinations
+                if unique_combinations > 0:
+                    completion_rate = len(pdata) / unique_combinations * 100
+                else:
+                    completion_rate = 100.0  # If no expected responses, consider complete
                 completion_rates.append(completion_rate)
             
             avg_completion_rate = sum(completion_rates) / len(completion_rates) if completion_rates else 0
@@ -1857,6 +1868,97 @@ def delete_file(filename):
     except Exception as e:
         print(f"🗑️ DELETE ERROR: {str(e)}")
         flash(f'Error deleting file: {str(e)}', 'error')
+        return redirect(url_for('dashboard.dashboard'))
+
+@dashboard_bp.route('/download-file/<filename>')
+# @login_required  # Temporarily disabled for local testing
+def download_file(filename):
+    """Download a single participant data file."""
+    try:
+        import os
+        from pathlib import Path
+        from flask import send_file
+        
+        # Security check: ensure filename is safe
+        if not filename or '..' in filename or '/' in filename or '\\' in filename:
+            flash('Invalid filename', 'error')
+            return redirect(url_for('dashboard.dashboard'))
+        
+        # Define the data directory
+        data_dir = DATA_DIR
+        
+        # Check if file exists
+        file_path = data_dir / filename
+        if not file_path.exists():
+            flash(f'File {filename} not found', 'error')
+            return redirect(url_for('dashboard.dashboard'))
+        
+        # Send the file
+        return send_file(
+            file_path,
+            as_attachment=True,
+            download_name=filename,
+            mimetype='text/csv'
+        )
+        
+    except Exception as e:
+        print(f"📥 DOWNLOAD ERROR: {str(e)}")
+        flash(f'Error downloading file: {str(e)}', 'error')
+        return redirect(url_for('dashboard.dashboard'))
+
+@dashboard_bp.route('/download-multiple-files', methods=['POST'])
+# @login_required  # Temporarily disabled for local testing
+def download_multiple_files():
+    """Download multiple files as a zip archive."""
+    try:
+        import zipfile
+        import io
+        from pathlib import Path
+        from flask import send_file
+        
+        # Get the list of files from the form
+        files = request.form.getlist('files')
+        
+        if not files:
+            flash('No files selected', 'error')
+            return redirect(url_for('dashboard.dashboard'))
+        
+        # Security check: ensure all filenames are safe
+        for filename in files:
+            if not filename or '..' in filename or '/' in filename or '\\' in filename:
+                flash(f'Invalid filename: {filename}', 'error')
+                return redirect(url_for('dashboard.dashboard'))
+        
+        # Define the data directory
+        data_dir = DATA_DIR
+        
+        # Create a zip file in memory
+        zip_buffer = io.BytesIO()
+        
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for filename in files:
+                file_path = data_dir / filename
+                if file_path.exists():
+                    zip_file.write(file_path, filename)
+                else:
+                    print(f"⚠️ File not found: {filename}")
+        
+        zip_buffer.seek(0)
+        
+        # Generate zip filename
+        zip_filename = f"selected_files_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+        
+        # Send the zip file
+        return send_file(
+            zip_buffer,
+            as_attachment=True,
+            download_name=zip_filename,
+            mimetype='application/zip'
+        )
+        
+    except Exception as e:
+        print(f"📦 ZIP DOWNLOAD ERROR: {str(e)}")
+        flash(f'Error creating zip file: {str(e)}', 'error')
         return redirect(url_for('dashboard.dashboard'))
 
 # Create Flask app for standalone dashboard

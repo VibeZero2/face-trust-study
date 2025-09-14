@@ -426,11 +426,27 @@
                                 <!-- Current Data Files -->
                                 <div class="row mt-4">
                                     <div class="col-12">
-                                        <h6>Current Data Files</h6>
+                                        <div class="d-flex justify-content-between align-items-center mb-3">
+                                            <h6 class="mb-0">Current Data Files</h6>
+                                            <div>
+                                                <button type="button" class="btn btn-outline-primary btn-sm me-2" onclick="selectAllFiles()">
+                                                    <i class="fas fa-check-square me-1"></i>Select All
+                                                </button>
+                                                <button type="button" class="btn btn-outline-secondary btn-sm me-2" onclick="deselectAllFiles()">
+                                                    <i class="fas fa-square me-1"></i>Deselect All
+                                                </button>
+                                                <button type="button" class="btn btn-success btn-sm" onclick="downloadSelectedFiles()" id="downloadBtn" disabled>
+                                                    <i class="fas fa-download me-1"></i>Download Selected (<span id="selectedCount">0</span>)
+                                                </button>
+                                            </div>
+                                        </div>
                                         <div class="table-responsive">
                                             <table class="table table-sm table-hover">
                                                 <thead class="table-light">
                                                     <tr>
+                                                        <th width="50">
+                                                            <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll()">
+                                                        </th>
                                                         <th>Participant/Filename</th>
                                                         <th>Size/Progress</th>
                                                         <th>Last Modified</th>
@@ -441,6 +457,9 @@
                                                 <tbody>
                                                     {% for file in data_files %}
                                                     <tr class="{% if file.type == 'Production' %}file-production{% else %}file-test{% endif %}">
+                                                        <td>
+                                                            <input type="checkbox" class="file-checkbox" value="{{ file.name }}" onchange="updateDownloadButton()">
+                                                        </td>
                                                         <td>
                                                             {{ file.name }}
                                                             <span class="badge bg-{% if file.type == 'Production' %}success{% else %}warning{% endif %} ms-1">{{ file.type }}</span>
@@ -459,11 +478,16 @@
                                                             {% endif %}
                                                         </td>
                                                         <td>
-                                                            <form action="/dashboard/delete-file/{{ file.name }}" method="post" style="display: inline;" onsubmit="console.log('Form submitted for: {{ file.name }}'); return confirm('Are you sure you want to delete this file?');">
-                                                                <button type="submit" class="btn btn-danger btn-sm" onclick="console.log('Delete button clicked for: {{ file.name }}');">
-                                                                    <i class="fas fa-trash"></i>
-                                                                </button>
-                                                            </form>
+                                                            <div class="btn-group" role="group">
+                                                                <a href="/dashboard/download-file/{{ file.name }}" class="btn btn-primary btn-sm" title="Download">
+                                                                    <i class="fas fa-download"></i>
+                                                                </a>
+                                                                <form action="/dashboard/delete-file/{{ file.name }}" method="post" style="display: inline;" onsubmit="console.log('Form submitted for: {{ file.name }}'); return confirm('Are you sure you want to delete this file?');">
+                                                                    <button type="submit" class="btn btn-danger btn-sm" onclick="console.log('Delete button clicked for: {{ file.name }}');" title="Delete">
+                                                                        <i class="fas fa-trash"></i>
+                                                                    </button>
+                                                                </form>
+                                                            </div>
                                                         </td>
                                                     </tr>
                                                     {% endfor %}
@@ -704,6 +728,109 @@
         
         // Start the adaptive refresh cycle
         startAutoRefresh();
+        
+        // File selection functionality
+        function toggleSelectAll() {
+            const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+            const fileCheckboxes = document.querySelectorAll('.file-checkbox');
+            
+            fileCheckboxes.forEach(checkbox => {
+                checkbox.checked = selectAllCheckbox.checked;
+            });
+            
+            updateDownloadButton();
+        }
+        
+        function selectAllFiles() {
+            const fileCheckboxes = document.querySelectorAll('.file-checkbox');
+            const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+            
+            fileCheckboxes.forEach(checkbox => {
+                checkbox.checked = true;
+            });
+            selectAllCheckbox.checked = true;
+            
+            updateDownloadButton();
+        }
+        
+        function deselectAllFiles() {
+            const fileCheckboxes = document.querySelectorAll('.file-checkbox');
+            const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+            
+            fileCheckboxes.forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            selectAllCheckbox.checked = false;
+            
+            updateDownloadButton();
+        }
+        
+        function updateDownloadButton() {
+            const selectedCheckboxes = document.querySelectorAll('.file-checkbox:checked');
+            const downloadBtn = document.getElementById('downloadBtn');
+            const selectedCount = document.getElementById('selectedCount');
+            
+            const count = selectedCheckboxes.length;
+            selectedCount.textContent = count;
+            
+            if (count > 0) {
+                downloadBtn.disabled = false;
+                downloadBtn.classList.remove('btn-outline-success');
+                downloadBtn.classList.add('btn-success');
+            } else {
+                downloadBtn.disabled = true;
+                downloadBtn.classList.remove('btn-success');
+                downloadBtn.classList.add('btn-outline-success');
+            }
+        }
+        
+        function downloadSelectedFiles() {
+            const selectedCheckboxes = document.querySelectorAll('.file-checkbox:checked');
+            const selectedFiles = Array.from(selectedCheckboxes).map(checkbox => checkbox.value);
+            
+            if (selectedFiles.length === 0) {
+                alert('Please select at least one file to download.');
+                return;
+            }
+            
+            if (selectedFiles.length === 1) {
+                // Single file download
+                window.location.href = `/dashboard/download-file/${selectedFiles[0]}`;
+            } else {
+                // Multiple files - create a zip
+                downloadMultipleFiles(selectedFiles);
+            }
+        }
+        
+        function downloadMultipleFiles(filenames) {
+            // Create a form to submit multiple files for zipping
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/dashboard/download-multiple-files';
+            
+            // Add CSRF token if available
+            const csrfToken = document.querySelector('meta[name="csrf-token"]');
+            if (csrfToken) {
+                const csrfInput = document.createElement('input');
+                csrfInput.type = 'hidden';
+                csrfInput.name = 'csrf_token';
+                csrfInput.value = csrfToken.getAttribute('content');
+                form.appendChild(csrfInput);
+            }
+            
+            // Add each filename as a hidden input
+            filenames.forEach(filename => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'files';
+                input.value = filename;
+                form.appendChild(input);
+            });
+            
+            document.body.appendChild(form);
+            form.submit();
+            document.body.removeChild(form);
+        }
     </script>
 </body>
 </html>
