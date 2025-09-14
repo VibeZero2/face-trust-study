@@ -77,6 +77,57 @@ class StatisticalAnalyzer:
         
         return stats_dict
     
+    def get_all_question_stats(self) -> Dict:
+        """
+        Get descriptive statistics for all question types by version.
+        """
+        all_stats = {}
+        
+        # Get raw data for all questions
+        raw_data = self.data_cleaner.raw_data
+        
+        # Question types to analyze
+        question_types = ['trust', 'emotion', 'masc_choice', 'fem_choice', 'masculinity_full', 'femininity_full']
+        
+        for question in question_types:
+            if question in raw_data.columns:
+                question_stats = {}
+                
+                for version in ['left', 'right', 'both']:
+                    # Filter data for this version and question
+                    if question in ['masc_choice', 'fem_choice', 'masculinity_full', 'femininity_full']:
+                        # These questions only exist for version='both'
+                        if version == 'both':
+                            version_data = raw_data[raw_data['version'] == version]
+                            question_data = version_data[question].dropna()
+                        else:
+                            question_data = pd.Series(dtype=float)  # Empty series
+                    else:
+                        # Trust and emotion exist for all versions
+                        version_data = raw_data[raw_data['version'] == version]
+                        question_data = version_data[question].dropna()
+                    
+                    if len(question_data) > 0:
+                        question_stats[version] = {
+                            'n': len(question_data),
+                            'mean': question_data.mean(),
+                            'std': question_data.std(),
+                            'median': question_data.median(),
+                            'min': question_data.min(),
+                            'max': question_data.max(),
+                            'q25': question_data.quantile(0.25),
+                            'q75': question_data.quantile(0.75)
+                        }
+                    else:
+                        question_stats[version] = {
+                            'n': 0, 'mean': np.nan, 'std': np.nan, 'median': np.nan,
+                            'min': np.nan, 'max': np.nan, 'q25': np.nan, 'q75': np.nan
+                        }
+                
+                all_stats[question] = question_stats
+        
+        return all_stats
+    
     def paired_t_test_half_vs_full(self) -> Dict:
         """
         Paired t-test comparing half-face (left/right average) vs full-face ratings.

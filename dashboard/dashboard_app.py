@@ -791,7 +791,8 @@ def statistics():
             'paired_t_test': statistical_analyzer.paired_t_test_half_vs_full(),
             'repeated_measures_anova': statistical_analyzer.repeated_measures_anova(),
             'inter_rater_reliability': statistical_analyzer.inter_rater_reliability(),
-            'split_half_reliability': statistical_analyzer.split_half_reliability()
+            'split_half_reliability': statistical_analyzer.split_half_reliability(),
+            'all_question_stats': statistical_analyzer.get_all_question_stats()
         }
         
         return render_template('statistics.html', test_results=test_results)
@@ -889,7 +890,7 @@ def participant_detail(pid):
         total_trials = len(participant_data)
         included_trials = participant_data['include_in_primary'].sum()
         excluded_trials = total_trials - included_trials
-        completion_rate = total_trials / 60.0  # Expected 60 trials
+        completion_rate = total_trials / 105.0  # Expected 105 responses (35 faces × 3 versions)
         
         # Get trust rating statistics
         trust_stats = {
@@ -1206,7 +1207,7 @@ def export_session_metadata():
             pdata = cleaned_data[cleaned_data['pid'] == pid]
             included = pdata['include_in_primary'].sum()
             total = len(pdata)
-            completion_rate = total / 60.0
+            completion_rate = total / 105.0  # Expected 105 responses (35 faces × 3 versions)
             
             session_metadata.append({
                 'participant_id': pid,
@@ -1370,7 +1371,7 @@ def export_all_reports():
                         'participant_id': pid,
                         'total_trials': len(pdata),
                         'included_trials': pdata['include_in_primary'].sum(),
-                        'completion_rate': len(pdata) / 60.0,
+                        'completion_rate': len(pdata) / 105.0,  # Expected 105 responses (35 faces × 3 versions)
                         'mean_trust_rating': pdata['trust_rating'].mean(),
                         'versions_seen': pdata['version'].nunique()
                     })
@@ -1484,7 +1485,7 @@ def export_methodology_report():
             completion_rates = []
             for pid in cleaned_data['pid'].unique():
                 pdata = cleaned_data[cleaned_data['pid'] == pid]
-                completion_rate = len(pdata) / 60.0 * 100  # Expected 60 trials
+                completion_rate = len(pdata) / 105.0 * 100  # Expected 105 responses (35 faces × 3 versions)
                 completion_rates.append(completion_rate)
             
             avg_completion_rate = sum(completion_rates) / len(completion_rates) if completion_rates else 0

@@ -372,6 +372,52 @@
                                                  {% endif %}
                      </div>
                      
+                     <!-- All Question Types Analysis -->
+                     {% if test_results.all_question_stats %}
+                     <div class="stat-card p-4">
+                         <h4 class="mb-3">
+                             <i class="fas fa-chart-bar me-2 text-info"></i>
+                             All Question Types Analysis
+                         </h4>
+                         
+                         {% for question, question_data in test_results.all_question_stats.items() %}
+                         <div class="mb-4">
+                             <h5 class="text-capitalize">{{ question.replace('_', ' ') }} Ratings</h5>
+                             <div class="table-responsive">
+                                 <table class="table table-sm table-hover">
+                                     <thead class="table-light">
+                                         <tr>
+                                             <th>Version</th>
+                                             <th>N</th>
+                                             <th>Mean</th>
+                                             <th>Std</th>
+                                             <th>Median</th>
+                                             <th>Min</th>
+                                             <th>Max</th>
+                                         </tr>
+                                     </thead>
+                                     <tbody>
+                                         {% for version in ['left', 'right', 'both'] %}
+                                         {% if question_data[version].n > 0 %}
+                                         <tr>
+                                             <td><strong>{{ version|title }}</strong></td>
+                                             <td>{{ question_data[version].n }}</td>
+                                             <td>{{ "%.3f"|format(question_data[version].mean) }}</td>
+                                             <td>{{ "%.3f"|format(question_data[version].std) }}</td>
+                                             <td>{{ "%.3f"|format(question_data[version].median) }}</td>
+                                             <td>{{ "%.3f"|format(question_data[version].min) }}</td>
+                                             <td>{{ "%.3f"|format(question_data[version].max) }}</td>
+                                         </tr>
+                                         {% endif %}
+                                         {% endfor %}
+                                     </tbody>
+                                 </table>
+                             </div>
+                         </div>
+                         {% endfor %}
+                     </div>
+                     {% endif %}
+                     
                      <!-- Statistical Results Summary Table -->
                      <div class="stat-card p-4">
                          <h4 class="mb-3">
