@@ -52,37 +52,38 @@ class StatisticalAnalyzer:
                     'max_trust_rating': 0
                 }
             
-            # Debug: Check data types
-            print(f"🔍 DEBUG: included_data type: {type(included_data)}")
-            print(f"🔍 DEBUG: trust_rating column type: {type(included_data['trust_rating'])}")
-            print(f"🔍 DEBUG: trust_rating mean type: {type(included_data['trust_rating'].mean)}")
-            
-            # Safely calculate statistics
-            trust_series = included_data['trust_rating']
-            if hasattr(trust_series, 'mean') and callable(trust_series.mean):
-                mean_val = trust_series.mean()
-            else:
-                mean_val = 0
+            # Check if we have long format data (question/response columns)
+            if 'question' in included_data.columns and 'response' in included_data.columns:
+                # Long format: filter for trust_rating question type
+                trust_data = included_data[included_data['question'] == 'trust_rating']['response']
+                trust_data = pd.to_numeric(trust_data, errors='coerce')
+                trust_data = trust_data.dropna()
                 
-            if hasattr(trust_series, 'std') and callable(trust_series.std):
-                std_val = trust_series.std()
-            else:
-                std_val = 0
+                if len(trust_data) > 0:
+                    mean_val = trust_data.mean()
+                    std_val = trust_data.std()
+                    median_val = trust_data.median()
+                    min_val = trust_data.min()
+                    max_val = trust_data.max()
+                else:
+                    mean_val = std_val = median_val = min_val = max_val = 0
+                    
+            elif 'trust_rating' in included_data.columns:
+                # Wide format: use trust_rating column directly
+                trust_data = pd.to_numeric(included_data['trust_rating'], errors='coerce')
+                trust_data = trust_data.dropna()
                 
-            if hasattr(trust_series, 'median') and callable(trust_series.median):
-                median_val = trust_series.median()
+                if len(trust_data) > 0:
+                    mean_val = trust_data.mean()
+                    std_val = trust_data.std()
+                    median_val = trust_data.median()
+                    min_val = trust_data.min()
+                    max_val = trust_data.max()
+                else:
+                    mean_val = std_val = median_val = min_val = max_val = 0
             else:
-                median_val = 0
-                
-            if hasattr(trust_series, 'min') and callable(trust_series.min):
-                min_val = trust_series.min()
-            else:
-                min_val = 0
-                
-            if hasattr(trust_series, 'max') and callable(trust_series.max):
-                max_val = trust_series.max()
-            else:
-                max_val = 0
+                # No trust rating data available
+                mean_val = std_val = median_val = min_val = max_val = 0
             
             return {
                 'total_participants': included_data['pid'].nunique(),

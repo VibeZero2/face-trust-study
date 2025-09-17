@@ -1,0 +1,4 @@
+Usage: python -m flask [OPTIONS] COMMAND [ARGS]...
+Try 'python -m flask --help' for help.
+
+Error: Missing command.

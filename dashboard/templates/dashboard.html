@@ -158,14 +158,6 @@
                                 Welcome, {{ session.username }}!
                             </span>
                             
-                            <!-- Show Incomplete Sessions Toggle (All Modes) -->
-                            <form method="post" action="/dashboard/toggle_incomplete" style="display: inline;" class="ms-2">
-                                <button type="submit" class="btn btn-outline-{{ 'primary' if show_incomplete_in_production else 'secondary' }} btn-sm" 
-                                        title="{{ 'Hide' if show_incomplete_in_production else 'Show' }} incomplete sessions">
-                                    <i class="fas fa-{{ 'eye-slash' if show_incomplete_in_production else 'eye' }} me-1"></i>
-                                    {{ 'Hide' if show_incomplete_in_production else 'Show' }} Incomplete
-                                </button>
-                            </form>
                         </div>
                     </div>
                 </nav>
@@ -191,23 +183,25 @@
                             
                             <!-- Data Mode Indicator -->
                             {% if data_summary %}
-                            <div class="alert alert-{{ 'success' if data_summary.get('mode') == 'PRODUCTION' else 'warning' }} mb-3">
+                            {% set mode_value = data_summary.get('mode', 'PRODUCTION') %}
+{% set mode_icon = 'shield-alt' %}
+{% if mode_value == 'TEST' %}{% set mode_icon = 'flask' %}{% elif mode_value == 'ALL' %}{% set mode_icon = 'layer-group' %}{% endif %}
+<div class="alert alert-{{ 'success' if mode_value == 'PRODUCTION' else ('warning' if mode_value == 'TEST' else 'info') }} mb-3">
                                 <div class="d-flex justify-content-between align-items-center">
                                     <div>
                                         <strong>
-                                            <i class="fas fa-{{ 'shield-alt' if data_summary.get('mode') == 'PRODUCTION' else 'flask' }} me-2"></i>
-                                            {{ data_summary.get('mode', 'UNKNOWN') }} MODE
+                                            <i class="fas fa-{{ mode_icon }} me-2"></i>
+                                            {{ mode_value }} MODE
                                         </strong>
                                         <br>
                                         <small class="text-muted">
-                                            <span id="data-files-info">Data files: {{ data_summary.get('real_participants', 0) }} files loaded | {{ data_summary.get('total_rows', 0) }} trials
-                                            {% if data_summary.get('test_files', 0) > 0 %}
-                                                | {{ data_summary.get('test_files', 0) }} test files excluded
-                                            {% endif %}</span>
+                                            {% set production_count = data_summary.get('real_files', [])|length %}
+                                            {% set test_count = data_summary.get('test_files_list', [])|length %}
+                                            <span id="data-files-info">{{ data_summary.get('total_rows', 0) }} trials across {{ production_count + test_count }} files ({{ production_count }} production / {{ test_count }} test)</span>
                                             <br>
                                             <span class="text-info">
                                                 <i class="fas fa-info-circle me-1"></i>
-                                                Participants page shows only those meeting inclusion criteria
+                                                {% if mode_value == 'PRODUCTION' %}Viewing production data only. Test files remain available when switching to Test or All modes.{% elif mode_value == 'TEST' %}Viewing only files marked as test. Switch back to Production to review live participant data.{% else %}Viewing combined production and test files.{% endif %}
                                             </span>
                                         </small>
                                     </div>
@@ -384,7 +378,7 @@
                                 <div class="row">
                                     <div class="col-md-6">
                                         <h6>Upload Participant Data</h6>
-                                        <form action="/admin/upload" method="post" enctype="multipart/form-data" class="mb-3" id="uploadForm">
+                                        <form action="{{ url_for('dashboard.upload_data') }}" method="post" enctype="multipart/form-data" class="mb-3" id="uploadForm">
                                             <div class="mb-3">
                                                 <label for="file" class="form-label">Select CSV file with participant responses:</label>
                                                 <div class="upload-area" id="uploadArea">
@@ -397,6 +391,10 @@
                                                 </div>
                                                 <div class="form-text">File must contain a "Participant ID" column and be in CSV format.</div>
                                                 <div id="uploadStatus" class="mt-2"></div>
+                                                <div class="form-check form-switch mt-3">
+                                                    <input class="form-check-input" type="checkbox" id="isTestData" name="is_test">
+                                                    <label class="form-check-label" for="isTestData">Mark this file as test data (excluded in Production mode)</label>
+                                                </div>
                                             </div>
                                             <button type="submit" class="btn btn-primary" id="uploadBtn" disabled>
                                                 <i class="fas fa-upload me-2"></i>Upload Data
@@ -404,20 +402,36 @@
                                         </form>
                                     </div>
                                     <div class="col-md-6">
-                                        <h6>Generate Test Data</h6>
-                                        <form action="/admin/generate-test-data" method="post" class="mb-3">
+                                        <h6>Generate Random Test Files</h6>
+                                        <form action="{{ url_for('dashboard.generate_random_tests') }}" method="post" class="mb-3">
                                             <div class="row">
                                                 <div class="col-6">
-                                                    <label for="participants" class="form-label">Number of participants:</label>
-                                                    <input type="number" class="form-control" id="participants" name="participants" value="5" min="1" max="50">
+                                                    <label for="testCount" class="form-label">Number of test participants:</label>
+                                                    <input type="number" class="form-control" id="testCount" name="count" value="10" min="1" max="200">
                                                 </div>
                                                 <div class="col-6">
-                                                    <label for="responses" class="form-label">Responses per participant:</label>
-                                                    <input type="number" class="form-control" id="responses" name="responses" value="10" min="1" max="100">
+                                                    <label for="seed" class="form-label">Random seed (optional):</label>
+                                                    <input type="number" class="form-control" id="seed" name="seed" placeholder="auto">
                                                 </div>
                                             </div>
+                                            <div class="form-text">Creates long-format CSVs prefixed with TEST_ so they can be reviewed in Test or All modes.</div>
                                             <button type="submit" class="btn btn-success mt-2">
-                                                <i class="fas fa-magic me-2"></i>Generate Test Data
+                                                <i class="fas fa-magic me-2"></i>Create Test Files
+                                            </button>
+                                        </form>
+                                        <hr class="my-4">
+                                        <h6>Data View Mode</h6>
+                                        <form action="{{ url_for('dashboard.set_mode') }}" method="post" class="mb-3">
+                                            {% set mode_labels = {'PRODUCTION': 'Production only', 'TEST': 'Test only', 'ALL': 'All files'} %}
+                                            <label for="dataMode" class="form-label">Select which files to include in analyses:</label>
+                                            <select class="form-select" id="dataMode" name="mode">
+                                                {% for mode in available_modes %}
+                                                    <option value="{{ mode }}" {% if mode == current_mode %}selected{% endif %}>{{ mode_labels.get(mode, mode.title()) }}</option>
+                                                {% endfor %}
+                                            </select>
+                                            <div class="form-text">Production excludes files flagged as test. Test shows only test files, and All combines both sets.</div>
+                                            <button type="submit" class="btn btn-outline-primary mt-2">
+                                                <i class="fas fa-toggle-on me-2"></i>Apply Mode
                                             </button>
                                         </form>
                                     </div>
@@ -666,7 +680,7 @@
                 console.log('API errors detected, reducing refresh frequency');
             }
             
-            fetch('/api/overview')
+            fetch('/dashboard/api/overview')
                 .then(response => {
                     if (!response.ok) {
                         throw new Error(`HTTP ${response.status}: ${response.statusText}`);

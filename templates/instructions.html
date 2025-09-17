@@ -3,52 +3,119 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Task Instructions</title>
+  <title>Instructions</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body {
+      background: #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem 1rem;
+      font-family: 'Inter', system-ui, -apple-system, Segoe UI, sans-serif;
+    }
+    .instructions-card {
+      max-width: 760px;
+      width: 100%;
+      background: #111c34;
+      border-radius: 1.25rem;
+      box-shadow: 0 24px 48px rgba(15, 23, 42, 0.35);
+      padding: 3rem 3.25rem;
+      border: 1px solid rgba(94, 234, 212, 0.25);
+    }
+    h1 {
+      font-weight: 700;
+      color: #5eead4;
+      text-align: center;
+      margin-bottom: 2rem;
+      letter-spacing: 0.02em;
+    }
+    h4 {
+      font-weight: 600;
+      color: #cbd5f5;
+      margin-top: 2rem;
+    }
+    ul {
+      margin-bottom: 1.25rem;
+    }
+    ul li {
+      margin-bottom: 0.75rem;
+      line-height: 1.55;
+    }
+    .cta {
+      text-align: center;
+      margin-top: 2.5rem;
+    }
+    .cta a {
+      background: linear-gradient(120deg, #22d3ee, #4ade80);
+      border: none;
+      color: #0f172a;
+      font-weight: 600;
+      padding: 0.75rem 2.5rem;
+      border-radius: 999px;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      text-decoration: none;
+      display: inline-block;
+    }
+    .cta a:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 16px 32px rgba(45, 212, 191, 0.35);
+    }
+    .lead-text {
+      font-size: 1.05rem;
+      color: #cbd5f5;
+      text-align: center;
+    }
+    .emoji-title {
+      font-size: 1.1rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .sub-bullets {
+      margin-top: 0.35rem;
+      margin-left: 1.25rem;
+      list-style: disc;
+      color: #94a3b8;
+    }
+  </style>
 </head>
-<body class="bg-dark text-white d-flex align-items-center" style="min-height:100vh;">
-  <div class="container" style="max-width:900px;">
-    <h1 class="text-center text-info mb-4">Instructions</h1>
+<body>
+  <div class="instructions-card">
+    <h1>Instructions</h1>
+    <p class="lead-text mb-4">Welcome to the Face Perception Task.<br>You will view 35 faces, each presented across two screens.</p>
 
-    <p>You will now begin the face perception task.</p>
-    <p>You will see <strong>35</strong> individual faces, each presented across two screens.</p>
-
-    <h5 class="mt-4">For each face:</h5>
-    
-    <h6 class="mt-3">🔁 Screen 1: Hemiface Views (Side-by-Side Ratings)</h6>
+    <h4 class="emoji-title">&#x1F501; Screen 1: Hemiface Ratings (Left &amp; Right)</h4>
     <ul>
-      <li><strong>Toggle Side</strong><br>
-        Use the <em>Toggle Side</em> button to flip between the left and right sides of the face. Toggle as many times as you'd like.
-      </li>
-      <li class="mt-2"><strong>Rate Trustworthiness</strong><br>
-        Use the 1–9 scale to rate how trustworthy each side appears<br>(1 = Not at all trustworthy, 9 = Extremely trustworthy).
-      </li>
-      <li class="mt-2"><strong>Rate Emotion</strong><br>
-        Use the 1–9 scale to rate the emotion each side appears to express<br>(1 = Very Negative Emotion, 9 = Very Positive Emotion).
-      </li>
-      <li class="mt-2"><strong>Compare Masculinity and Femininity</strong><br>
-        You'll be asked:
-        <ul>
+      <li><strong>Toggle Side</strong><br>Use the "Toggle Side" button to flip between the left and right sides of the face. You may toggle back and forth as many times as needed.</li>
+      <li><strong>Rate Trustworthiness</strong><br>Use the 1-9 scale to rate how trustworthy the current side appears.<br><em>(1 = Not at all trustworthy, 9 = Extremely trustworthy)</em></li>
+      <li><strong>Rate Emotion</strong><br>Use the 1-9 scale to rate the emotion expressed by the current side.<br><em>(1 = Very negative, 9 = Very positive)</em></li>
+      <li><strong>Compare Masculinity and Femininity</strong><br>After viewing both sides, answer:
+        <ul class="sub-bullets">
           <li>Which side appears more masculine?</li>
           <li>Which side appears more feminine?</li>
         </ul>
       </li>
     </ul>
-    
-    <h6 class="mt-3">🧑‍🦱 Screen 2: Full-Face View</h6>
-    <p>You will then see the full face and be asked to rate:</p>
+
+    <h4 class="emoji-title">&#x1F9B1; Screen 2: Full-Face View</h4>
     <ul>
-      <li>Overall trustworthiness (1–9)</li>
-      <li>Overall emotional expression (1–9)</li>
+      <li>Rate overall trustworthiness (1-9).</li>
+      <li>Rate overall emotional expression (1-9).</li>
       <li>Which side appears more masculine?</li>
       <li>Which side appears more feminine?</li>
     </ul>
 
-    <p class="mt-3"><span class="text-warning"><strong>Important:</strong></span> Take your time toggling between sides to get a good impression before making your selections.</p>
+    <h4 class="emoji-title">&#x26A0;&#xFE0F; Reminder</h4>
+    <p>Take your time toggling between sides on Screen&nbsp;1 to form a clear impression before answering.<br>You can return to this instruction screen at any time during the task using the "Instructions" button (Top Right Corner on the next screen).</p>
 
-    <div class="text-center mt-4">
-      <a href="{{ url_for('task') }}" class="btn btn-success btn-lg">Start Task</a>
+    <div class="cta">
+      <a href="/task">Start Task</a>
     </div>
   </div>
 </body>
 </html>
+
+

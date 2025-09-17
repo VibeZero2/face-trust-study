@@ -120,25 +120,42 @@ class DataFilter:
         
         # Device types
         if 'device' in self.cleaned_data.columns:
-            filters['devices'] = sorted(self.cleaned_data['device'].dropna().unique().tolist())
+            filters['devices'] = sorted(self.cleaned_data['device'].dropna().astype(str).unique().tolist())
         
         # Countries
         if 'country' in self.cleaned_data.columns:
-            filters['countries'] = sorted(self.cleaned_data['country'].dropna().unique().tolist())
+            filters['countries'] = sorted(self.cleaned_data['country'].dropna().astype(str).unique().tolist())
         
-        # Age groups
+        # Age groups - use safe sorting
         if 'age_group' in self.cleaned_data.columns:
-            filters['age_groups'] = sorted(self.cleaned_data['age_group'].dropna().unique().tolist())
+            try:
+                age_values = self.cleaned_data['age_group'].dropna().astype(str).unique().tolist()
+                filters['age_groups'] = sorted(age_values)
+            except Exception:
+                filters['age_groups'] = list(self.cleaned_data['age_group'].dropna().astype(str).unique())
         
-        # Phases/versions
-        filters['phases'] = sorted(self.cleaned_data['version'].dropna().unique().tolist())
+        # Phases/versions - use safe sorting
+        try:
+            version_values = self.cleaned_data['version'].dropna().astype(str).unique().tolist()
+            filters['phases'] = sorted(version_values)
+        except Exception:
+            filters['phases'] = list(self.cleaned_data['version'].dropna().astype(str).unique())
         
-        # Stimulus sets
+        # Stimulus sets - use safe sorting
         if 'stimulus_set' in self.cleaned_data.columns:
-            filters['stimulus_sets'] = sorted(self.cleaned_data['stimulus_set'].dropna().unique().tolist())
+            try:
+                stimulus_values = self.cleaned_data['stimulus_set'].dropna().astype(str).unique().tolist()
+                filters['stimulus_sets'] = sorted(stimulus_values)
+            except Exception:
+                filters['stimulus_sets'] = list(self.cleaned_data['stimulus_set'].dropna().astype(str).unique())
         
-        # Face IDs
-        filters['face_ids'] = sorted(self.cleaned_data['face_id'].dropna().unique().tolist())
+        # Face IDs - use safe sorting to prevent comparison errors
+        try:
+            face_id_values = self.cleaned_data['face_id'].dropna().astype(str).unique().tolist()
+            filters['face_ids'] = sorted(face_id_values)
+        except Exception:
+            # Fallback: use unsorted list
+            filters['face_ids'] = list(self.cleaned_data['face_id'].dropna().astype(str).unique())
         
         return filters
     
@@ -243,14 +260,14 @@ class DataFilter:
         
         # Check phase filter
         if 'phase_filter' in filters:
-            valid_phases = self.cleaned_data['version'].unique()
+            valid_phases = self.cleaned_data['version'].dropna().astype(str).unique()
             invalid_phases = [p for p in filters['phase_filter'] if p not in valid_phases]
             if invalid_phases:
                 issues.append(f"Invalid phases: {invalid_phases}")
         
         # Check device filter
         if 'device_filter' in filters and 'device' in self.cleaned_data.columns:
-            valid_devices = self.cleaned_data['device'].dropna().unique()
+            valid_devices = self.cleaned_data['device'].dropna().astype(str).unique()
             invalid_devices = [d for d in filters['device_filter'] if d not in valid_devices]
             if invalid_devices:
                 warnings.append(f"Unknown devices: {invalid_devices}")

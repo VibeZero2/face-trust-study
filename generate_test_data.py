@@ -29,7 +29,7 @@ FEMININITY_CHOICES = ["Left", "Right", "Both Equally", "Neither"]
 LIKERT_SCALE = list(range(1, 10))  # 1-9 scale
 
 def generate_participant_data(participant_id, num_faces):
-    """Generate test data for a single participant."""
+    """Generate test data for a single participant in long format."""
     data = []
     
     # Generate start time for this participant (spread over several days)
@@ -38,49 +38,44 @@ def generate_participant_data(participant_id, num_faces):
     for face_num in range(1, num_faces + 1):
         face_id = f"face_{face_num:02d}"
         
-        # Generate realistic ratings (1-7 scale)
-        trust_rating = random.randint(1, 7)
-        emotion_rating = random.randint(1, 7)
+        # Generate base timestamp for this face
+        face_timestamp = start_time + timedelta(seconds=random.randint(30, 120))
         
-        # Generate comparison choices (matching study format)
-        masc_choice = random.choice(['left', 'right', 'equal', 'neither'])
-        fem_choice = random.choice(['left', 'right', 'equal', 'neither'])
+        # Generate 10 rows per face (exactly as specified)
+        questions = [
+            # LEFT responses (2 questions)
+            {'version': 'left', 'question': 'trust_rating', 'response': random.randint(1, 9)},
+            {'version': 'left', 'question': 'emotion_rating', 'response': random.randint(1, 9)},
+            
+            # RIGHT responses (2 questions)
+            {'version': 'right', 'question': 'trust_rating', 'response': random.randint(1, 9)},
+            {'version': 'right', 'question': 'emotion_rating', 'response': random.randint(1, 9)},
+            
+            # BOTH responses (6 questions)
+            {'version': 'both', 'question': 'trust_rating', 'response': random.randint(1, 9)},
+            {'version': 'both', 'question': 'emotion_rating', 'response': random.randint(1, 9)},
+            {'version': 'both', 'question': 'masc_choice', 'response': random.choice(['left', 'right'])},
+            {'version': 'both', 'question': 'fem_choice', 'response': random.choice(['left', 'right', 'neither'])},
+            {'version': 'both', 'question': 'masculinity', 'response': random.choice(['left', 'right'])},
+            {'version': 'both', 'question': 'femininity', 'response': random.choice(['left', 'right'])}
+        ]
         
-        # Generate survey responses (trust_q2, trust_q3, pers_q1-q5)
-        trust_q2 = random.randint(1, 7)
-        trust_q3 = random.randint(1, 7)
-        pers_q1 = random.randint(1, 7)
-        pers_q2 = random.randint(1, 7)
-        pers_q3 = random.randint(1, 7)
-        pers_q4 = random.randint(1, 7)
-        pers_q5 = random.randint(1, 7)
-        
-        # Add some time variation between faces
-        timestamp = start_time + timedelta(seconds=random.randint(30, 120))
-        
-        # Match the exact IRB-approved study format
-        data.append({
-            'pid': participant_id,
-            'timestamp': timestamp.isoformat(),
-            'face_id': face_id,
-            'version': random.choice(['left', 'right', 'full', 'toggle']),
-            'order_presented': face_num,
-            'trust_rating': trust_rating,
-            'masc_choice': masc_choice,
-            'fem_choice': fem_choice,
-            'emotion_rating': emotion_rating,
-            'trust_q2': trust_q2,
-            'trust_q3': trust_q3,
-            'pers_q1': pers_q1,
-            'pers_q2': pers_q2,
-            'pers_q3': pers_q3,
-            'pers_q4': pers_q4,
-            'pers_q5': pers_q5,
-            'prolific_pid': f"test_{participant_id}"
-        })
+        # Create 10 rows for this face
+        for i, q in enumerate(questions):
+            # Add slight time variation between questions (1-5 seconds)
+            question_timestamp = face_timestamp + timedelta(seconds=i)
+            
+            data.append({
+                'pid': participant_id,
+                'face_id': face_id,
+                'version': q['version'],
+                'question': q['question'],
+                'response': q['response'],
+                'timestamp': question_timestamp.isoformat()
+            })
         
         # Increment time for next face
-        start_time = timestamp + timedelta(seconds=random.randint(30, 120))
+        start_time = face_timestamp + timedelta(seconds=random.randint(30, 120))
     
     return pd.DataFrame(data)
 
@@ -96,8 +91,8 @@ def generate_all_data():
         # Generate individual participant data
         df_participant = generate_participant_data(participant_id, NUM_FACES)
         
-        # Save individual participant file with test prefix for dashboard detection
-        output_file = OUTPUT_DIR / f"test_participant_{participant_id}.csv"
+        # Save individual participant file with correct naming
+        output_file = OUTPUT_DIR / f"{participant_id}.csv"
         df_participant.to_csv(output_file, index=False)
         
         # Add to combined dataset

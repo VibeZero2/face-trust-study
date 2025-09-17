@@ -37,7 +37,7 @@ STUDY_PROGRAM_CONFIG = {
 
 # Data processing configuration
 DATA_CONFIG = {
-    'test_mode': True,  # Set to True to include test files
+    'test_mode': False,  # Set to True to include test files
     'file_patterns': [
         'participant_*.csv',  # Old format files
         '*_2025*.csv',        # Study program timestamped files

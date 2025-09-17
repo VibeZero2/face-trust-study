@@ -1,0 +1,17 @@
+INFO:dashboard.analysis.cleaning:Loading 21 files for PRODUCTION mode
+INFO:dashboard.analysis.cleaning:Mapping columns: {'pid': 'pid', 'face_id': 'face_id', 'version': 'version', 'timestamp': 'timestamp', 'question': 'question', 'response': 'response'}
+INFO:dashboard.analysis.cleaning:Columns after mapping: ['pid', 'face_id', 'version', 'question', 'response', 'timestamp', 'source_file']
+WARNING:dashboard.analysis.cleaning:No trust data found in either toggle or full format
+WARNING:dashboard.analysis.cleaning:No trust rating data found in either toggle or full format
+INFO:dashboard.analysis.cleaning:Filtered out survey rows. Remaining rows: 402
+INFO:dashboard.analysis.cleaning:Loading 21 files for PRODUCTION mode
+INFO:dashboard.analysis.cleaning:Mapping columns: {'pid': 'pid', 'face_id': 'face_id', 'version': 'version', 'timestamp': 'timestamp', 'question': 'question', 'response': 'response'}
+INFO:dashboard.analysis.cleaning:Columns after mapping: ['pid', 'face_id', 'version', 'question', 'response', 'timestamp', 'source_file']
+WARNING:dashboard.analysis.cleaning:No trust data found in either toggle or full format
+WARNING:dashboard.analysis.cleaning:No trust rating data found in either toggle or full format
+INFO:dashboard.analysis.cleaning:Filtered out survey rows. Remaining rows: 402
+INFO:werkzeug:[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:3000
+ * Running on http://192.168.20.176:3000
+INFO:werkzeug:[33mPress CTRL+C to quit[0m

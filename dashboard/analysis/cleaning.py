@@ -1,6 +1,7 @@
-import pandas as pd
+﻿import pandas as pd
 import numpy as np
 from pathlib import Path
+from datetime import datetime
 from typing import Dict, List, Tuple, Optional
 import logging
 
@@ -13,44 +14,118 @@ class DataCleaner:
     Data cleaning and exclusion logic for face perception study data.
     """
     
-    def __init__(self, data_dir: str = "data/responses"):
+    def __init__(self, data_dir: str = "data/responses", mode: str = "PRODUCTION"):
         self.data_dir = Path(data_dir)
+        self.mode = mode.upper() if mode else "PRODUCTION"
         self.raw_data = None
+        self.expected_total_faces = 35
+        self.file_metadata: List[Dict] = []
         self.cleaned_data = None
         self.exclusion_summary = {}
-        
     
+    @staticmethod
+    def _is_test_file(file_name: str) -> bool:
+        if not file_name:
+            return False
+        lowered = file_name.lower()
+        if lowered.startswith('test'):
+            return True
+        separators = ['_test', '-test', ' test']
+        if any(sep in lowered for sep in separators):
+            return True
+        extra_keywords = ['prolific_test', 'testparticipant', 'test_stat', 'testdata']
+        return any(keyword in lowered for keyword in extra_keywords)
+
+
     def load_data(self) -> pd.DataFrame:
-        """Load and merge CSV files from the responses directory (production only)."""
-        csv_files = list(self.data_dir.glob("*.csv"))
-        
+        """Load and merge CSV files from the responses directory respecting the selected mode."""
+        csv_files = list(self.data_dir.glob('*.csv'))
+
         if not csv_files:
             raise FileNotFoundError(f"No CSV files found in {self.data_dir}")
-        
-        # Load all production files (include test_001.csv to test_060.csv as production data)
-        files_to_load = []
+
+        self.file_metadata: List[Dict] = []
+        latest_per_pid: Dict[str, Dict] = {}
+        latest_complete: Dict[str, Dict] = {}
+
         for file_path in csv_files:
-            # Include all files except old test files, but include test_001.csv, test_002.csv, etc. as production data
-            if (file_path.name.startswith('test_') and len(file_path.name) >= 8 and file_path.name[5:7].isdigit()) or not file_path.name.startswith('test_'):
-                files_to_load.append(file_path)
-        
-        # Prioritize new format files (test_001.csv, etc.) over old format files
-        new_format_files = [f for f in files_to_load if f.name.startswith('test_') and len(f.name) >= 8 and f.name[5:7].isdigit()]
-        old_format_files = [f for f in files_to_load if not (f.name.startswith('test_') and len(f.name) >= 8 and f.name[5:7].isdigit())]
-        
-        # If we have new format files, use only those
-        if new_format_files:
-            files_to_load = new_format_files
-            print(f"Using new format files: {len(files_to_load)} files")
-        else:
-            print(f"Using old format files: {len(files_to_load)} files")
-        
-        
+            try:
+                df = pd.read_csv(file_path)
+            except Exception as e:
+                logger.error("Error loading %s: %s", file_path, e)
+                continue
+
+            pid_values = df.get('pid')
+            if pid_values is not None and not pid_values.dropna().empty:
+                participant_id = str(pid_values.dropna().astype(str).iloc[0])
+            else:
+                participant_id = file_path.stem.split('_')[0]
+
+            versions = df.get('version')
+            if versions is not None:
+                normalized_versions = versions.dropna().astype(str).str.lower()
+                has_full = normalized_versions.eq('full').any()
+            else:
+                normalized_versions = pd.Series(dtype=str)
+                has_full = False
+
+            if 'face_id' in df.columns:
+                face_counts = df['face_id'].astype(str).value_counts()
+            else:
+                face_counts = pd.Series(dtype=int)
+
+            completed_faces = int((face_counts >= 10).sum())
+            total_faces = self.expected_total_faces or 35
+            progress_percent = (min(completed_faces, total_faces) / total_faces * 100) if total_faces else 0
+            is_complete = has_full and completed_faces >= total_faces
+
+            metadata = {
+                'pid': participant_id,
+                'name': file_path.name,
+                'path': file_path,
+                'mtime': file_path.stat().st_mtime,
+                'modified_display': datetime.fromtimestamp(file_path.stat().st_mtime).strftime('%Y-%m-%d %H:%M:%S'),
+                'is_test': self._is_test_file(file_path.name),
+                'complete': is_complete,
+                'completed_faces': completed_faces,
+                'total_faces': total_faces,
+                'progress_percent': progress_percent,
+                'row_count': len(df),
+            }
+
+            latest = latest_per_pid.get(participant_id)
+            if latest is None or metadata['mtime'] > latest['mtime']:
+                latest_per_pid[participant_id] = metadata.copy()
+
+            if metadata['complete']:
+                best_complete = latest_complete.get(participant_id)
+                if best_complete is None or metadata['mtime'] > best_complete['mtime']:
+                    latest_complete[participant_id] = metadata.copy()
+
+        self.file_metadata = list(latest_per_pid.values())
+
+        selection_source = latest_complete if latest_complete else latest_per_pid
+
+        if not selection_source:
+            self.raw_data = pd.DataFrame()
+            return self.raw_data
+
+        mode = (self.mode or 'PRODUCTION').upper()
+        files_to_load: List[Path] = []
+        for info in selection_source.values():
+            is_test = info.get('is_test', False)
+            if mode == 'PRODUCTION' and is_test:
+                continue
+            if mode == 'TEST' and not is_test:
+                continue
+            files_to_load.append(info['path'])
+
         if not files_to_load:
             self.raw_data = pd.DataFrame()
             return self.raw_data
-            
-        # Load the files
+
+        logger.info("Loading %s files for %s mode", len(files_to_load), mode)
+
         all_data = []
         for file_path in files_to_load:
             try:
@@ -58,68 +133,54 @@ class DataCleaner:
                 df['source_file'] = file_path.name
                 all_data.append(df)
             except Exception as e:
-                logger.error(f"Error loading {file_path}: {e}")
+                logger.error("Error loading %s: %s", file_path, e)
                 continue
-        
+
         if all_data:
             self.raw_data = pd.concat(all_data, ignore_index=True)
         else:
             self.raw_data = pd.DataFrame()
-            
+
         return self.raw_data
-    
     def get_data_summary(self) -> Dict:
-        """
-        Get summary of currently loaded data.
-        """
+        """Get summary of currently loaded data."""
         if self.raw_data is None:
             return {"status": "No data loaded"}
-        
-        # Check if we have any data loaded
-        if (len(self.raw_data) == 0 or 
-            not hasattr(self.raw_data, 'columns') or 
-            'source_file' not in self.raw_data.columns):
-            # Empty data - no files loaded
+
+        if (
+            len(self.raw_data) == 0
+            or not hasattr(self.raw_data, 'columns')
+            or 'source_file' not in self.raw_data.columns
+        ):
             return {
-                "mode": "PRODUCTION",
+                "mode": self.mode,
                 "total_rows": 0,
                 "real_participants": 0,
                 "test_files": 0,
                 "real_files": [],
-                "test_files_list": []
+                "test_files_list": [],
             }
-        
-        # Get what's actually loaded
-        loaded_files = self.raw_data['source_file'].unique()
-        
-        # Categorize loaded files
-        loaded_real_files = []
-        loaded_test_files = []
-        
-        for file_name in loaded_files:
-            # test_001.csv to test_060.csv are production files, not test files
-            if (file_name.startswith('test_participant') or
-                'test_statistical_validation' in file_name or
-                file_name.startswith('PROLIFIC_TEST_') or
-                file_name == 'test789.csv' or
-                file_name == 'test123.csv' or
-                file_name == 'test456.csv' or
-                file_name == 'test_participants_combined.csv' or
-                file_name == 'all_participants_combined.csv'):
-                loaded_test_files.append(file_name)
-            else:
-                loaded_real_files.append(file_name)
-        
-        # Production mode only - show real files as "loaded" and test files as "excluded"
+
+        loaded_files = list(self.raw_data['source_file'].unique())
+        test_files = [name for name in loaded_files if self._is_test_file(name)]
+        real_files = [name for name in loaded_files if name not in test_files]
+
+        if self.mode == 'TEST':
+            visible_participants = test_files
+        elif self.mode == 'PRODUCTION':
+            visible_participants = real_files
+        else:  # ALL
+            visible_participants = loaded_files
+
         return {
-            "mode": "PRODUCTION",
+            "mode": self.mode,
             "total_rows": len(self.raw_data),
-            "real_participants": len(loaded_real_files),  # Real files are the "participants"
-            "test_files": len(loaded_test_files),  # Test files are "excluded"
-            "real_files": loaded_real_files,  # Real files we're showing
-            "test_files_list": loaded_test_files  # Test files are excluded
+            "real_participants": len(visible_participants),
+            "test_files": len(test_files),
+            "real_files": real_files,
+            "test_files_list": test_files,
         }
-    
+
     def standardize_data(self) -> pd.DataFrame:
         """
         Standardize data format across different CSV structures.
@@ -147,6 +208,8 @@ class DataCleaner:
             'participantid': 'pid',
             'facenumber': 'face_id',  # Old format uses facenumber
             'face number': 'face_id',  # Handle space in column name
+            'image_id': 'face_id',  # New format uses image_id
+            'face_view': 'version',  # New format uses face_view
             'face': 'face_id',
             'faceid': 'face_id',
             'faceversion': 'version',  # Old format uses faceversion
@@ -179,68 +242,31 @@ class DataCleaner:
         # Rename the columns
         df = df.rename(columns=existing_cols)
         
-        # Handle new question/response format - create wide format
-        if 'question' in df.columns and 'response' in df.columns:
-            logger.info("Detected question/response format - creating wide format")
+        # Debug: Check what columns we have after mapping
+        logger.info(f"Columns after mapping: {list(df.columns)}")
+        
+        # Handle new question/response format - keep in long format for correct counting
+        if 'question_type' in df.columns and 'response' in df.columns:
+            logger.info("Detected question_type/response format - keeping in long format")
             
-            # For trust and emotion questions, create separate rows for each version
-            # These are the main rating questions that need to be analyzed by version
-            trust_emotion_data = []
+            # Keep data in long format - don't pivot
+            # This preserves the correct response counts (1 face = 10 responses: 2 left + 2 right + 6 both)
+            logger.info("Data is in long format - preserving for accurate response counting")
             
-            for _, row in df.iterrows():
-                if row['question'] in ['trust', 'emotion']:
-                    trust_emotion_data.append({
-                        'pid': row['pid'],
-                        'face_id': row['face_id'],
-                        'version': row['version'],
-                        'question': row['question'],
-                        'response': row['response']
-                    })
+            # Ensure we have the expected column names
+            # Keep standardized long format names used across the dashboard
+            # Ensure columns are exactly: pid, face_id, version, question_type, response, timestamp
+            # We already mapped 'question' -> 'question_type' above when needed
             
-            # Create wide format by pivoting trust/emotion data
-            if trust_emotion_data:
-                trust_emotion_df = pd.DataFrame(trust_emotion_data)
-                pivot_df = trust_emotion_df.pivot_table(
-                    index=['pid', 'face_id', 'version'], 
-                    columns='question', 
-                    values='response', 
-                    aggfunc='first'
-                ).reset_index()
-                pivot_df.columns.name = None
-                
-                # Map to expected column names
-                if 'trust' in pivot_df.columns:
-                    pivot_df['trust_rating'] = pivot_df['trust']
-                    pivot_df = pivot_df.drop(columns=['trust'])
-                if 'emotion' in pivot_df.columns:
-                    pivot_df['emotion_rating'] = pivot_df['emotion']
-                    pivot_df = pivot_df.drop(columns=['emotion'])
-                
-                df = pivot_df
-            else:
-                df = pd.DataFrame()
+            # Add a flag to indicate this is long format data
+            df['_is_long_format'] = True
             
-            # Add other questions as separate columns (these are only for version='both')
-            other_questions = self.raw_data[self.raw_data['question'].isin(['masc_choice', 'fem_choice', 'masculinity_full', 'femininity_full'])]
-            
-            if not other_questions.empty:
-                other_pivot = other_questions.pivot_table(
-                    index=['pid', 'face_id'], 
-                    columns='question', 
-                    values='response', 
-                    aggfunc='first'
-                ).reset_index()
-                other_pivot.columns.name = None
-                
-                # Merge with main data
-                if not df.empty:
-                    df = df.merge(other_pivot, on=['pid', 'face_id'], how='left')
-                else:
-                    df = other_pivot
-            
-            logger.info("Successfully created wide format from question/response data")
+            logger.info("Successfully processed question/response data in long format")
             logger.info(f"After processing: {len(df)} rows, columns: {list(df.columns)}")
-            logger.info(f"Version counts: {df['version'].value_counts().to_dict()}")
+            if 'version' in df.columns:
+                logger.info(f"Version counts: {df['version'].value_counts().to_dict()}")
+            if 'question_type' in df.columns:
+                logger.info(f"Question type counts: {df['question_type'].value_counts().to_dict()}")
         
         # Handle duplicate column names by keeping first occurrence
         if df.columns.duplicated().any():
@@ -287,7 +313,9 @@ class DataCleaner:
             df = df.rename(columns={'faceversion': 'version'})
             logger.info("Renamed faceversion to version")
         
-        # Ensure trust_rating exists and has data (study program uses 'trust_rating')
+        # Check for trust data in long format only
+        has_trust_data = 'trust_rating' in df.columns
+        
         if 'trust' in df.columns and 'trust_rating' in df.columns:
             # Copy trust data to trust_rating if trust_rating is empty
             if df['trust_rating'].isna().all():
@@ -301,10 +329,16 @@ class DataCleaner:
             df = df.rename(columns={'trust': 'trust_rating'})
             logger.info("Renamed trust to trust_rating")
         
+        # Log what trust data we have
+        if has_trust_data:
+            logger.info("Found trust data (trust_rating)")
+        if not has_trust_data:
+            logger.warning("No trust data found in either toggle or full format")
+        
 
         
-        # Ensure required columns exist (study program uses these exact names)
-        required_cols = ['pid', 'face_id', 'version', 'trust_rating']
+        # Ensure required columns exist (long format only)
+        required_cols = ['pid', 'face_id', 'version', 'question', 'response']
         
         missing_cols = []
         for col in required_cols:
@@ -316,6 +350,13 @@ class DataCleaner:
             # Add missing columns with default values
             for col in missing_cols:
                 df[col] = None
+        
+        # Check if we have trust data in long format
+        has_trust_data = 'trust_rating' in df.columns
+        
+        if not has_trust_data:
+            logger.warning("No trust rating data found in either toggle or full format")
+            # Don't filter out all data, just log the warning
         
         # Standardize version values and filter out toggle/survey rows
         if 'version' in df.columns:
@@ -345,15 +386,16 @@ class DataCleaner:
                     'full face': 'both'
                 }).fillna(df['version'])
             
-            # Filter out only toggle and survey rows, keep all other versions including 'both'
-            df = df[~df['version'].isin(['toggle', 'survey'])]
-            logger.info(f"Filtered out toggle/survey rows. Remaining rows: {len(df)}")
+            # Keep all versions including toggle, full, both, left, right
+            # Only filter out survey rows
+            df = df[~df['version'].isin(['survey'])]
+            logger.info(f"Filtered out survey rows. Remaining rows: {len(df)}")
         
         # Convert timestamp to datetime
         if 'timestamp' in df.columns:
             df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
         
-        # Convert ratings to numeric (study program uses 'trust_rating')
+        # Convert ratings to numeric (long format only)
         rating_cols = ['trust_rating', 'emotion_rating', 'masculinity_rating', 'femininity_rating', 'symmetry_rating']
         for col in rating_cols:
             if col in df.columns:
@@ -422,10 +464,13 @@ class DataCleaner:
             
             # Check for duplicate prolific_pid (keep most complete session)
             if 'prolific_pid' in df.columns:
-                prolific_pids = participant_data['prolific_pid'].dropna().unique()
+                prolific_pids = participant_data['prolific_pid'].dropna().astype(str).unique()
                 if len(prolific_pids) > 1:
                     # Keep session with most trials
-                    session_completeness = participant_data.groupby('prolific_pid').size()
+                    # Convert prolific_pid to string to avoid type comparison issues
+                    participant_data_copy = participant_data.copy()
+                    participant_data_copy['prolific_pid'] = participant_data_copy['prolific_pid'].astype(str)
+                    session_completeness = participant_data_copy.groupby('prolific_pid').size()
                     keep_pid = session_completeness.idxmax()
                     df.loc[df['prolific_pid'] != keep_pid, 'include_in_primary'] = False
             
@@ -531,12 +576,62 @@ class DataCleaner:
             (cleaned_data['include_in_primary'])
         ]
     
-    def get_participant_summary(self) -> pd.DataFrame:
+    def _is_complete_participant(self, participant_data: pd.DataFrame) -> bool:
         """
-        Get summary statistics per participant.
+        Check if a participant has completed at least one full face.
+        Handles both WIDE format (trust_rating, emotion_rating columns) and LONG format (question_type, response columns).
+        """
+        if len(participant_data) == 0:
+            return False
+        
+        # Check if this is long format data (question_type/response columns)
+        if 'question_type' in participant_data.columns and 'response' in participant_data.columns:
+            # Long format: check if participant has at least 10 responses (1 complete face)
+            # Each complete face should have 10 responses: 2 left + 2 right + 6 both
+            response_count = len(participant_data)
+            if response_count >= 10:
+                return True
+            return False
+        
+        # Wide format: check for required columns
+        required_columns = ['trust_rating', 'emotion_rating', 'masc_choice', 'fem_choice']
+        
+        # Check if all required columns exist
+        if not all(col in participant_data.columns for col in required_columns):
+            return False
+            
+        # Check each row (face) for complete data
+        for _, row in participant_data.iterrows():
+            # Check if this face has all required responses (not null/empty)
+            if all(pd.notna(row[col]) and str(row[col]).strip() != '' for col in required_columns):
+                return True
+        
+        return False
+    
+    def get_complete_participants_only(self) -> pd.DataFrame:
+        """
+        Get only participants who have completed at least one full face (10+ responses).
         """
         cleaned_data = self.get_cleaned_data()
         participant_data = cleaned_data[cleaned_data['include_in_primary']]
+        
+        # Filter to only complete participants
+        complete_participants = []
+        for pid in participant_data['pid'].unique():
+            pid_data = participant_data[participant_data['pid'] == pid]
+            if self._is_complete_participant(pid_data):
+                complete_participants.extend(pid_data.index)
+        
+        return participant_data.loc[complete_participants] if complete_participants else pd.DataFrame()
+    
+    def get_participant_summary(self) -> pd.DataFrame:
+        """
+        Get summary statistics per participant (complete participants only).
+        """
+        participant_data = self.get_complete_participants_only()
+        
+        if len(participant_data) == 0:
+            return pd.DataFrame(columns=['pid', 'total_trials', 'mean_trust', 'std_trust', 'versions_seen', 'faces_seen'])
         
         summary = participant_data.groupby('pid').agg({
             'trust_rating': ['count', 'mean', 'std'],
@@ -546,3 +641,4 @@ class DataCleaner:
         
         summary.columns = ['total_trials', 'mean_trust', 'std_trust', 'versions_seen', 'faces_seen']
         return summary.reset_index()
+

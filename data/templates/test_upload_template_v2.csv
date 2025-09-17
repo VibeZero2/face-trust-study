@@ -1,0 +1,21 @@
+pid,face_id,version,question,response
+TEST100,face (1),left,trust_left,8
+TEST100,face (1),left,emotion_left,2
+TEST100,face (1),right,trust_right,7
+TEST100,face (1),right,emotion_right,3
+TEST100,face (1),half,masc_choice_half,left
+TEST100,face (1),half,fem_choice_half,right
+TEST100,face (1),full,trust_full,6
+TEST100,face (1),full,emotion_full,4
+TEST100,face (1),full,masc_choice_full,right
+TEST100,face (1),full,fem_choice_full,left
+TEST100,face (2),left,trust_left,5
+TEST100,face (2),left,emotion_left,4
+TEST100,face (2),right,trust_right,6
+TEST100,face (2),right,emotion_right,5
+TEST100,face (2),half,masc_choice_half,right
+TEST100,face (2),half,fem_choice_half,left
+TEST100,face (2),full,trust_full,7
+TEST100,face (2),full,emotion_full,6
+TEST100,face (2),full,masc_choice_full,left
+TEST100,face (2),full,fem_choice_full,right

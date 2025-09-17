@@ -1,828 +1,812 @@
-import pandas as pd
-import numpy as np
-# SCIPY DISABLED FOR RENDER DEPLOYMENT
-# from scipy import stats
-# from scipy.stats import pearsonr, spearmanr
-from typing import Dict, List, Tuple, Optional
 import logging
+import re
+from typing import Dict, List, Optional
 
-# Mock scipy functions for deployment
-class MockStats:
-    def pearsonr(self, x, y):
-        return (0.0, 1.0)  # (correlation, p-value)
-    
-    def spearmanr(self, x, y):
-        return (0.0, 1.0)  # (correlation, p-value)
-    
-    def ttest_rel(self, x, y):
-        return (0.0, 1.0)  # (statistic, p-value)
-    
-    def f_oneway(self, *args):
-        return (0.0, 1.0)  # (F-statistic, p-value)
-    
-    def f(self):
-        class FDist:
-            def sf(self, f_stat, df_num, df_den):
+import numpy as np
+import pandas as pd
+
+try:
+    from scipy import stats
+    from scipy.stats import chisquare, pearsonr, spearmanr
+    SCIPY_AVAILABLE = True
+except ImportError:  # pragma: no cover - Render fallback
+    SCIPY_AVAILABLE = False
+
+    class _FallbackStats:
+        @staticmethod
+        def ttest_rel(values_a, values_b):
+            values_a = np.asarray(values_a, dtype=float)
+            values_b = np.asarray(values_b, dtype=float)
+            if values_a.size != values_b.size or values_a.size < 2:
+                return 0.0, 1.0
+            diffs = values_a - values_b
+            mean_diff = diffs.mean()
+            sd_diff = diffs.std(ddof=1)
+            if sd_diff == 0:
+                return 0.0, 1.0
+            t_stat = mean_diff / (sd_diff / np.sqrt(len(diffs)))
+            return t_stat, 1.0  # p-value approximation unavailable
+
+        @staticmethod
+        def f_oneway(*groups):
+            return 0.0, 1.0
+
+        @staticmethod
+        def chisquare(f_obs, f_exp):
+            return 0.0, 1.0
+
+        class f:  # noqa: N801 - mimic scipy.stats API
+            @staticmethod
+            def sf(f_stat, df_num, df_den):
                 return 1.0
-        return FDist()
-    
-    def t(self):
-        class TDist:
-            def ppf(self, q, df):
-                return 0.0
-        return TDist()
 
-stats = MockStats()
-pearsonr = stats.pearsonr
-spearmanr = stats.spearmanr
+        class t:  # noqa: N801
+            @staticmethod
+            def ppf(_, __):
+                return 0.0
+
+    stats = _FallbackStats()
+    chisquare = stats.chisquare
+
+    def pearsonr(values_a, values_b):
+        return 0.0, 1.0
+
+    def spearmanr(values_a, values_b):
+        return 0.0, 1.0
+
 
 logger = logging.getLogger(__name__)
 
+
 class StatisticalAnalyzer:
-    """
-    Statistical analysis for face perception study data.
-    """
-    
+    """Compute statistical results for the face perception dashboard."""
+
     def __init__(self, data_cleaner):
         self.data_cleaner = data_cleaner
         self.cleaned_data = data_cleaner.get_cleaned_data()
-    
-    def get_descriptive_stats(self) -> Dict:
-        """
-        Get descriptive statistics for trust ratings by version.
-        """
-        stats_dict = {}
-        
-        for version in ['left', 'right', 'both']:
-            version_data = self.data_cleaner.get_data_by_version(version)
-            
-            if len(version_data) > 0:
-                trust_ratings = version_data['trust_rating'].dropna()
-                
+        self._long_format_cache: Optional[pd.DataFrame] = None
+
+    @staticmethod
+    def _normalize_face_id(face_id: str) -> str:
+        if pd.isna(face_id):
+            return ""
+        match = re.search(r"(\d+)", str(face_id))
+        return f"face_{int(match.group(1))}" if match else str(face_id)
+
+    def _build_long_format_from_wide(self, df: pd.DataFrame) -> pd.DataFrame:
+        if df is None or df.empty:
+            return pd.DataFrame(columns=["pid", "face_id", "version", "question", "response", "response_numeric"])
+
+        rows: List[Dict[str, object]] = []
+        numeric_questions = {"trust_rating", "emotion_rating", "masculinity_full", "femininity_full"}
+
+        for _, row in df.iterrows():
+            pid = str(row.get("pid", "")).strip()
+            face_id = self._normalize_face_id(row.get("face_id", ""))
+
+            def add_entry(question: str, version: str, value):
+                if pd.isna(value) or str(value).strip() == "":
+                    return
+                rows.append(
+                    {
+                        "pid": pid,
+                        "face_id": face_id,
+                        "version": version,
+                        "question": question,
+                        "response": str(value),
+                        "response_numeric": float(value) if question in numeric_questions else np.nan,
+                    }
+                )
+
+            add_entry("trust_rating", "left", row.get("trust_left"))
+            add_entry("trust_rating", "right", row.get("trust_right"))
+            add_entry("trust_rating", "both", row.get("trust_rating"))
+            add_entry("emotion_rating", "left", row.get("emotion_left"))
+            add_entry("emotion_rating", "right", row.get("emotion_right"))
+            add_entry("emotion_rating", "both", row.get("emotion_rating"))
+            add_entry("masc_choice", "both", row.get("masc_choice"))
+            add_entry("fem_choice", "both", row.get("fem_choice"))
+            add_entry("masculinity_full", "both", row.get("masculinity_full"))
+            add_entry("femininity_full", "both", row.get("femininity_full"))
+
+        if not rows:
+            return pd.DataFrame(columns=["pid", "face_id", "version", "question", "response", "response_numeric"])
+
+        return pd.DataFrame(rows)
+
+    def _get_long_format_data(self) -> pd.DataFrame:
+        if self._long_format_cache is not None:
+            return self._long_format_cache
+
+        if self.cleaned_data is None or self.cleaned_data.empty:
+            self._long_format_cache = pd.DataFrame(columns=["pid", "face_id", "version", "question", "response", "response_numeric"])
+            return self._long_format_cache
+
+        df = self.cleaned_data.copy()
+        if "question" not in df.columns and "question_type" in df.columns:
+            df["question"] = df["question_type"]
+
+        if "question" in df.columns and "response" in df.columns:
+            long_df = df[df["question"].notna() & df["response"].notna()].copy()
+            question_map = {
+                "trust_rating": "trust_rating",
+                "emotion_rating": "emotion_rating",
+                "masc_choice": "masc_choice",
+                "fem_choice": "fem_choice",
+                "masculinity_full": "masculinity_full",
+                "femininity_full": "femininity_full",
+                "masculinity": "masculinity_full",
+                "femininity": "femininity_full",
+            }
+            long_df["question"] = long_df["question"].astype(str).str.strip().str.lower()
+            long_df["question"] = long_df["question"].map(question_map).fillna(long_df["question"])
+
+            version_map = {
+                "left half": "left",
+                "right half": "right",
+                "full face": "both",
+                "full": "both",
+                "both": "both",
+                "left": "left",
+                "right": "right",
+            }
+            long_df["version"] = long_df["version"].astype(str).str.strip().str.lower()
+            long_df["version"] = long_df["version"].map(version_map).fillna(long_df["version"])
+            long_df = long_df[long_df["version"].isin({"left", "right", "both"})]
+
+            long_df["pid"] = long_df["pid"].astype(str)
+            long_df["face_id"] = long_df.get("face_id", "").apply(self._normalize_face_id)
+            long_df["response"] = long_df["response"].astype(str).str.strip()
+
+            numeric_questions = {"trust_rating", "emotion_rating", "masculinity_full", "femininity_full"}
+            long_df["response_numeric"] = np.where(
+                long_df["question"].isin(numeric_questions),
+                pd.to_numeric(long_df["response"], errors="coerce"),
+                np.nan,
+            )
+
+            long_df = long_df.drop_duplicates(subset=["pid", "face_id", "version", "question", "response"])
+            self._long_format_cache = long_df[["pid", "face_id", "version", "question", "response", "response_numeric"]]
+            return self._long_format_cache
+
+        self._long_format_cache = self._build_long_format_from_wide(df)
+        return self._long_format_cache
+
+    def _get_numeric_dataframe(self, question: str) -> pd.DataFrame:
+        long_df = self._get_long_format_data()
+        if long_df.empty:
+            return pd.DataFrame(columns=["pid", "face_id", "version", "value"])
+
+        numeric_df = long_df[(long_df["question"] == question) & long_df["response_numeric"].notna()].copy()
+        if numeric_df.empty:
+            return pd.DataFrame(columns=["pid", "face_id", "version", "value"])
+
+        numeric_df = numeric_df.rename(columns={"response_numeric": "value"})
+        return numeric_df[["pid", "face_id", "version", "value"]]
+
+    def _get_choice_dataframe(self, question: str) -> pd.DataFrame:
+        long_df = self._get_long_format_data()
+        if long_df.empty:
+            return pd.DataFrame(columns=["pid", "face_id", "version", "response"])
+
+        choice_df = long_df[long_df["question"] == question].copy()
+        if choice_df.empty:
+            return pd.DataFrame(columns=["pid", "face_id", "version", "response"])
+
+        return choice_df[["pid", "face_id", "version", "response"]]
+
+    def get_image_summary(self) -> pd.DataFrame:
+        """Summarize trust ratings per face for the images dashboard."""
+        columns = ['face_id', 'mean_trust', 'half_face_avg', 'full_minus_half_diff', 'rating_count', 'std_trust', 'left_mean', 'right_mean', 'full_mean', 'unique_participants']
+
+        long_df = self._get_long_format_data()
+        if long_df.empty:
+            return pd.DataFrame(columns=columns)
+
+        working = long_df.copy()
+        working['question'] = working['question'].astype(str).str.strip().str.lower()
+
+        trust_df = working[working['question'].str.contains('trust', na=False)].copy()
+        if trust_df.empty:
+            return pd.DataFrame(columns=columns)
+
+        if 'response_numeric' in trust_df.columns and trust_df['response_numeric'].notna().any():
+            trust_df['value'] = trust_df['response_numeric']
+        else:
+            trust_df['value'] = pd.to_numeric(trust_df['response'], errors='coerce')
+
+        trust_df = trust_df[trust_df['value'].notna()]
+        if trust_df.empty:
+            return pd.DataFrame(columns=columns)
+
+        trust_df['face_id'] = trust_df['face_id'].astype(str)
+        trust_df['version'] = trust_df['version'].astype(str)
+        trust_df['pid'] = trust_df['pid'].astype(str)
+
+        if self.cleaned_data is not None and 'include_in_primary' in self.cleaned_data.columns:
+            included_pids = self.cleaned_data[self.cleaned_data['include_in_primary']]['pid'].astype(str).unique()
+            if len(included_pids) > 0:
+                trust_df = trust_df[trust_df['pid'].isin(included_pids)]
+                if trust_df.empty:
+                    return pd.DataFrame(columns=columns)
+
+        def _clean_numeric(value):
+            if value is None or pd.isna(value):
+                return None
+            return float(value)
+
+        summaries = []
+        for face_id, face_data in trust_df.groupby('face_id'):
+            version_stats = face_data.groupby('version')['value'].agg(['mean', 'std', 'count'])
+
+            def _extract(version_name: str):
+                if version_name in version_stats.index:
+                    row = version_stats.loc[version_name]
+                    mean_val = _clean_numeric(row['mean'])
+                    std_val = _clean_numeric(row['std'])
+                    count_val = int(row['count'])
+                    if std_val is None and count_val > 0:
+                        std_val = 0.0 if count_val == 1 else 0.0
+                    if std_val is not None and np.isnan(std_val):
+                        std_val = 0.0
+                    return mean_val, std_val, count_val
+                return None, None, 0
+
+            left_mean, left_std, left_count = _extract('left')
+            right_mean, right_std, right_count = _extract('right')
+            full_mean, full_std, full_count = _extract('both')
+            if full_mean is None:
+                full_mean_alt, full_std_alt, full_count_alt = _extract('full')
+                if full_mean_alt is not None:
+                    full_mean, full_std, full_count = full_mean_alt, full_std_alt, full_count_alt
+
+            half_values = [val for val in (left_mean, right_mean) if val is not None]
+            half_face_avg = float(np.mean(half_values)) if half_values else None
+
+            overall_values = face_data['value'].dropna()
+            overall_count = int(overall_values.count())
+            overall_mean = _clean_numeric(overall_values.mean())
+            overall_std = _clean_numeric(overall_values.std(ddof=0))
+            if overall_std is not None and np.isnan(overall_std):
+                overall_std = 0.0
+
+            mean_trust = full_mean if full_mean is not None else overall_mean
+            std_trust = full_std if full_std is not None else overall_std
+
+            diff = None
+            if mean_trust is not None and half_face_avg is not None:
+                diff = float(mean_trust - half_face_avg)
+
+            summaries.append({
+                'face_id': face_id,
+                'mean_trust': mean_trust,
+                'half_face_avg': half_face_avg,
+                'full_minus_half_diff': diff,
+                'rating_count': overall_count,
+                'std_trust': std_trust,
+                'left_mean': left_mean,
+                'right_mean': right_mean,
+                'full_mean': full_mean if full_mean is not None else overall_mean,
+                'unique_participants': int(face_data['pid'].nunique()),
+            })
+
+        if not summaries:
+            return pd.DataFrame(columns=columns)
+
+        summary_df = pd.DataFrame(summaries)
+        return summary_df.sort_values('face_id').reset_index(drop=True)
+
+    def _build_histogram(self, data: pd.DataFrame) -> Optional[Dict[str, List[int]]]:
+        if data.empty:
+            return None
+
+        values = data["value"].dropna()
+        if values.empty:
+            return None
+
+        discrete_values = sorted({int(round(v)) for v in values if np.isfinite(v)})
+        if not discrete_values:
+            return None
+
+        min_rating, max_rating = discrete_values[0], discrete_values[-1]
+        labels = list(range(min_rating, max_rating + 1))
+        histogram = {"labels": labels}
+
+        for version in ["left", "right", "both"]:
+            version_values = data[data["version"] == version]["value"].dropna()
+            histogram[version] = [int((version_values == label).sum()) for label in labels]
+
+        return histogram
+
+    def get_trust_histogram(self) -> Optional[Dict[str, List[int]]]:
+        return self._build_histogram(self._get_numeric_dataframe("trust_rating"))
+
+    def get_emotion_histogram(self) -> Optional[Dict[str, List[int]]]:
+        return self._build_histogram(self._get_numeric_dataframe("emotion_rating"))
+
+    def get_boxplot_data(self, question: str) -> Optional[Dict[str, List[float]]]:
+        data = self._get_numeric_dataframe(question)
+        if data.empty:
+            return None
+
+        result: Dict[str, List[float]] = {}
+        for version in ["left", "right", "both"]:
+            version_values = data[data["version"] == version]["value"].dropna()
+            result[version] = [float(v) for v in version_values.tolist()]
+
+        if all(len(values) == 0 for values in result.values()):
+            return None
+        return result
+
+    def get_descriptive_stats(self) -> Dict[str, Dict[str, float]]:
+        stats_dict: Dict[str, Dict[str, float]] = {}
+        data = self._get_numeric_dataframe("trust_rating")
+        for version in ["left", "right", "both"]:
+            version_values = data[data["version"] == version]["value"].dropna()
+            if version_values.empty:
                 stats_dict[version] = {
-                    'n': len(trust_ratings),
-                    'mean': trust_ratings.mean(),
-                    'std': trust_ratings.std(),
-                    'median': trust_ratings.median(),
-                    'min': trust_ratings.min(),
-                    'max': trust_ratings.max(),
-                    'q25': trust_ratings.quantile(0.25),
-                    'q75': trust_ratings.quantile(0.75)
+                    "n": 0,
+                    "mean": np.nan,
+                    "std": np.nan,
+                    "median": np.nan,
+                    "min": np.nan,
+                    "max": np.nan,
+                    "q25": np.nan,
+                    "q75": np.nan,
                 }
             else:
                 stats_dict[version] = {
-                    'n': 0, 'mean': np.nan, 'std': np.nan, 'median': np.nan,
-                    'min': np.nan, 'max': np.nan, 'q25': np.nan, 'q75': np.nan
+                    "n": int(len(version_values)),
+                    "mean": float(version_values.mean()),
+                    "std": float(version_values.std(ddof=1)) if len(version_values) > 1 else 0.0,
+                    "median": float(version_values.median()),
+                    "min": float(version_values.min()),
+                    "max": float(version_values.max()),
+                    "q25": float(version_values.quantile(0.25)),
+                    "q75": float(version_values.quantile(0.75)),
                 }
-        
         return stats_dict
-    
-    def get_all_question_stats(self) -> Dict:
-        """
-        Get descriptive statistics for all question types by version.
-        """
-        all_stats = {}
-        
-        # Get cleaned data (wide format)
-        cleaned_data = self.data_cleaner.get_cleaned_data()
-        
-        # Question types to analyze
-        question_types = ['trust_rating', 'emotion_rating', 'masc_choice', 'fem_choice', 'masculinity_full', 'femininity_full']
-        
-        for question in question_types:
-            if question in cleaned_data.columns:
-                question_stats = {}
-                
-                for version in ['left', 'right', 'both']:
-                    # Filter data for this version and question
-                    if question in ['masc_choice', 'fem_choice', 'masculinity_full', 'femininity_full']:
-                        # These questions only exist for version='both'
-                        if version == 'both':
-                            version_data = cleaned_data[cleaned_data['version'] == version]
-                            question_data = version_data[question].dropna()
-                        else:
-                            question_data = pd.Series(dtype=float)  # Empty series
-                    else:
-                        # Trust and emotion ratings exist for all versions
-                        version_data = cleaned_data[cleaned_data['version'] == version]
-                        question_data = version_data[question].dropna()
-                    
-                    if len(question_data) > 0:
-                        # Convert to numeric, handling any non-numeric values
-                        try:
-                            question_data = pd.to_numeric(question_data, errors='coerce').dropna()
-                        except:
-                            question_data = pd.Series(dtype=float)
-                        
-                        if len(question_data) > 0:
-                            question_stats[version] = {
-                                'n': len(question_data),
-                                'mean': question_data.mean(),
-                                'std': question_data.std(),
-                                'median': question_data.median(),
-                                'min': question_data.min(),
-                                'max': question_data.max(),
-                                'q25': question_data.quantile(0.25),
-                                'q75': question_data.quantile(0.75)
-                            }
-                        else:
-                            question_stats[version] = {
-                                'n': 0, 'mean': np.nan, 'std': np.nan, 'median': np.nan,
-                                'min': np.nan, 'max': np.nan, 'q25': np.nan, 'q75': np.nan
-                            }
-                    else:
-                        question_stats[version] = {
-                            'n': 0, 'mean': np.nan, 'std': np.nan, 'median': np.nan,
-                            'min': np.nan, 'max': np.nan, 'q25': np.nan, 'q75': np.nan
-                        }
-                
-                all_stats[question] = question_stats
-        
-        return all_stats
-    
-    def emotion_paired_t_test_half_vs_full(self) -> Dict:
-        """
-        Paired t-test comparing half-face (left/right average) vs full-face emotion ratings.
-        """
-        # Get data for each version
-        left_data = self.data_cleaner.get_data_by_version('left')
-        right_data = self.data_cleaner.get_data_by_version('right')
-        both_data = self.data_cleaner.get_data_by_version('both')
-        
-        if len(left_data) == 0 or len(right_data) == 0 or len(both_data) == 0:
-            return {'error': 'Insufficient data for emotion paired t-test'}
-        
-        # Get emotion ratings
-        left_emotion = left_data['emotion_rating'].dropna()
-        right_emotion = right_data['emotion_rating'].dropna()
-        both_emotion = both_data['emotion_rating'].dropna()
-        
-        # Calculate half-face average for each participant
-        left_means = left_emotion.groupby(left_data['pid']).mean()
-        right_means = right_emotion.groupby(right_data['pid']).mean()
-        both_means = both_emotion.groupby(both_data['pid']).mean()
-        
-        # Find common participants
-        common_participants = list(set(left_means.index) & set(right_means.index) & set(both_means.index))
-        
-        if len(common_participants) < 3:
-            return {'error': 'Insufficient participants for emotion paired t-test'}
-        
-        # Calculate half-face average
-        half_face_means = (left_means.loc[common_participants] + right_means.loc[common_participants]) / 2
-        full_face_means = both_means.loc[common_participants]
-        
-        # Paired t-test
-        from scipy import stats
-        t_stat, p_value = stats.ttest_rel(half_face_means, full_face_means)
-        
-        # Effect size (Cohen's d for paired samples)
-        diff = half_face_means - full_face_means
-        cohens_d = diff.mean() / diff.std() if diff.std() > 0 else 0
-        
-        # Confidence interval for mean difference
-        mean_diff = diff.mean()
-        std_diff = diff.std()
-        n = len(diff)
-        se_diff = std_diff / (n ** 0.5)
-        ci_lower = mean_diff - 1.96 * se_diff
-        ci_upper = mean_diff + 1.96 * se_diff
-        
-        return {
-            'statistic': t_stat,
-            'pvalue': p_value,
-            'df': len(common_participants) - 1,
-            'effect_size': cohens_d,
-            'half_face_mean': half_face_means.mean(),
-            'full_face_mean': full_face_means.mean(),
-            'difference': mean_diff,
-            'ci_lower': ci_lower,
-            'ci_upper': ci_upper,
-            'n_participants': len(common_participants),
-            'included_participants': list(common_participants)
-        }
-    
-    def emotion_repeated_measures_anova(self) -> Dict:
-        """
-        Repeated measures ANOVA for emotion ratings across left, right, and both versions.
-        """
-        # Get data for each version
-        left_data = self.data_cleaner.get_data_by_version('left')
-        right_data = self.data_cleaner.get_data_by_version('right')
-        both_data = self.data_cleaner.get_data_by_version('both')
-        
-        if len(left_data) == 0 or len(right_data) == 0 or len(both_data) == 0:
-            return {'error': 'Insufficient data for emotion repeated measures ANOVA'}
-        
-        # Get emotion ratings
-        left_emotion = left_data['emotion_rating'].dropna()
-        right_emotion = right_data['emotion_rating'].dropna()
-        both_emotion = both_data['emotion_rating'].dropna()
-        
-        # Calculate means for each participant
-        left_means = left_emotion.groupby(left_data['pid']).mean()
-        right_means = right_emotion.groupby(right_data['pid']).mean()
-        both_means = both_emotion.groupby(both_data['pid']).mean()
-        
-        # Find common participants
-        common_participants = list(set(left_means.index) & set(right_means.index) & set(both_means.index))
-        
-        if len(common_participants) < 3:
-            return {'error': 'Insufficient participants for emotion repeated measures ANOVA'}
-        
-        # Create data matrix
-        data_matrix = pd.DataFrame({
-            'left': left_means.loc[common_participants],
-            'right': right_means.loc[common_participants],
-            'both': both_means.loc[common_participants]
-        })
-        
-        # Perform repeated measures ANOVA
-        from scipy import stats
-        f_stat, p_value = stats.f_oneway(
-            data_matrix['left'], 
-            data_matrix['right'], 
-            data_matrix['both']
-        )
-        
-        # Calculate partial eta squared
-        ss_between = data_matrix.var(ddof=0).sum() * len(common_participants)
-        ss_total = data_matrix.values.var(ddof=0) * data_matrix.size
-        partial_eta_squared = ss_between / ss_total if ss_total > 0 else 0
-        
-        return {
-            'f_statistic': f_stat,
-            'pvalue': p_value,
-            'df_between': 2,
-            'df_within': len(common_participants) - 1,
-            'partial_eta_squared': partial_eta_squared,
-            'means': {
-                'left': data_matrix['left'].mean(),
-                'right': data_matrix['right'].mean(),
-                'both': data_matrix['both'].mean()
-            },
-            'n_participants': len(common_participants),
-            'included_participants': list(common_participants)
-        }
-    
-    def choice_preference_analysis(self) -> Dict:
-        """
-        Analyze masc/fem choice preferences and side bias.
-        """
-        # Get data for both version only (choices only exist for full face)
-        both_data = self.data_cleaner.get_data_by_version('both')
-        
-        if len(both_data) == 0:
-            return {'error': 'Insufficient data for choice preference analysis'}
-        
-        # Get choice data
-        masc_choices = both_data['masc_choice'].dropna()
-        fem_choices = both_data['fem_choice'].dropna()
-        
-        if len(masc_choices) == 0 or len(fem_choices) == 0:
-            return {'error': 'No choice data available'}
-        
-        # Calculate choice proportions
-        masc_left = (masc_choices == 'left').sum()
-        masc_right = (masc_choices == 'right').sum()
-        masc_neither = (masc_choices == 'neither').sum()
-        masc_total = len(masc_choices)
-        
-        fem_left = (fem_choices == 'left').sum()
-        fem_right = (fem_choices == 'right').sum()
-        fem_neither = (fem_choices == 'neither').sum()
-        fem_total = len(fem_choices)
-        
-        # Calculate proportions
-        masc_props = {
-            'left': masc_left / masc_total if masc_total > 0 else 0,
-            'right': masc_right / masc_total if masc_total > 0 else 0,
-            'neither': masc_neither / masc_total if masc_total > 0 else 0
-        }
-        
-        fem_props = {
-            'left': fem_left / fem_total if fem_total > 0 else 0,
-            'right': fem_right / fem_total if fem_total > 0 else 0,
-            'neither': fem_neither / fem_total if fem_total > 0 else 0
-        }
-        
-        # Chi-square test for side preference (left vs right, excluding neither)
-        from scipy import stats
-        
-        # Masc choice: left vs right
-        masc_side_counts = [masc_left, masc_right]
-        masc_expected = [sum(masc_side_counts) / 2, sum(masc_side_counts) / 2]
-        masc_chi2, masc_p = stats.chisquare(masc_side_counts, masc_expected) if sum(masc_side_counts) > 0 else (0, 1)
-        
-        # Fem choice: left vs right
-        fem_side_counts = [fem_left, fem_right]
-        fem_expected = [sum(fem_side_counts) / 2, sum(fem_side_counts) / 2]
-        fem_chi2, fem_p = stats.chisquare(fem_side_counts, fem_expected) if sum(fem_side_counts) > 0 else (0, 1)
-        
-        # Overall side preference (combining masc and fem)
-        total_left = masc_left + fem_left
-        total_right = masc_right + fem_right
-        total_side_counts = [total_left, total_right]
-        total_expected = [sum(total_side_counts) / 2, sum(total_side_counts) / 2]
-        total_chi2, total_p = stats.chisquare(total_side_counts, total_expected) if sum(total_side_counts) > 0 else (0, 1)
-        
-        return {
-            'masc_choice': {
-                'counts': {'left': masc_left, 'right': masc_right, 'neither': masc_neither, 'total': masc_total},
-                'proportions': masc_props,
-                'side_preference_test': {'chi2': masc_chi2, 'p_value': masc_p}
-            },
-            'fem_choice': {
-                'counts': {'left': fem_left, 'right': fem_right, 'neither': fem_neither, 'total': fem_total},
-                'proportions': fem_props,
-                'side_preference_test': {'chi2': fem_chi2, 'p_value': fem_p}
-            },
-            'overall_side_preference': {
-                'counts': {'left': total_left, 'right': total_right, 'total': total_left + total_right},
-                'test': {'chi2': total_chi2, 'p_value': total_p}
-            }
-        }
-    
-    def paired_t_test_half_vs_full(self) -> Dict:
-        """
-        Paired t-test comparing half-face (left/right average) vs full-face ratings.
-        Returns t, p, df, Cohen's d (paired), mean difference and 95% CI, and included participant IDs.
-        """
-        # Get data for each version
-        left_data = self.data_cleaner.get_data_by_version('left')
-        right_data = self.data_cleaner.get_data_by_version('right')
-        full_data = self.data_cleaner.get_data_by_version('both')
-        
-        # Create participant-level averages
-        left_means = left_data.groupby('pid')['trust_rating'].mean()
-        right_means = right_data.groupby('pid')['trust_rating'].mean()
-        full_means = full_data.groupby('pid')['trust_rating'].mean()
-        
-        # Calculate half-face average (left + right) / 2
-        half_face_means = pd.concat([left_means, right_means], axis=1).mean(axis=1)
-        
-        # Align data for paired test
-        common_participants = list(half_face_means.index.intersection(full_means.index))
+
+    def get_all_question_stats(self) -> Dict[str, Dict[str, Dict[str, float]]]:
+        results: Dict[str, Dict[str, Dict[str, float]]] = {}
+        numeric_questions = ["trust_rating", "emotion_rating", "masculinity_full", "femininity_full"]
+        for question in numeric_questions:
+            data = self._get_numeric_dataframe(question)
+            if data.empty:
+                continue
+
+            question_stats: Dict[str, Dict[str, float]] = {}
+            for version in ["left", "right", "both"]:
+                version_values = data[data["version"] == version]["value"].dropna()
+                if version_values.empty:
+                    question_stats[version] = {
+                        "n": 0,
+                        "mean": np.nan,
+                        "std": np.nan,
+                        "median": np.nan,
+                        "min": np.nan,
+                        "max": np.nan,
+                        "q25": np.nan,
+                        "q75": np.nan,
+                    }
+                else:
+                    question_stats[version] = {
+                        "n": int(len(version_values)),
+                        "mean": float(version_values.mean()),
+                        "std": float(version_values.std(ddof=1)) if len(version_values) > 1 else 0.0,
+                        "median": float(version_values.median()),
+                        "min": float(version_values.min()),
+                        "max": float(version_values.max()),
+                        "q25": float(version_values.quantile(0.25)),
+                        "q75": float(version_values.quantile(0.75)),
+                    }
+            if any(stats["n"] > 0 for stats in question_stats.values()):
+                results[question] = question_stats
+        return results
+
+    def paired_t_test_half_vs_full(self) -> Dict[str, object]:
+        data = self._get_numeric_dataframe("trust_rating")
+        left_means = data[data["version"] == "left"].groupby("pid")["value"].mean()
+        right_means = data[data["version"] == "right"].groupby("pid")["value"].mean()
+        full_means = data[data["version"] == "both"].groupby("pid")["value"].mean()
+
+        half_df = pd.concat({"left": left_means, "right": right_means}, axis=1).dropna()
+        full_means = full_means.dropna()
+        common_participants = half_df.index.intersection(full_means.index)
         n = len(common_participants)
         if n < 2:
             return {
-                'statistic': np.nan,
-                'pvalue': np.nan,
-                'effect_size': np.nan,
-                'df': n - 1 if n > 0 else np.nan,
-                'n_participants': n,
-                'half_face_mean': np.nan,
-                'full_face_mean': np.nan,
-                'difference': np.nan,
-                'ci_lower': np.nan,
-                'ci_upper': np.nan,
-                'included_participants': list(common_participants),
-                'error': 'Insufficient data for paired t-test'
+                "statistic": np.nan,
+                "pvalue": np.nan,
+                "effect_size": np.nan,
+                "df": n - 1 if n > 0 else np.nan,
+                "n_participants": n,
+                "half_face_mean": np.nan,
+                "full_face_mean": np.nan,
+                "difference": np.nan,
+                "ci_lower": np.nan,
+                "ci_upper": np.nan,
+                "included_participants": list(map(str, common_participants)),
+                "error": "Insufficient data for paired t-test",
             }
-        
-        half_face_values = half_face_means.loc[common_participants]
-        full_face_values = full_means.loc[common_participants]
-        
-        # Perform paired t-test (mocked for deployment)
+
+        half_values = half_df.loc[common_participants].mean(axis=1)
+        full_values = full_means.loc[common_participants]
         try:
-            t_stat, p_value = stats.ttest_rel(half_face_values, full_face_values)
-        except:
-            t_stat, p_value = 0.0, 1.0
-        
-        # Paired differences
-        diffs = (half_face_values - full_face_values).astype(float)
+            t_stat, p_value = stats.ttest_rel(half_values, full_values)
+        except Exception:
+            t_stat, p_value = (0.0, 1.0)
+
+        diffs = (half_values - full_values).astype(float)
         mean_diff = float(diffs.mean())
         sd_diff = float(diffs.std(ddof=1))
         df_val = n - 1
         se_diff = sd_diff / np.sqrt(n) if n > 0 else np.nan
-        
-        # Cohen's d for paired samples (mean of diffs / sd of diffs)
-        effect_size = mean_diff / sd_diff if sd_diff > 0 else np.nan
-        
-        # 95% CI for mean difference (mocked for deployment)
         try:
             t_crit = stats.t.ppf(0.975, df_val) if df_val > 0 else np.nan
-        except:
-            t_crit = 0.0
-        ci_lower = mean_diff - t_crit * se_diff if np.isfinite(t_crit) else np.nan
-        ci_upper = mean_diff + t_crit * se_diff if np.isfinite(t_crit) else np.nan
-        
+        except Exception:
+            t_crit = np.nan
+        effect_size = mean_diff / sd_diff if sd_diff > 0 else 0.0
+        ci_lower = mean_diff - t_crit * se_diff if np.isfinite(se_diff) and np.isfinite(t_crit) else np.nan
+        ci_upper = mean_diff + t_crit * se_diff if np.isfinite(se_diff) and np.isfinite(t_crit) else np.nan
+
         return {
-            'statistic': float(t_stat),
-            'pvalue': float(p_value),
-            'effect_size': float(effect_size) if np.isfinite(effect_size) else np.nan,
-            'df': int(df_val),
-            'n_participants': int(n),
-            'half_face_mean': float(half_face_values.mean()),
-            'full_face_mean': float(full_face_values.mean()),
-            'difference': float(mean_diff),
-            'ci_lower': float(ci_lower) if np.isfinite(ci_lower) else np.nan,
-            'ci_upper': float(ci_upper) if np.isfinite(ci_upper) else np.nan,
-            'included_participants': list(map(str, common_participants))
+            "statistic": float(t_stat),
+            "pvalue": float(p_value),
+            "effect_size": float(effect_size) if np.isfinite(effect_size) else np.nan,
+            "df": int(df_val),
+            "n_participants": int(n),
+            "half_face_mean": float(half_values.mean()),
+            "full_face_mean": float(full_values.mean()),
+            "difference": mean_diff,
+            "ci_lower": float(ci_lower) if np.isfinite(ci_lower) else np.nan,
+            "ci_upper": float(ci_upper) if np.isfinite(ci_upper) else np.nan,
+            "included_participants": list(map(str, common_participants)),
         }
-    
-    def repeated_measures_anova(self) -> Dict:
-        """
-        One-way repeated measures ANOVA across versions (left, right, full).
-        Returns F, p, df_num, df_den, partial eta-squared, means/sds, and included participant IDs.
-        """
-        # Get data for each version
-        left_data = self.data_cleaner.get_data_by_version('left')
-        right_data = self.data_cleaner.get_data_by_version('right')
-        full_data = self.data_cleaner.get_data_by_version('both')
-        
-        # Create participant-level averages
-        left_means = left_data.groupby('pid')['trust_rating'].mean()
-        right_means = right_data.groupby('pid')['trust_rating'].mean()
-        full_means = full_data.groupby('pid')['trust_rating'].mean()
-        
-        # Find common participants across all versions
-        common_participants = list(left_means.index.intersection(right_means.index).intersection(full_means.index))
-        n = len(common_participants)
+
+    def repeated_measures_anova(self) -> Dict[str, object]:
+        data = self._get_numeric_dataframe("trust_rating")
+        pivot = data.pivot_table(index="pid", columns="version", values="value", aggfunc="mean")
+        for version in ["left", "right", "both"]:
+            if version not in pivot:
+                pivot[version] = np.nan
+        pivot = pivot[["left", "right", "both"]].dropna()
+
+        n = pivot.shape[0]
         k = 3
         if n < 2:
             return {
-                'f_statistic': np.nan,
-                'pvalue': np.nan,
-                'effect_size': np.nan,
-                'df_num': np.nan,
-                'df_den': np.nan,
-                'n_participants': n,
-                'means': {},
-                'stds': {},
-                'included_participants': list(common_participants),
-                'error': 'Insufficient data for repeated measures ANOVA'
+                "f_statistic": np.nan,
+                "pvalue": np.nan,
+                "effect_size": np.nan,
+                "df_num": k - 1,
+                "df_den": (k - 1) * (n - 1),
+                "n_participants": int(n),
+                "means": {},
+                "stds": {},
+                "included_participants": list(map(str, pivot.index)),
+                "error": "Insufficient data for repeated measures ANOVA",
             }
-        
-        # Data matrix (n x k)
-        data_matrix = pd.DataFrame({
-            'left': left_means.loc[common_participants],
-            'right': right_means.loc[common_participants],
-            'both': full_means.loc[common_participants]
-        })
-        
-        # Compute repeated-measures ANOVA components
-        grand_mean = data_matrix.values.mean()
-        condition_means = data_matrix.mean(axis=0)
-        subject_means = data_matrix.mean(axis=1)
-        
-        # Sums of squares
+
+        grand_mean = pivot.values.mean()
+        condition_means = pivot.mean(axis=0)
+        subject_means = pivot.mean(axis=1)
+
         ss_conditions = n * ((condition_means - grand_mean) ** 2).sum()
         ss_subjects = k * ((subject_means - grand_mean) ** 2).sum()
-        ss_total = ((data_matrix - grand_mean) ** 2).values.sum()
+        ss_total = ((pivot - grand_mean) ** 2).values.sum()
         ss_error = ss_total - ss_conditions - ss_subjects
-        
-        # Degrees of freedom
+
         df_num = k - 1
         df_den = (k - 1) * (n - 1)
-        
         if df_den <= 0 or ss_error <= 0:
             return {
-                'f_statistic': np.nan,
-                'pvalue': np.nan,
-                'effect_size': np.nan,
-                'df_num': df_num,
-                'df_den': df_den,
-                'n_participants': n,
-                'means': condition_means.to_dict(),
-                'stds': data_matrix.std(axis=0, ddof=1).to_dict(),
-                'included_participants': list(map(str, common_participants)),
-                'error': 'Insufficient variance for ANOVA'
+                "f_statistic": np.nan,
+                "pvalue": np.nan,
+                "effect_size": np.nan,
+                "df_num": int(df_num),
+                "df_den": int(df_den),
+                "n_participants": int(n),
+                "means": {col: float(condition_means[col]) for col in ["left", "right", "both"]},
+                "stds": {},
+                "included_participants": list(map(str, pivot.index)),
+                "error": "Insufficient variance for ANOVA",
             }
-        
+
         ms_conditions = ss_conditions / df_num
         ms_error = ss_error / df_den
         f_stat = ms_conditions / ms_error if ms_error > 0 else np.nan
         try:
             p_value = stats.f.sf(f_stat, df_num, df_den) if np.isfinite(f_stat) else np.nan
-        except:
+        except Exception:
             p_value = 1.0
-        
-        # Partial eta-squared
+
         partial_eta_sq = ss_conditions / (ss_conditions + ss_error) if (ss_conditions + ss_error) > 0 else np.nan
-        
+
         return {
-            'f_statistic': float(f_stat) if np.isfinite(f_stat) else np.nan,
-            'pvalue': float(p_value) if np.isfinite(p_value) else np.nan,
-            'effect_size': float(partial_eta_sq) if np.isfinite(partial_eta_sq) else np.nan,
-            'df_num': int(df_num),
-            'df_den': int(df_den),
-            'n_participants': int(n),
-            'means': {k: float(v) for k, v in condition_means.items()},
-            'stds': {k: float(v) for k, v in data_matrix.std(axis=0, ddof=1).items()},
-            'included_participants': list(map(str, common_participants))
+            "f_statistic": float(f_stat) if np.isfinite(f_stat) else np.nan,
+            "pvalue": float(p_value) if np.isfinite(p_value) else np.nan,
+            "effect_size": float(partial_eta_sq) if np.isfinite(partial_eta_sq) else np.nan,
+            "df_num": int(df_num),
+            "df_den": int(df_den),
+            "n_participants": int(n),
+            "means": {col: float(condition_means[col]) for col in ["left", "right", "both"]},
+            "stds": {col: float(pivot[col].std(ddof=1)) for col in ["left", "right", "both"]},
+            "included_participants": list(map(str, pivot.index)),
         }
-    
-    def inter_rater_reliability(self) -> Dict:
-        """
-        Calculate inter-rater reliability (ICC) for trust ratings.
-        """
-        # Get data for full face only (most reliable for inter-rater reliability)
-        full_data = self.data_cleaner.get_data_by_version('both')
-        
-        if len(full_data) == 0:
-            return {
-                'icc': np.nan,
-                'n_raters': 0,
-                'n_stimuli': 0,
-                'error': 'No full face data available'
-            }
-        
-        # Group by face_id and calculate ICC
-        face_col = 'image_id' if 'image_id' in full_data.columns else 'face_id'
-        trust_col = 'trust' if 'trust' in full_data.columns else 'trust_rating'
-        face_ratings = full_data.groupby(face_col)[trust_col].apply(list)
-        
-        # Filter faces with multiple ratings
-        face_ratings = face_ratings[face_ratings.apply(len) > 1]
-        
-        if len(face_ratings) < 2:
-            return {
-                'icc': np.nan,
-                'n_raters': 0,
-                'n_stimuli': len(face_ratings),
-                'error': 'Insufficient data for ICC calculation'
-            }
-        
-        # Calculate ICC (simplified version)
+
+    def emotion_paired_t_test_half_vs_full(self) -> Dict[str, object]:
+        data = self._get_numeric_dataframe("emotion_rating")
+        left_means = data[data["version"] == "left"].groupby("pid")["value"].mean()
+        right_means = data[data["version"] == "right"].groupby("pid")["value"].mean()
+        full_means = data[data["version"] == "both"].groupby("pid")["value"].mean()
+
+        half_df = pd.concat({"left": left_means, "right": right_means}, axis=1).dropna()
+        full_means = full_means.dropna()
+        common_participants = half_df.index.intersection(full_means.index)
+        if len(common_participants) < 3:
+            return {"error": "Insufficient participants for emotion paired t-test"}
+
+        half_values = half_df.loc[common_participants].mean(axis=1)
+        full_values = full_means.loc[common_participants]
         try:
-            # Create rating matrix
-            max_ratings = max(len(ratings) for ratings in face_ratings)
-            rating_matrix = []
-            
-            for ratings in face_ratings:
-                # Pad with NaN if needed
-                padded_ratings = ratings + [np.nan] * (max_ratings - len(ratings))
-                rating_matrix.append(padded_ratings)
-            
-            rating_matrix = np.array(rating_matrix)
-            
-            # Calculate ICC (type 1,1 - single score, absolute agreement)
-            icc = self._calculate_icc(rating_matrix)
-            
+            t_stat, p_value = stats.ttest_rel(half_values, full_values)
+        except Exception:
+            t_stat, p_value = (0.0, 1.0)
+
+        diffs = (half_values - full_values).astype(float)
+        mean_diff = float(diffs.mean())
+        sd_diff = float(diffs.std(ddof=1))
+        n = len(diffs)
+        df_val = n - 1
+        se_diff = sd_diff / np.sqrt(n) if n > 0 else np.nan
+        try:
+            t_crit = stats.t.ppf(0.975, df_val) if df_val > 0 else np.nan
+        except Exception:
+            t_crit = np.nan
+        effect_size = mean_diff / sd_diff if sd_diff > 0 else 0.0
+        ci_lower = mean_diff - t_crit * se_diff if np.isfinite(se_diff) and np.isfinite(t_crit) else np.nan
+        ci_upper = mean_diff + t_crit * se_diff if np.isfinite(se_diff) and np.isfinite(t_crit) else np.nan
+
+        return {
+            "statistic": float(t_stat),
+            "pvalue": float(p_value),
+            "df": int(df_val),
+            "effect_size": float(effect_size) if np.isfinite(effect_size) else np.nan,
+            "half_face_mean": float(half_values.mean()),
+            "full_face_mean": float(full_values.mean()),
+            "difference": mean_diff,
+            "ci_lower": float(ci_lower) if np.isfinite(ci_lower) else np.nan,
+            "ci_upper": float(ci_upper) if np.isfinite(ci_upper) else np.nan,
+            "n_participants": int(n),
+            "included_participants": list(map(str, common_participants)),
+        }
+
+    def emotion_repeated_measures_anova(self) -> Dict[str, object]:
+        data = self._get_numeric_dataframe("emotion_rating")
+        pivot = data.pivot_table(index="pid", columns="version", values="value", aggfunc="mean")
+        for version in ["left", "right", "both"]:
+            if version not in pivot:
+                pivot[version] = np.nan
+        pivot = pivot[["left", "right", "both"]].dropna()
+        n = pivot.shape[0]
+        if n < 2:
+            return {"error": "Insufficient participants for emotion repeated measures ANOVA"}
+
+        grand_mean = pivot.values.mean()
+        condition_means = pivot.mean(axis=0)
+        subject_means = pivot.mean(axis=1)
+        k = 3
+        ss_conditions = n * ((condition_means - grand_mean) ** 2).sum()
+        ss_subjects = k * ((subject_means - grand_mean) ** 2).sum()
+        ss_total = ((pivot - grand_mean) ** 2).values.sum()
+        ss_error = ss_total - ss_conditions - ss_subjects
+        df_between = k - 1
+        df_within = (k - 1) * (n - 1)
+        if df_within <= 0 or ss_error <= 0:
             return {
-                'icc': icc,
-                'n_raters': max_ratings,
-                'n_stimuli': len(face_ratings),
-                'mean_ratings_per_stimulus': np.mean([len(ratings) for ratings in face_ratings])
+                "error": "Insufficient variance for ANOVA",
+                "df_between": int(df_between),
+                "df_within": int(df_within),
+                "means": {col: float(condition_means[col]) for col in ["left", "right", "both"]},
             }
-        except Exception as e:
-            logger.error(f"Error calculating ICC: {e}")
+        ms_conditions = ss_conditions / df_between
+        ms_error = ss_error / df_within
+        f_stat = ms_conditions / ms_error if ms_error > 0 else np.nan
+        try:
+            p_value = stats.f.sf(f_stat, df_between, df_within) if np.isfinite(f_stat) else np.nan
+        except Exception:
+            p_value = 1.0
+        partial_eta_sq = ss_conditions / (ss_conditions + ss_error) if (ss_conditions + ss_error) > 0 else np.nan
+        return {
+            "f_statistic": float(f_stat) if np.isfinite(f_stat) else np.nan,
+            "pvalue": float(p_value) if np.isfinite(p_value) else np.nan,
+            "df_between": int(df_between),
+            "df_within": int(df_within),
+            "partial_eta_squared": float(partial_eta_sq) if np.isfinite(partial_eta_sq) else np.nan,
+            "means": {col: float(condition_means[col]) for col in ["left", "right", "both"]},
+            "n_participants": int(n),
+            "included_participants": list(map(str, pivot.index)),
+        }
+
+    def choice_preference_analysis(self) -> Dict[str, object]:
+        masc_df = self._get_choice_dataframe("masc_choice")
+        fem_df = self._get_choice_dataframe("fem_choice")
+        if masc_df.empty and fem_df.empty:
+            return {"error": "Insufficient data for choice preference analysis"}
+
+        def prepare_counts(df: pd.DataFrame) -> Dict[str, int]:
+            if df.empty:
+                return {"left": 0, "right": 0, "neither": 0, "total": 0}
+            responses = df[df["version"].astype(str).str.lower() == "both"]["response"].str.lower()
+            left = int((responses == "left").sum())
+            right = int((responses == "right").sum())
+            neither = int((responses == "neither").sum())
+            return {"left": left, "right": right, "neither": neither, "total": left + right + neither}
+
+        def proportions(counts: Dict[str, int]) -> Dict[str, float]:
+            total = counts.get("total", 0)
+            if total == 0:
+                return {"left": 0.0, "right": 0.0, "neither": 0.0}
             return {
-                'icc': np.nan,
-                'n_raters': 0,
-                'n_stimuli': len(face_ratings),
-                'error': str(e)
+                "left": counts["left"] / total,
+                "right": counts["right"] / total,
+                "neither": counts["neither"] / total,
             }
-    
-    def _calculate_icc(self, data_matrix: np.ndarray) -> float:
-        """
-        Calculate Intraclass Correlation Coefficient (ICC).
-        """
-        # Remove rows with all NaN
-        data_matrix = data_matrix[~np.all(np.isnan(data_matrix), axis=1)]
-        
-        if data_matrix.shape[0] < 2 or data_matrix.shape[1] < 2:
-            return np.nan
-        
-        # Calculate means
-        grand_mean = np.nanmean(data_matrix)
-        row_means = np.nanmean(data_matrix, axis=1)
-        col_means = np.nanmean(data_matrix, axis=0)
-        
-        # Calculate sums of squares
-        n_rows, n_cols = data_matrix.shape
-        
-        # Total SS
-        ss_total = np.nansum((data_matrix - grand_mean) ** 2)
-        
-        # Between-subjects SS
-        ss_between = n_cols * np.nansum((row_means - grand_mean) ** 2)
-        
-        # Between-raters SS
-        ss_raters = n_rows * np.nansum((col_means - grand_mean) ** 2)
-        
-        # Error SS
-        ss_error = ss_total - ss_between - ss_raters
-        
-        # Degrees of freedom
-        df_between = n_rows - 1
-        df_raters = n_cols - 1
-        df_error = (n_rows - 1) * (n_cols - 1)
-        
-        # Mean squares
-        ms_between = ss_between / df_between if df_between > 0 else 0
-        ms_raters = ss_raters / df_raters if df_raters > 0 else 0
-        ms_error = ss_error / df_error if df_error > 0 else 0
-        
-        # ICC (type 1,1 - single score, absolute agreement)
-        if ms_error > 0:
-            icc = (ms_between - ms_error) / (ms_between + (n_cols - 1) * ms_error)
-        else:
-            icc = 1.0 if ms_between > 0 else 0.0
-        
-        return max(0, min(1, icc))  # Clamp between 0 and 1
-    
-    def split_half_reliability(self) -> Dict:
-        """
-        Calculate split-half reliability for trust ratings.
-        """
-        # Get data for full face only
-        full_data = self.data_cleaner.get_data_by_version('both')
-        
-        if len(full_data) == 0:
+
+        def side_test(counts: Dict[str, int]) -> Dict[str, float]:
+            left = counts.get("left", 0)
+            right = counts.get("right", 0)
+            side_total = left + right
+            if side_total == 0:
+                return {"chi2": np.nan, "p_value": np.nan}
+            expected = [side_total / 2, side_total / 2]
+            try:
+                chi2, p_value = chisquare([left, right], expected)
+            except Exception:
+                chi2, p_value = (0.0, 1.0)
+            return {"chi2": float(chi2), "p_value": float(p_value)}
+
+        masc_counts = prepare_counts(masc_df)
+        fem_counts = prepare_counts(fem_df)
+        overall_left = masc_counts["left"] + fem_counts["left"]
+        overall_right = masc_counts["right"] + fem_counts["right"]
+        overall_result = {"left": overall_left, "right": overall_right, "neither": 0, "total": overall_left + overall_right}
+
+        return {
+            "masc_choice": {
+                "counts": masc_counts,
+                "proportions": proportions(masc_counts),
+                "side_preference_test": side_test(masc_counts),
+            },
+            "fem_choice": {
+                "counts": fem_counts,
+                "proportions": proportions(fem_counts),
+                "side_preference_test": side_test(fem_counts),
+            },
+            "overall_side_preference": {
+                "counts": overall_result,
+                "test": side_test({"left": overall_left, "right": overall_right}),
+            },
+        }
+
+    def split_half_reliability(self) -> Dict[str, object]:
+        data = self._get_numeric_dataframe("trust_rating")
+        full_face = data[data["version"] == "both"]
+        if full_face.empty:
             return {
-                'split_half_correlation': np.nan,
-                'spearman_brown': np.nan,
-                'n_participants': 0,
-                'error': 'No full face data available'
+                "split_half_correlation": np.nan,
+                "spearman_brown": np.nan,
+                "n_participants": 0,
+                "n_faces_per_half": 0,
+                "error": "No full face data available",
             }
-        
-        # Group by participant and face_id to get complete ratings
-        participant_face_ratings = full_data.groupby(['pid', 'face_id'])['trust_rating'].first().reset_index()
-        
-        # Pivot to get participants as rows and faces as columns
-        rating_matrix = participant_face_ratings.pivot(index='pid', columns='face_id', values='trust_rating')
-        
-        # Remove participants with too many missing values
-        min_faces = rating_matrix.shape[1] * 0.5  # At least 50% of faces
-        rating_matrix = rating_matrix.dropna(thresh=min_faces)
-        
-        if rating_matrix.shape[0] < 2:
+
+        pivot = full_face.pivot_table(index="pid", columns="face_id", values="value", aggfunc="mean")
+        pivot = pivot.dropna(how="all", axis=1)
+        if pivot.shape[1] < 2:
             return {
-                'split_half_correlation': np.nan,
-                'spearman_brown': np.nan,
-                'n_participants': 0,
-                'error': 'Insufficient data for split-half reliability'
+                "split_half_correlation": np.nan,
+                "spearman_brown": np.nan,
+                "n_participants": 0,
+                "n_faces_per_half": pivot.shape[1] // 2,
+                "error": "Insufficient data for split-half reliability",
             }
-        
-        # Split faces into two halves
-        n_faces = rating_matrix.shape[1]
-        half_size = n_faces // 2
-        
-        # Randomly split faces
-        np.random.seed(42)  # For reproducibility
-        face_indices = np.random.permutation(n_faces)
-        half1_indices = face_indices[:half_size]
-        half2_indices = face_indices[half_size:]
-        
-        half1_scores = rating_matrix.iloc[:, half1_indices].mean(axis=1)
-        half2_scores = rating_matrix.iloc[:, half2_indices].mean(axis=1)
-        
-        # Calculate correlation
+        min_faces = max(int(pivot.shape[1] * 0.5), 1)
+        pivot = pivot.dropna(thresh=min_faces)
+        if pivot.shape[0] < 2 or pivot.shape[1] < 2:
+            return {
+                "split_half_correlation": np.nan,
+                "spearman_brown": np.nan,
+                "n_participants": 0,
+                "n_faces_per_half": pivot.shape[1] // 2,
+                "error": "Insufficient data for split-half reliability",
+            }
+        np.random.seed(42)
+        face_indices = np.random.permutation(pivot.columns)
+        half_size = len(face_indices) // 2
+        if half_size == 0:
+            return {
+                "split_half_correlation": np.nan,
+                "spearman_brown": np.nan,
+                "n_participants": int(pivot.shape[0]),
+                "n_faces_per_half": half_size,
+                "error": "Insufficient faces for split-half reliability",
+            }
+        half1_cols = face_indices[:half_size]
+        half2_cols = face_indices[half_size:]
+        half1_scores = pivot[half1_cols].mean(axis=1)
+        half2_scores = pivot[half2_cols].mean(axis=1)
         valid_mask = ~(half1_scores.isna() | half2_scores.isna())
         if valid_mask.sum() < 2:
             return {
-                'split_half_correlation': np.nan,
-                'spearman_brown': np.nan,
-                'n_participants': 0,
-                'error': 'Insufficient valid data for correlation'
+                "split_half_correlation": np.nan,
+                "spearman_brown": np.nan,
+                "n_participants": 0,
+                "n_faces_per_half": int(half_size),
+                "error": "Insufficient valid data for correlation",
             }
-        
         try:
             correlation, _ = pearsonr(half1_scores[valid_mask], half2_scores[valid_mask])
-        except:
+        except Exception:
             correlation = 0.0
-        
-        # Spearman-Brown correction
         spearman_brown = (2 * correlation) / (1 + correlation) if correlation != 1 else 1
-        
         return {
-            'split_half_correlation': correlation,
-            'spearman_brown': spearman_brown,
-            'n_participants': valid_mask.sum(),
-            'n_faces_per_half': half_size
+            "split_half_correlation": float(correlation) if np.isfinite(correlation) else np.nan,
+            "spearman_brown": float(spearman_brown) if np.isfinite(spearman_brown) else np.nan,
+            "n_participants": int(valid_mask.sum()),
+            "n_faces_per_half": int(half_size),
         }
-    
-    def get_image_summary(self) -> pd.DataFrame:
-        """
-        Get summary statistics for each image across versions.
-        Shows all 35 faces in the study, even if they don't have data yet.
-        """
-        # Handle empty data case
-        if self.cleaned_data.empty:
-            # Return empty dataframe with all faces and all expected columns
-            all_face_ids = [f'face_{i}' for i in range(1, 36)]  # face_1 through face_35
-            return pd.DataFrame({
-                'face_id': all_face_ids,
-                'mean_trust': [0.0] * 35,  # Use 0.0 instead of np.nan
-                'half_face_avg': [0.0] * 35,  # Use 0.0 instead of np.nan
-                'full_minus_half_diff': [0.0] * 35,  # Use 0.0 instead of np.nan
-                'rating_count': [0] * 35,
-                'unique_participants': [0] * 35,
-                'std_trust': [0.0] * 35  # Use 0.0 instead of np.nan
-            })
-        
-        cleaned_data = self.cleaned_data[self.cleaned_data['include_in_primary']]
-        
-        # Get the actual face_id values from the data
-        actual_face_ids = sorted(cleaned_data['face_id'].unique())
-        # For display purposes, create a mapping to face_1, face_2, etc.
-        face_id_mapping = {face_id: f'face_{i+1}' for i, face_id in enumerate(actual_face_ids)}
-        all_face_ids = list(face_id_mapping.values())
-        
-        # Group by face_id and version for faces that have data
-        image_summary = cleaned_data.groupby(['face_id', 'version']).agg({
-            'trust_rating': ['count', 'mean', 'std'],
-            'pid': 'nunique'
-        }).round(3)
-        
-        # Flatten column names
-        image_summary.columns = ['rating_count', 'mean_trust', 'std_trust', 'unique_participants']
-        image_summary = image_summary.reset_index()
-        
-        # Map actual face_id values to display format
-        image_summary['display_face_id'] = image_summary['face_id'].map(face_id_mapping)
-        
-        # Calculate difference between full face and half-face average
-        full_face_data = image_summary[image_summary['version'] == 'both'].set_index('display_face_id')
-        half_face_data = image_summary[image_summary['version'].isin(['left', 'right'])]
-        
-        if not half_face_data.empty:
-            half_face_avg = (
-                half_face_data.groupby('display_face_id').agg({
-                    'mean_trust': 'mean',
-                    'rating_count': 'sum',
-                    'unique_participants': 'sum'
-                })
-                .rename(columns={'mean_trust': 'half_face_avg',
-                                 'rating_count': 'half_rating_count',
-                                 'unique_participants': 'half_unique_participants'})
-            )
-            
-            # Merge and calculate difference
-            comparison = full_face_data.merge(half_face_avg, left_index=True, right_index=True, how='outer')
-            comparison['full_minus_half_diff'] = comparison['mean_trust'] - comparison['half_face_avg']
-            # Create unified counts for template
-            comparison['rating_count'] = comparison.get('rating_count', 0).fillna(0) + comparison.get('half_rating_count', 0).fillna(0)
-            comparison['unique_participants'] = comparison.get('unique_participants', 0).fillna(0) + comparison.get('half_unique_participants', 0).fillna(0)
-            
-            # Add all faces to the result, even if they don't have data
-            result = comparison.reset_index()
-            # Drop the original face_id column and rename display_face_id to face_id
-            if 'face_id' in result.columns:
-                result = result.drop(columns=['face_id'])
-            result = result.rename(columns={'display_face_id': 'face_id'})
-            
-            # Create a complete dataframe with all faces
-            complete_faces = pd.DataFrame({'face_id': all_face_ids})
-            
-            # Merge with existing data, keeping all faces
-            final_result = complete_faces.merge(result, on='face_id', how='left')
-            
-            # Fill NaN values for faces without data
-            final_result = final_result.fillna({
-                'mean_trust': 0.0,  # Use 0.0 instead of np.nan
-                'half_face_avg': 0.0,  # Use 0.0 instead of np.nan
-                'full_minus_half_diff': 0.0,  # Use 0.0 instead of np.nan
-                'rating_count': 0,
-                'unique_participants': 0,
-                'std_trust': 0.0  # Use 0.0 instead of np.nan
-            })
-            
-            return final_result
-        
-        # If no half-face data, still return all faces
-        if not full_face_data.empty:
-            result = full_face_data.reset_index()
-            # Drop the original face_id column and rename display_face_id to face_id
-            if 'face_id' in result.columns:
-                result = result.drop(columns=['face_id'])
-            result = result.rename(columns={'display_face_id': 'face_id'})
-            complete_faces = pd.DataFrame({'face_id': all_face_ids})
-            final_result = complete_faces.merge(result, on='face_id', how='left')
-            final_result = final_result.fillna({
-                'mean_trust': 0.0,  # Use 0.0 instead of np.nan
-                'rating_count': 0,
-                'unique_participants': 0,
-                'std_trust': 0.0  # Use 0.0 instead of np.nan
-            })
-            return final_result
-        
-        # If no data at all, return empty dataframe with all faces and all expected columns
-        num_faces = len(all_face_ids)
-        return pd.DataFrame({
-            'face_id': all_face_ids,
-            'mean_trust': [0.0] * num_faces,  # Use 0.0 instead of np.nan
-            'half_face_avg': [0.0] * num_faces,  # Use 0.0 instead of np.nan
-            'full_minus_half_diff': [0.0] * num_faces,  # Use 0.0 instead of np.nan
-            'rating_count': [0] * num_faces,
-            'unique_participants': [0] * num_faces,
-            'std_trust': [0.0] * num_faces  # Use 0.0 instead of np.nan
-        })
-    
-    def run_all_analyses(self) -> Dict:
-        """
-        Run all statistical analyses and return comprehensive results.
-        """
-        results = {
-            'descriptive_stats': self.get_descriptive_stats(),
-            'paired_t_test': self.paired_t_test_half_vs_full(),
-            'repeated_measures_anova': self.repeated_measures_anova(),
-            'inter_rater_reliability': self.inter_rater_reliability(),
-            'split_half_reliability': self.split_half_reliability(),
-            'image_summary': self.get_image_summary().to_dict('records'),
-            'exclusion_summary': self.data_cleaner.get_exclusion_summary()
+
+    def inter_rater_reliability(self) -> Dict[str, object]:
+        data = self._get_numeric_dataframe("trust_rating")
+        full_face = data[data["version"] == "both"]
+        if full_face.empty:
+            return {
+                "icc": np.nan,
+                "n_raters": 0,
+                "n_stimuli": 0,
+                "error": "No trust rating data available",
+            }
+        pivot = full_face.pivot_table(index="face_id", columns="pid", values="value", aggfunc="mean")
+        pivot = pivot.dropna(how="all")
+        pivot = pivot.dropna(how="all", axis=1)
+        if pivot.shape[0] < 2 or pivot.shape[1] < 2:
+            return {
+                "icc": np.nan,
+                "n_raters": int(pivot.shape[1]),
+                "n_stimuli": int(pivot.shape[0]),
+                "error": "Insufficient data for ICC calculation",
+            }
+        rating_matrix = pivot.values.astype(float)
+        try:
+            icc = self._calculate_icc(rating_matrix)
+        except Exception as exc:
+            logger.error("Error calculating ICC: %s", exc)
+            icc = np.nan
+        counts_per_stimulus = np.count_nonzero(~np.isnan(rating_matrix), axis=1)
+        return {
+            "icc": float(icc) if np.isfinite(icc) else np.nan,
+            "n_raters": int(pivot.shape[1]),
+            "n_stimuli": int(pivot.shape[0]),
+            "mean_ratings_per_stimulus": float(counts_per_stimulus.mean()) if counts_per_stimulus.size else 0.0,
         }
-        
-        return results
+
+    def _calculate_icc(self, data_matrix: np.ndarray) -> float:
+        data_matrix = data_matrix[~np.all(np.isnan(data_matrix), axis=1)]
+        if data_matrix.shape[0] < 2 or data_matrix.shape[1] < 2:
+            return np.nan
+        grand_mean = np.nanmean(data_matrix)
+        row_means = np.nanmean(data_matrix, axis=1)
+        col_means = np.nanmean(data_matrix, axis=0)
+        n_rows, n_cols = data_matrix.shape
+        ss_total = np.nansum((data_matrix - grand_mean) ** 2)
+        ss_between = n_cols * np.nansum((row_means - grand_mean) ** 2)
+        ss_raters = n_rows * np.nansum((col_means - grand_mean) ** 2)
+        ss_error = ss_total - ss_between - ss_raters
+        ms_between = ss_between / (n_rows - 1) if n_rows > 1 else np.nan
+        ms_error = ss_error / ((n_rows - 1) * (n_cols - 1)) if n_rows > 1 and n_cols > 1 else np.nan
+        if not np.isfinite(ms_between) or not np.isfinite(ms_error) or ms_between + ms_error == 0:
+            return np.nan
+        return (ms_between - ms_error) / (ms_between + (n_cols - 1) * ms_error)
+

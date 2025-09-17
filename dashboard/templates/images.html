@@ -430,7 +430,7 @@
                                <div class="col-md-6">
                                    <h6>Highest Trust Ratings</h6>
                                    <div class="image-row">
-                                       {% set sorted_by_trust = images|sort(attribute='mean_trust', reverse=true) %}
+                                       {% set sorted_by_trust = (images or [])|sort(attribute='mean_trust', reverse=true) %}
                                        {% for image in sorted_by_trust[:5] %}
                                            <div class="d-flex justify-content-between align-items-center mb-2">
                                                <span>{{ image.face_id }}</span>
@@ -442,7 +442,7 @@
                                <div class="col-md-6">
                                    <h6>Lowest Trust Ratings</h6>
                                    <div class="image-row">
-                                       {% set sorted_by_trust = images|sort(attribute='mean_trust') %}
+                                       {% set sorted_by_trust = (images or [])|sort(attribute='mean_trust') %}
                                        {% for image in sorted_by_trust[:5] %}
                                            <div class="d-flex justify-content-between align-items-center mb-2">
                                                <span>{{ image.face_id }}</span>

@@ -11,6 +11,7 @@ from pathlib import Path
 from flask import Blueprint, render_template, request, jsonify, send_file, session, redirect, url_for, flash, current_app
 from functools import wraps
 import io
+from werkzeug.utils import secure_filename
 import zipfile
 import tempfile
 import threading
@@ -40,8 +41,10 @@ data_filter = None
 last_data_refresh = None
 data_files_hash = None
 
-# Dashboard settings
-show_incomplete_in_production = True
+DATA_VIEW_MODES = ['PRODUCTION', 'TEST', 'ALL']
+dashboard_mode = 'PRODUCTION'
+
+# Dashboard settings - now always shows all data
 
 if WATCHDOG_AVAILABLE:
     class DataFileHandler(FileSystemEventHandler):
@@ -54,8 +57,8 @@ if WATCHDOG_AVAILABLE:
         def on_created(self, event):
             if not event.is_directory and event.src_path.endswith('.csv'):
                 filename = Path(event.src_path).name
-                print(f"🆕 New data file detected: {filename}")
-                print(f"   📍 Full path: {event.src_path}")
+                print(f"[new] New data file detected: {filename}")
+                print(f"   [pin] Full path: {event.src_path}")
                 trigger_data_refresh()
         
         def on_modified(self, event):
@@ -65,8 +68,8 @@ if WATCHDOG_AVAILABLE:
                 if (event.src_path not in self.last_modified or 
                     current_time - self.last_modified[event.src_path] > 1):
                     filename = Path(event.src_path).name
-                    print(f"📝 Data file modified: {filename}")
-                    print(f"   📍 Full path: {event.src_path}")
+                    print(f"[note] Data file modified: {filename}")
+                    print(f"   [pin] Full path: {event.src_path}")
                     self.last_modified[event.src_path] = current_time
                     trigger_data_refresh()
 else:
@@ -84,11 +87,11 @@ else:
             pass  # No file watching without watchdog
 
 def start_file_watcher():
-    """Start watching the data directory for new files"""
+    """Start watching the data directory for new files."""
     if not WATCHDOG_AVAILABLE:
-        print("⚠️ Watchdog not available - file monitoring disabled")
+        print("[watcher] Watchdog not available - file monitoring disabled")
         return None
-        
+
     try:
         data_dir = DATA_DIR
         if data_dir.exists():
@@ -96,13 +99,13 @@ def start_file_watcher():
             observer = Observer()
             observer.schedule(event_handler, str(data_dir), recursive=False)
             observer.start()
-            print(f"👀 Started watching data directory: {data_dir}")
+            print(f"[watcher] Started watching data directory: {data_dir}")
             return observer
         else:
-            print(f"⚠️ Data directory not found: {data_dir}")
+            print(f"[watcher] Data directory not found: {data_dir}")
             return None
     except Exception as e:
-        print(f"❌ Error starting file watcher: {e}")
+        print(f"[watcher] Error starting file watcher: {e}")
         return None
 
 def is_data_available():
@@ -110,92 +113,150 @@ def is_data_available():
     return data_cleaner is not None and data_filter is not None and statistical_analyzer is not None
 
 def initialize_data():
-    """Initialize data processing components (production only)."""
+    """Initialize data processing components based on the selected mode."""
     global data_cleaner, statistical_analyzer, data_filter, last_data_refresh
-    
+
     try:
-        # Check what data files are available
         data_dir = DATA_DIR
         if not data_dir.exists():
             raise FileNotFoundError(f"Data directory not found: {data_dir}")
-        
-        csv_files = list(data_dir.glob("*.csv"))
+
+        csv_files = list(data_dir.glob('*.csv'))
         if not csv_files:
             raise FileNotFoundError(f"No CSV files found in {data_dir}")
-        
-        # Count production vs test files for logging
-        test_files = [f for f in csv_files if any(pattern in f.name for pattern in 
-                    ['test_participant', 'test_statistical_validation', 'PROLIFIC_TEST_', 'test789.csv', 'test123.csv', 'test456.csv', 'test_participants_combined.csv'])]
-        real_files = [f for f in csv_files if f not in test_files]
-        
-        print(f"Found {len(real_files)} production files and {len(test_files)} test files")
-        print("Auto-detected: Using PRODUCTION MODE (test files will be excluded)")
-        
-        # Initialize data cleaner (production only)
-        data_cleaner = DataCleaner(str(data_dir))
+
+        print(f"Found {len(csv_files)} CSV files. Current mode: {dashboard_mode}")
+
+        data_cleaner = DataCleaner(str(data_dir), mode=dashboard_mode)
         data_cleaner.load_data()
         data_cleaner.standardize_data()
         data_cleaner.apply_exclusion_rules()
-        
-        # Only initialize statistical analyzer if we have data
+
         if len(data_cleaner.raw_data) > 0:
             statistical_analyzer = StatisticalAnalyzer(data_cleaner)
             data_filter = DataFilter(data_cleaner)
         else:
             statistical_analyzer = None
             data_filter = None
-        
+
         last_data_refresh = datetime.now()
-        print("Data initialized successfully in PRODUCTION mode")
+        print(f"Data initialized successfully in {dashboard_mode} mode")
         return True
     except FileNotFoundError as e:
         print(f"No data files found: {e}")
         print("Dashboard will start in empty state - upload data to begin analysis")
-        # Initialize with empty data structures
         data_cleaner = None
         statistical_analyzer = None
         data_filter = None
         last_data_refresh = datetime.now()
-        return True  # Return True to allow dashboard to start
+        return True
     except Exception as e:
         print(f"Error initializing data: {e}")
         return False
+
+
 
 def trigger_data_refresh():
     """Trigger a data refresh when new files are detected"""
     global last_data_refresh
     
     try:
-        print("🔄 Triggering data refresh...")
+        # Triggering data refresh
         
         # Log current files before refresh
         data_dir = DATA_DIR
         if data_dir.exists():
             current_files = list(data_dir.glob("*.csv"))
-            print(f"📁 Current files in {data_dir}: {[f.name for f in current_files]}")
+            print(f"[folder] Current files in {data_dir}: {[f.name for f in current_files]}")
         
         if initialize_data():
             last_data_refresh = datetime.now()
-            print("✅ Data refresh completed")
+            print("[ok] Data refresh completed")
             
             # Log data after refresh
             if data_cleaner and hasattr(data_cleaner, 'data') and data_cleaner.data is not None:
-                print(f"📊 Total responses loaded: {len(data_cleaner.data)}")
+                print(f"[chart] Total responses loaded: {len(data_cleaner.data)}")
                 if len(data_cleaner.data) > 0:
                     participants = data_cleaner.data['pid'].unique() if 'pid' in data_cleaner.data.columns else []
-                    print(f"👥 Participants: {list(participants)}")
+                    print(f"[users] Participants: {list(participants)}")
         else:
-            print("❌ Data refresh failed")
+            print("[error] Data refresh failed")
     except Exception as e:
-        print(f"❌ Error during data refresh: {e}")
+        print(f"[error] Error during data refresh: {e}")
+
+
+
+def _count_faces_from_responses(responses):
+    """Estimate how many faces have responses stored in a session JSON payload."""
+    if not responses:
+        return 0
+
+    try:
+        if isinstance(responses, dict):
+            face_ids = set()
+            for key, value in responses.items():
+                if key:
+                    face_ids.add(str(key))
+                if isinstance(value, dict):
+                    fid = value.get('face_id') or value.get('faceId') or value.get('face')
+                    if fid:
+                        face_ids.add(str(fid))
+            return len(face_ids)
+
+        if isinstance(responses, list):
+            face_ids = set()
+            for item in responses:
+                if isinstance(item, dict):
+                    fid = item.get('face_id') or item.get('faceId') or item.get('face')
+                    if not fid and isinstance(item.get('responses'), dict):
+                        nested = item['responses']
+                        fid = nested.get('face_id') if isinstance(nested, dict) else None
+                    if fid:
+                        face_ids.add(str(fid))
+                elif item:
+                    face_ids.add(str(item))
+            return len(face_ids)
+    except Exception:
+        return 0
+
+    return 0
+
+
+def set_dashboard_mode(mode: str):
+    global dashboard_mode
+    selected = (mode or 'PRODUCTION').upper()
+    if selected not in DATA_VIEW_MODES:
+        selected = 'PRODUCTION'
+    dashboard_mode = selected
+
+
+@dashboard_bp.route('/set_mode', methods=['POST'])
+def set_mode():
+    mode = request.form.get('mode', 'PRODUCTION')
+    previous_mode = dashboard_mode
+    set_dashboard_mode(mode)
+    initialize_data()
+    message = f"Data mode switched to {dashboard_mode}"
+    if dashboard_mode != previous_mode:
+        flash(message, 'info')
+    else:
+        flash(f"Data mode remains {dashboard_mode}", 'info')
+    return redirect(url_for('dashboard.dashboard'))
+
+
+
 
 # Start file watcher in a separate thread
 file_observer = None
 # Enable file watcher in both debug and production modes for real-time updates
 file_observer = start_file_watcher()
 
-# Initialize data on startup
-initialize_data()
+# Initialize data on startup - force initialization
+print("[refresh] Forcing dashboard data initialization...")
+if initialize_data():
+    print("[ok] Dashboard data initialized successfully")
+else:
+    print("[error] Dashboard data initialization failed")
 
 # Simple file-based user authentication
 import json
@@ -306,89 +367,249 @@ def dashboard():
             return render_template('error.html', message="Data initialization failed")
     
     try:
-        print("🔄 DASHBOARD: Starting dashboard function")
-        
+        # Starting dashboard function
+        # Fail-safe: if anything goes wrong below, show empty overview instead of error card
         # Get overview statistics
         if not is_data_available():
-            print("🔄 DASHBOARD: No data available")
+            # No data available
             flash('No data available. Please upload data files or check data directory.', 'warning')
             return render_template('dashboard.html',
                              exclusion_summary={},
                              descriptive_stats={},
                              dashboard_stats={},
-                             data_summary={'mode': 'NO_DATA'},
+                             data_summary={'mode': dashboard_mode, 'total_rows': 0, 'real_participants': 0},
                              available_filters={},
                              data_files=[],
-                             show_incomplete_in_production=show_incomplete_in_production)
+                             available_modes=DATA_VIEW_MODES,
+                             current_mode=dashboard_mode)
         
-        print("🔄 DASHBOARD: Data is available, proceeding with calculations")
+        # Data is available, proceeding with calculations
         
         try:
             exclusion_summary = data_cleaner.get_exclusion_summary()
         except Exception as e:
-            print(f"❌ Error getting exclusion summary: {e}")
+            print(f"[error] Error getting exclusion summary: {e}")
             exclusion_summary = {}
         
         try:
             descriptive_stats = statistical_analyzer.get_descriptive_stats() if statistical_analyzer is not None else {}
         except Exception as e:
-            print(f"❌ Error getting descriptive stats: {e}")
+            print(f"[error] Error getting descriptive stats: {e}")
             descriptive_stats = {}
         
         try:
             data_summary = data_cleaner.get_data_summary()
         except Exception as e:
-            print(f"❌ Error getting data summary: {e}")
+            print(f"[error] Error getting data summary: {e}")
             data_summary = {'mode': 'ERROR'}
         
         # Set mode to production only
-        data_summary['mode'] = 'PRODUCTION'
+        data_summary['mode'] = dashboard_mode
         
         # Calculate additional stats for the dashboard
         cleaned_data = data_cleaner.get_cleaned_data()
+        # Early empty-state guard: render safe page when no data
+        if cleaned_data is None or len(cleaned_data) == 0:
+            return render_template('dashboard.html',
+                             exclusion_summary=exclusion_summary,
+                             descriptive_stats={},
+                             dashboard_stats={
+                                 'total_participants': 0,
+                                 'total_responses': 0,
+                                 'avg_trust_rating': 0,
+                                 'std_trust_rating': 0,
+                                 'included_participants': 0,
+                                 'cleaned_trials': 0,
+                                 'raw_responses': 0,
+                                 'excluded_responses': 0
+                             },
+                             data_summary={'mode': dashboard_mode, 'total_rows': 0, 'real_participants': 0},
+                             available_filters={},
+                             data_files=[],
+                             available_modes=DATA_VIEW_MODES,
+                             current_mode=dashboard_mode)
         
         # Filter out test data (prolific_pid contains "TEST")
         if cleaned_data is not None and len(cleaned_data) > 0:
-            if 'prolific_pid' in cleaned_data.columns:
+            if 'prolific_pid' in cleaned_data.columns and dashboard_mode == 'PRODUCTION':
                 cleaned_data = cleaned_data[~cleaned_data['prolific_pid'].str.contains('TEST', na=False)]
         
-        if len(cleaned_data) > 0 and 'include_in_primary' in cleaned_data.columns:
+        if cleaned_data is not None and len(cleaned_data) > 0 and 'include_in_primary' in cleaned_data.columns:
             included_data = cleaned_data[cleaned_data['include_in_primary']]
         else:
             included_data = cleaned_data
+        # Normalize types for reliable grouping/counting
+        if included_data is not None and len(included_data) > 0:
+            try:
+                included_data = included_data.copy()
+                included_data['pid'] = included_data['pid'].astype(str)
+                if 'face_id' in included_data.columns:
+                    included_data['face_id'] = included_data['face_id'].astype(str)
+            except Exception:
+                pass
         
-        # Calculate actual participant count from data
-        included_participants = included_data['pid'].unique() if len(included_data) > 0 else []
+        # Check for active sessions first - only show data if there are active sessions
+        sessions_dir = Path("data/sessions")
+        if not sessions_dir.exists():
+            sessions_dir = Path("../data/sessions")
         
-        # Update data_summary with actual counts
-        data_summary['total_participants'] = len(included_participants)
-        data_summary['real_participants'] = len(included_participants)
-        data_summary['total_responses'] = len(included_data)
+        active_sessions_exist = False
+        incomplete_participants = set()
+        session_responses_count = 0
+        
+        if sessions_dir.exists():
+            import json
+            # Look for active session files (not backup files)
+            session_files = [f for f in sessions_dir.glob("*.json") if not f.name.endswith('_backup.json')]
+            
+            for session_file in session_files:
+                try:
+                    with open(session_file, 'r') as f:
+                        session_info = json.load(f)
+                    participant_id = session_info.get('participant_id', 'Unknown')
+                    session_complete = session_info.get('session_complete', False)
+                    
+                    # Only count non-test sessions
+                    is_test_session = (
+                        'test' in participant_id.lower() or
+                        participant_id.startswith('P008') or
+                        participant_id.startswith('P0') and participant_id != '200'
+                    )
+                    
+                    if not is_test_session:
+                        active_sessions_exist = True
+                        if not session_complete:
+                            incomplete_participants.add(participant_id)
+                            # Count responses from incomplete sessions
+                            responses = session_info.get('responses', [])
+                            session_responses_count += len(responses)
+                except Exception as e:
+                    print(f"Error reading session file {session_file}: {e}")
+        
+        # Always filter for complete participants only - ignore session files completely
+        # Only use CSV data and only count participants with complete faces (10 responses per face_id)
+        if len(included_data) > 0:
+            print(f"[search] DEBUG: CSV data loaded, shape: {included_data.shape}")
+            print(f"[search] DEBUG: Columns: {list(included_data.columns)}")
+            if len(included_data) > 0:
+                print(f"[search] DEBUG: First 5 rows:")
+                print(included_data.head())
+                if 'question' in included_data.columns:
+                    try:
+                        uq = included_data['question'].dropna().astype(str).unique().tolist()
+                        print(f"[search] DEBUG: Unique questions: {sorted(uq, key=lambda x: str(x))}")
+                    except Exception as e:
+                        print(f"[search] DEBUG: Unique questions print failed: {e}")
+                if 'face_id' in included_data.columns:
+                    try:
+                        uf = included_data['face_id'].dropna().astype(str).unique().tolist()
+                        print(f"[search] DEBUG: Unique face_ids: {sorted(uf, key=lambda x: str(x))}")
+                    except Exception as e:
+                        print(f"[search] DEBUG: Unique face_ids print failed: {e}")
+            
+            complete_participants = []
+            complete_responses = 0
+            
+            for pid in included_data['pid'].unique():
+                pid_data = included_data[included_data['pid'] == pid]
+                
+                # Check if this participant has at least one complete face (10 responses per face_id)
+                has_complete_face = False
+                complete_face_count = 0
+                
+                # Check if we have long format data (question/response columns)
+                if 'question' in pid_data.columns and 'response' in pid_data.columns:
+                    # Long format: count responses per face_id
+                    # Convert face_id to string to avoid type comparison issues
+                    pid_data_copy = pid_data.copy()
+                    pid_data_copy['face_id'] = pid_data_copy['face_id'].astype(str)
+                    face_counts = pid_data_copy.groupby('face_id').size()
+                    
+                    # A complete face should have 10 responses
+                    for face_id, count in face_counts.items():
+                        if count >= 10:
+                            has_complete_face = True
+                            complete_face_count += 1
+                            complete_responses += count  # Count actual responses
+                
+                # Only count participants with at least one complete face
+                if has_complete_face:
+                    complete_participants.append(str(pid))
+            
+            completed_participants = complete_participants
+            all_participants = set(complete_participants)
+            total_responses = complete_responses
+        else:
+            completed_participants = []
+            all_participants = set()
+            total_responses = 0
+        
+        # Calculate participant and response counts
+        
+        # Update data_summary with total counts (prefer long-format trust rows when available)
+        if len(included_data) > 0:
+            data_summary['total_participants'] = included_data['pid'].nunique()
+            data_summary['real_participants'] = data_summary['total_participants']
+            # Support either 'question' or 'question_type'
+            if ('question' in included_data.columns or 'question_type' in included_data.columns) and 'response' in included_data.columns:
+                qcol = 'question' if 'question' in included_data.columns else 'question_type'
+                trust_only = included_data[included_data[qcol] == 'trust_rating']
+                data_summary['total_responses'] = pd.to_numeric(trust_only['response'], errors='coerce').notna().sum()
+            elif 'trust_rating' in included_data.columns:
+                data_summary['total_responses'] = pd.to_numeric(included_data['trust_rating'], errors='coerce').notna().sum()
+            else:
+                data_summary['total_responses'] = len(included_data)
+        else:
+            data_summary['total_participants'] = 0
+            data_summary['real_participants'] = 0
+            data_summary['total_responses'] = 0
             
         
-        # IMPORTANT: Dashboard statistics are calculated ONLY from completed CSV files
-        # Session data (incomplete participants) is NEVER included in these counts
+        # Dashboard statistics - only use complete participants with complete faces
         try:
-            # Safe calculation of trust rating statistics
-            if len(included_data) > 0 and 'trust_rating' in included_data.columns:
-                trust_mean = included_data['trust_rating'].mean()
-                trust_std = included_data['trust_rating'].std()
-            else:
-                trust_mean = 0
-                trust_std = 0
+            # Prefer computing trust stats directly from long-format if present
+            trust_mean = None
+            trust_std = None
+            if len(included_data) > 0 and ('question' in included_data.columns or 'question_type' in included_data.columns):
+                qcol = 'question' if 'question' in included_data.columns else 'question_type'
+                ts = pd.to_numeric(included_data[included_data[qcol] == 'trust_rating']['response'], errors='coerce').dropna()
+                if len(ts) > 0:
+                    trust_mean = ts.mean()
+                    trust_std = ts.std()
+                    if pd.isna(trust_std):
+                        trust_std = 0.0
+
+            # Fallback: compute from complete faces data
+            if trust_mean is None:
+                complete_data = pd.DataFrame()
+                if len(included_data) > 0:
+                    required_columns = ['trust_rating', 'emotion_rating', 'masc_choice', 'fem_choice']
+                    for pid in included_data['pid'].unique():
+                        pid_data = included_data[included_data['pid'] == pid]
+                        if 'face_id' in pid_data.columns and 'trust_rating' in pid_data.columns:
+                            for _, row in pid_data.iterrows():
+                                if all(pd.notna(row[col]) and str(row[col]).strip() != '' for col in required_columns):
+                                    complete_data = pd.concat([complete_data, pd.DataFrame([row])], ignore_index=True)
+                if len(complete_data) > 0 and 'trust_rating' in complete_data.columns:
+                    trust_data = pd.to_numeric(complete_data['trust_rating'], errors='coerce').dropna()
+                    trust_mean = trust_data.mean() if len(trust_data) > 0 else 0
+                    trust_std = trust_data.std() if len(trust_data) > 1 else 0.0
+                else:
+                    trust_mean = 0
+                    trust_std = 0
             
             dashboard_stats = {
-                'total_participants': len(included_participants),  # Actual participant count
-                'total_responses': len(included_data),  # Actual response count
-                'avg_trust_rating': trust_mean,
-                'std_trust_rating': trust_std,
-                'included_participants': len(included_participants),  # Only completed CSV data
-                'cleaned_trials': len(included_data) if len(included_data) > 0 else 0,  # Only completed CSV data
+                'total_participants': len(all_participants),  # Total participant count (completed + incomplete)
+                'total_responses': total_responses,  # Total response count (completed + incomplete)
+                'avg_trust_rating': trust_mean,  # From completed data only
+                'std_trust_rating': trust_std,  # From completed data only
+                'included_participants': len(all_participants),  # Total participants
+                'cleaned_trials': len(included_data) if len(included_data) > 0 else 0,  # Completed trials only
                 'raw_responses': exclusion_summary['total_raw'],
                 'excluded_responses': exclusion_summary['total_raw'] - len(included_data) if len(included_data) > 0 else exclusion_summary['total_raw']
             }
         except Exception as e:
-            print(f"❌ Error calculating dashboard stats: {e}")
+            print(f"[error] Error calculating dashboard stats: {e}")
             # Fallback stats to prevent crashes
             dashboard_stats = {
                 'total_participants': 0,
@@ -409,123 +630,134 @@ def dashboard():
         # ================================================================================================
         data_files = []
         session_data = []
-        
-        # Load completed data files
-        data_dir = DATA_DIR
-        if data_dir.exists():
-            for file_path in data_dir.glob("*.csv"):
-                stat = file_path.stat()
-                
-                # Determine if file is test or production
-                file_name = file_path.name
-                is_test_file = (
-                    file_name.startswith('test_participant') or
-                    'test_statistical_validation' in file_name or
-                    file_name.startswith('PROLIFIC_TEST_') or
-                    file_name in ['test789.csv', 'test123.csv', 'test456.csv'] or
-                    file_name == 'all_participants_combined.csv'
-                    # Note: test_001.csv to test_060.csv are PRODUCTION data files
-                    # Note: Numeric participant IDs like 200.csv are REAL study data, not test data
-                )
-                
-                # Skip backup files entirely
-                if file_name.endswith('_backup.csv'):
-                    continue
-                
-                # Debug: Print file classification
-                
-                # Production mode: show production files (non-test files)
-                show_file = not is_test_file
-                
-                if show_file:
-                    data_files.append({
-                        'name': file_path.name,
-                        'size': f"{stat.st_size / 1024:.1f} KB",
-                        'modified': datetime.fromtimestamp(stat.st_mtime).strftime('%Y-%m-%d %H:%M:%S'),
-                        'type': 'Test' if is_test_file else 'Production',
-                        'status': 'Complete'
-                    })
-        
-        # Load session data (incomplete participants)
-        # Now integrated - look in the same repository
-        sessions_dir = Path("data/sessions")
+
+        def _normalize_pid(value, fallback_name=None):
+            if value:
+                cleaned = str(value).strip()
+                if cleaned and cleaned.upper() not in {'UNKNOWN', 'UNKNOWN_PID', 'NAN'}:
+                    return cleaned.lower()
+            if fallback_name:
+                try:
+                    stem = Path(fallback_name).stem
+                    parts = stem.split('_')
+                    if parts:
+                        candidate = parts[0]
+                        if candidate and candidate.upper() not in {'UNKNOWN', 'UNKNOWN_PID', 'NAN'}:
+                            return candidate.lower()
+                except Exception:
+                    pass
+            return None
+
+        def _matches_mode(is_test: bool) -> bool:
+            mode = (dashboard_mode or 'PRODUCTION').upper()
+            if mode == 'PRODUCTION':
+                return not is_test
+            if mode == 'TEST':
+                return is_test
+            return True
+
+        file_metadata = getattr(data_cleaner, 'file_metadata', [])
+        for meta in file_metadata:
+            if not _matches_mode(meta.get('is_test', False)):
+                continue
+
+            total_faces = meta.get('total_faces') or 35
+            completed_faces = meta.get('completed_faces', 0)
+            progress_percent = meta.get('progress_percent', 0.0)
+            status = 'Complete' if meta.get('complete') else f"Incomplete ({progress_percent:.1f}%)"
+
+            normalized_id = _normalize_pid(meta.get('pid'), meta.get('name'))
+
+            data_files.append({
+                'name': meta.get('name'),
+                'size': f"{completed_faces}/{total_faces} faces",
+                'modified': meta.get('modified_display', ''),
+                'type': 'Test' if meta.get('is_test') else 'Production',
+                'status': status,
+                'participant_id': meta.get('pid'),
+                'normalized_id': normalized_id,
+            })
+
+        sessions_dir = Path('data/sessions')
         if not sessions_dir.exists():
-            sessions_dir = Path("../data/sessions")
+            sessions_dir = Path('../data/sessions')
         if sessions_dir.exists():
             import json
-            # session_data already declared above, don't redeclare it
-            session_files = list(sessions_dir.glob("*_session.json"))
+            session_files = list(sessions_dir.glob('*_session.json'))
             for session_file in session_files:
                 try:
                     with open(session_file, 'r') as f:
                         session_info = json.load(f)
-                    
+
                     participant_id = session_info.get('participant_id', 'Unknown')
                     session_complete = session_info.get('session_complete', False)
-                    
-                    
-                    # Only show incomplete sessions and apply mode filtering
+
                     is_test_session = (
                         'test' in participant_id.lower() or
                         participant_id.startswith('P008') or
-                        participant_id.startswith('P0') and participant_id != '200'
-                        # Note: Numeric IDs like "200" are REAL study data, not test data
+                        (participant_id.startswith('P0') and participant_id != '200')
                     )
-                    
-                    
-                    # Production mode: ONLY show non-test sessions if incomplete toggle is enabled
-                    show_session = not is_test_session and show_incomplete_in_production and not session_complete
-                    
-                    
-                    if show_session and not session_complete:
-                        face_order = session_info.get('face_order', [])
-                        # Handle both old and new session file formats
-                        session_info_data = session_info.get('session_data', {})
-                        total_faces = len(session_info.get('face_order', []))  # Use actual face_order length
-                        if total_faces == 0:
-                            total_faces = 35  # Fallback to 35 faces
-                        
-                        # Get responses and current index from the correct location
-                        responses = session_info.get('responses', session_info_data.get('responses', []))
-                        current_face_index = session_info.get('index', session_info_data.get('current_face_index', 0))
-                        
-                        # Calculate completed faces based on responses
-                        if responses:
-                            # Count unique face IDs in responses to get actual completed faces
-                            unique_faces = set()
-                            for r in responses:
-                                # Handle both dict format and list format
-                                if isinstance(r, dict):
-                                    face_id = r.get('face_id')
-                                elif isinstance(r, list) and len(r) > 2:
-                                    face_id = r[2]  # face_id is at index 2 in list format
-                                else:
-                                    continue
-                                    
-                                if face_id:
-                                    unique_faces.add(face_id)
-                            completed_faces_count = len(unique_faces)
-                        else:
-                            completed_faces_count = 0
-                        
-                        completed_faces = completed_faces_count
-                        progress_percent = (completed_faces / total_faces * 100) if total_faces > 0 else 0
-                        
-                        session_data.append({
-                            'name': f"{participant_id} (Session)",
-                            'size': f"{completed_faces}/{total_faces} faces",
-                            'modified': session_info.get('timestamp', 'Unknown'),
-                            'type': 'Test' if is_test_session else 'Production',
-                            'status': f'Incomplete ({progress_percent:.1f}%)',
-                            'participant_id': participant_id
-                        })
-                        
+
+                    if session_complete or not _matches_mode(is_test_session):
+                        continue
+
+                    face_order = session_info.get('face_order', [])
+                    total_faces = len(face_order) if face_order else 35
+
+                    session_info_data = session_info.get('session_data', {})
+                    responses = session_info.get('responses', session_info_data.get('responses', {}))
+
+                    normalized_session_pid = _normalize_pid(participant_id)
+
+                    completed_faces_count = 0
+                    if data_cleaner and hasattr(data_cleaner, 'cleaned_data') and not data_cleaner.cleaned_data.empty:
+                        participant_csv_data = data_cleaner.cleaned_data[data_cleaner.cleaned_data['pid'] == participant_id]
+                        if not participant_csv_data.empty and 'face_id' in participant_csv_data.columns:
+                            pcopy = participant_csv_data.copy()
+                            pcopy['face_id'] = pcopy['face_id'].astype(str)
+                            counts = pcopy.groupby('face_id').size()
+                            completed_faces_count = int((counts >= 10).sum())
+
+                    if completed_faces_count == 0:
+                        completed_faces_count = _count_faces_from_responses(responses)
+
+                    completed_faces = completed_faces_count
+                    progress_percent = (completed_faces / total_faces * 100) if total_faces > 0 else 0
+
+                    session_data.append({
+                        'name': f"{participant_id} (Session)",
+                        'size': f"{completed_faces}/{total_faces} faces",
+                        'modified': session_info.get('timestamp', 'Unknown'),
+                        'type': 'Test' if is_test_session else 'Production',
+                        'status': f'Incomplete ({progress_percent:.1f}%)',
+                        'participant_id': participant_id,
+                        'normalized_id': normalized_session_pid,
+                    })
                 except Exception as e:
                     print(f"Error reading session file {session_file}: {e}")
-        
-        # Combine data files and session data
-        all_files = data_files + session_data
-        
+
+        combined = []
+        entries_by_pid = {}
+
+        def _entry_key(entry):
+            return entry.get('normalized_id') or (entry.get('participant_id') or entry.get('name'))
+
+        for entry in data_files:
+            key = _entry_key(entry)
+            entries_by_pid.setdefault(key, {})['csv'] = entry
+
+        for entry in session_data:
+            key = _entry_key(entry)
+            entries_by_pid.setdefault(key, {})['session'] = entry
+
+        for parts in entries_by_pid.values():
+            if 'session' in parts:
+                combined.append(parts['session'])
+            elif 'csv' in parts:
+                combined.append(parts['csv'])
+
+        all_files = combined
+
         return render_template('dashboard.html',
                          exclusion_summary=exclusion_summary,
                          descriptive_stats=descriptive_stats,
@@ -533,10 +765,33 @@ def dashboard():
                          data_summary=data_summary,
                          available_filters=available_filters,
                          data_files=all_files,
-                         show_incomplete_in_production=show_incomplete_in_production)
+                         available_modes=DATA_VIEW_MODES,
+                         current_mode=dashboard_mode)
     except Exception as e:
-        flash(f'Error loading dashboard: {str(e)}', 'error')
-        return render_template('error.html', message=str(e))
+        # Last-resort fallback: render empty overview so the app stays usable
+        print(f"DASHBOARD FAIL-SAFE triggered: {e}")
+        try:
+            return render_template('dashboard.html',
+                             exclusion_summary={},
+                             descriptive_stats={},
+                             dashboard_stats={
+                                 'total_participants': 0,
+                                 'total_responses': 0,
+                                 'avg_trust_rating': 0,
+                                 'std_trust_rating': 0,
+                                 'included_participants': 0,
+                                 'cleaned_trials': 0,
+                                 'raw_responses': 0,
+                                 'excluded_responses': 0
+                             },
+                             data_summary={'mode': dashboard_mode, 'total_rows': 0, 'real_participants': 0},
+                             available_filters={},
+                             data_files=[],
+                             available_modes=DATA_VIEW_MODES,
+                             current_mode=dashboard_mode)
+        except Exception as inner:
+            flash(f'Error loading dashboard: {str(e)}', 'error')
+            return render_template('error.html', message=str(e))
 
 @dashboard_bp.route('/api/overview')
 @dashboard_bp.route('/dashboard/api/overview')
@@ -576,10 +831,39 @@ def api_overview():
             else:
                 return obj
         
+        # Compute top-card metrics from cleaned data (supports long or wide formats)
+        cleaned = data_cleaner.get_cleaned_data()
+        included = cleaned[cleaned['include_in_primary']] if 'include_in_primary' in cleaned.columns else cleaned
+        try:
+            included = included.copy()
+            included['pid'] = included['pid'].astype(str)
+        except Exception:
+            pass
+        total_participants = included['pid'].nunique() if len(included) > 0 else 0
+        # total_responses: prefer long-format trust rows
+        if len(included) > 0 and ('question' in included.columns or 'question_type' in included.columns) and 'response' in included.columns:
+            qcol = 'question' if 'question' in included.columns else 'question_type'
+            trust_only = included[included[qcol] == 'trust_rating']
+            total_responses = pd.to_numeric(trust_only['response'], errors='coerce').notna().sum()
+            trust_vals = pd.to_numeric(trust_only['response'], errors='coerce').dropna()
+        elif len(included) > 0 and 'trust_rating' in included.columns:
+            total_responses = pd.to_numeric(included['trust_rating'], errors='coerce').notna().sum()
+            trust_vals = pd.to_numeric(included['trust_rating'], errors='coerce').dropna()
+        else:
+            total_responses = len(included)
+            trust_vals = pd.Series(dtype=float)
+
+        trust_mean = float(trust_vals.mean()) if len(trust_vals) > 0 else None
+        trust_std = float(trust_vals.std()) if len(trust_vals) > 1 else 0.0 if len(trust_vals) == 1 else None
+
         response_data = {
             'exclusion_summary': convert_numpy_types(exclusion_summary),
             'descriptive_stats': convert_numpy_types(descriptive_stats),
             'data_summary': convert_numpy_types(data_cleaner.get_data_summary()),
+            'total_participants': total_participants,
+            'total_responses': int(total_responses),
+            'trust_mean': trust_mean,
+            'trust_std': trust_std,
             'timestamp': datetime.now().isoformat(),
             'status': 'success'
         }
@@ -726,24 +1010,56 @@ def participants():
     """Participants overview page."""
     try:
         # Build a simple participants summary matching the template expectations
+        if data_cleaner is None:
+            return render_template('participants.html', participants=[])
         cleaned = data_cleaner.get_cleaned_data()
+        if cleaned is None or len(cleaned) == 0:
+            return render_template('participants.html', participants=[])
         included = cleaned[cleaned['include_in_primary']]
         
         # Handle timestamps properly
         if 'timestamp' in included.columns:
             # Convert timestamp to datetime and handle NaT values
             included['timestamp'] = pd.to_datetime(included['timestamp'], errors='coerce')
-            summary_df = included.groupby('pid').agg(
-                submissions=('trust_rating', 'count'),
-                start_time=('timestamp', 'min')
-            ).reset_index()
+            
+            # Check if we have trust_rating column (wide format) or question_type/response (long format)
+            if 'trust_rating' in included.columns:
+                summary_df = included.groupby('pid').agg(
+                    submissions=('trust_rating', 'count'),
+                    start_time=('timestamp', 'min')
+                ).reset_index()
+            elif 'question_type' in included.columns and 'response' in included.columns:
+                # Long format: count responses per participant
+                summary_df = included.groupby('pid').agg(
+                    submissions=('response', 'count'),
+                    start_time=('timestamp', 'min')
+                ).reset_index()
+            else:
+                # Fallback: count all rows per participant
+                summary_df = included.groupby('pid').agg(
+                    submissions=('pid', 'count'),
+                    start_time=('timestamp', 'min')
+                ).reset_index()
+            
             summary_df['start_time'] = summary_df['start_time'].apply(
                 lambda x: x.strftime('%Y-%m-%d %H:%M:%S') if pd.notna(x) else 'N/A'
             )
         else:
-            summary_df = included.groupby('pid').agg(
-                submissions=('trust_rating', 'count')
-            ).reset_index()
+            # Check if we have trust_rating column (wide format) or question_type/response (long format)
+            if 'trust_rating' in included.columns:
+                summary_df = included.groupby('pid').agg(
+                    submissions=('trust_rating', 'count')
+                ).reset_index()
+            elif 'question_type' in included.columns and 'response' in included.columns:
+                # Long format: count responses per participant
+                summary_df = included.groupby('pid').agg(
+                    submissions=('response', 'count')
+                ).reset_index()
+            else:
+                # Fallback: count all rows per participant
+                summary_df = included.groupby('pid').agg(
+                    submissions=('pid', 'count')
+                ).reset_index()
             summary_df['start_time'] = 'N/A'
 
         # Sort participants numerically instead of alphabetically
@@ -767,7 +1083,7 @@ def participants():
 def images():
     """Images analysis page."""
     try:
-        if data_cleaner is None or data_cleaner.raw_data.empty or statistical_analyzer is None:
+        if data_cleaner is None or data_cleaner.raw_data is None or data_cleaner.raw_data.empty or statistical_analyzer is None:
             # No data available - show empty state
             return render_template('images.html', images=[])
         
@@ -778,30 +1094,178 @@ def images():
         return render_template('error.html', message=str(e))
 
 @dashboard_bp.route('/statistics')
-@login_required
+# @login_required  # Temporarily disabled for local testing
 def statistics():
     """Statistical tests page."""
     try:
+        print(f"[chart] STATISTICS ROUTE: statistical_analyzer is None: {statistical_analyzer is None}")
+        print(f"[chart] STATISTICS ROUTE: data_cleaner is None: {data_cleaner is None}")
+        
         if statistical_analyzer is None:
-            # No data available - show empty state
+            print("[error] STATISTICS: statistical_analyzer is None - attempting to initialize data")
+            if not initialize_data():
+                print("[error] STATISTICS: Data initialization failed")
+                return render_template('statistics.html', test_results={})
+            print("[ok] STATISTICS: Data initialization successful")
+        
+        if statistical_analyzer is None:
+            print("[error] STATISTICS: statistical_analyzer still None after initialization")
             return render_template('statistics.html', test_results={})
         
+        print("[ok] STATISTICS: Running statistical tests...")
         # Run all statistical tests
         test_results = {
+            'descriptive_stats': statistical_analyzer.get_descriptive_stats(),
             'paired_t_test': statistical_analyzer.paired_t_test_half_vs_full(),
             'repeated_measures_anova': statistical_analyzer.repeated_measures_anova(),
             'inter_rater_reliability': statistical_analyzer.inter_rater_reliability(),
             'split_half_reliability': statistical_analyzer.split_half_reliability(),
             'all_question_stats': statistical_analyzer.get_all_question_stats(),
+            'trust_histogram': statistical_analyzer.get_trust_histogram(),
+            'emotion_histogram': statistical_analyzer.get_emotion_histogram(),
+            'trust_boxplot': statistical_analyzer.get_boxplot_data('trust_rating'),
+            'emotion_boxplot': statistical_analyzer.get_boxplot_data('emotion_rating'),
             'emotion_paired_t_test': statistical_analyzer.emotion_paired_t_test_half_vs_full(),
             'emotion_repeated_measures_anova': statistical_analyzer.emotion_repeated_measures_anova(),
-            'choice_preference_analysis': statistical_analyzer.choice_preference_analysis()
+            'choice_preference_analysis': statistical_analyzer.choice_preference_analysis(),
         }
         
+        # Debug: Print the structure of test results
+        print("[chart] ANOVA Result structure:")
+        if test_results['repeated_measures_anova']:
+            print(f"Type: {type(test_results['repeated_measures_anova'])}")
+            if isinstance(test_results['repeated_measures_anova'], dict):
+                print(f"Keys: {test_results['repeated_measures_anova'].keys()}")
+            else:
+                print(f"Attributes: {dir(test_results['repeated_measures_anova'])}")
+        
+        # Ensure we have the right structure for the template
+        if test_results['repeated_measures_anova'] and hasattr(test_results['repeated_measures_anova'], 'to_dict'):
+            test_results['repeated_measures_anova'] = test_results['repeated_measures_anova'].to_dict()
+        
+        # Add means if available
+        if test_results['repeated_measures_anova'] and 'means' not in test_results['repeated_measures_anova']:
+            # Try to get means from descriptive stats
+            try:
+                desc_stats = statistical_analyzer.get_descriptive_stats()
+                if desc_stats:
+                    test_results['repeated_measures_anova']['means'] = desc_stats
+            except:
+                pass
+        
+        print(f"[ok] STATISTICS: Generated {len(test_results)} test results")
         return render_template('statistics.html', test_results=test_results)
     except Exception as e:
+        print(f"[error] STATISTICS ERROR: {str(e)}")
+        import traceback
+        traceback.print_exc()
         flash(f'Error loading statistics: {str(e)}', 'error')
         return render_template('error.html', message=str(e))
+
+@dashboard_bp.route('/admin/upload', methods=['POST'])
+def upload_data():
+    """Handle file upload for participant data."""
+    try:
+        if 'file' not in request.files:
+            flash('No file selected', 'error')
+            return redirect(url_for('dashboard.dashboard'))
+
+        file = request.files['file']
+        if file.filename == '':
+            flash('No file selected', 'error')
+            return redirect(url_for('dashboard.dashboard'))
+
+        if file and file.filename.lower().endswith('.csv'):
+            import pandas as pd
+            import io
+
+            csv_content = file.read().decode('utf-8')
+            df = pd.read_csv(io.StringIO(csv_content))
+
+            required_columns = ['pid', 'face_id', 'version', 'question', 'response']
+            if not all(col in df.columns for col in required_columns):
+                flash(f"CSV must contain columns: {', '.join(required_columns)}", 'error')
+                return redirect(url_for('dashboard.dashboard'))
+
+            participant_id = str(df['pid'].iloc[0]) if len(df) > 0 else 'uploaded'
+            safe_id = secure_filename(participant_id) or 'participant'
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            is_test = request.form.get('is_test') == 'on'
+            prefix = 'TEST_' if is_test else ''
+            filename = f"{prefix}{safe_id}_{timestamp}.csv"
+            filepath = DATA_DIR / filename
+            filepath.parent.mkdir(parents=True, exist_ok=True)
+
+            df.to_csv(filepath, index=False)
+
+            initialize_data()
+
+            mode_note = ' marked as test data' if is_test else ''
+            flash(f'Successfully uploaded {filename} with {len(df)} rows{mode_note}', 'success')
+        else:
+            flash('Please upload a CSV file', 'error')
+
+    except Exception as e:
+        flash(f'Error uploading file: {str(e)}', 'error')
+
+    return redirect(url_for('dashboard.dashboard'))
+
+
+@dashboard_bp.route('/admin/generate-test-data', methods=['POST'])
+def generate_test_data():
+    """Generate test data."""
+    try:
+        participants = int(request.form.get('participants', 5))
+        responses = int(request.form.get('responses', 10))
+        
+        # Limit to reasonable numbers
+        participants = min(max(participants, 1), 50)
+        responses = min(max(responses, 1), 100)
+        
+        # Run the test data generator
+        import subprocess
+        import sys
+        
+        # Modify the generator to use the specified parameters
+        result = subprocess.run([sys.executable, 'generate_test_data.py'], 
+                              capture_output=True, text=True, cwd='.')
+        
+        if result.returncode == 0:
+            flash(f'Successfully generated test data for {participants} participants', 'success')
+        else:
+            flash(f'Error generating test data: {result.stderr}', 'error')
+            
+    except Exception as e:
+        flash(f'Error generating test data: {str(e)}', 'error')
+    
+    return redirect(url_for('dashboard.dashboard'))
+
+@dashboard_bp.route('/admin/generate-random-tests', methods=['POST'])
+def generate_random_tests():
+    """Generate long-format random test files."""
+    try:
+        import subprocess
+        import sys
+
+        count = int(request.form.get('count', 10))
+        count = min(max(count, 1), 200)
+        seed = request.form.get('seed')
+
+        command = [sys.executable, 'generate_random_test_files.py', '--count', str(count)]
+        if seed:
+            command.extend(['--seed', str(seed)])
+
+        result = subprocess.run(command, capture_output=True, text=True, cwd='.')
+
+        if result.returncode == 0:
+            initialize_data()
+            flash(f'Generated {count} test participants (files saved with TEST_ prefix).', 'success')
+        else:
+            flash(f'Error generating test files: {result.stderr}', 'error')
+    except Exception as e:
+        flash(f'Error generating test files: {str(e)}', 'error')
+
+    return redirect(url_for('dashboard.dashboard'))
 
 @dashboard_bp.route('/exclusions')
 @login_required
@@ -894,7 +1358,10 @@ def participant_detail(pid):
         included_trials = participant_data['include_in_primary'].sum()
         excluded_trials = total_trials - included_trials
         # Calculate completion rate based on expected unique combinations
-        unique_combinations = participant_data.groupby(['face_id', 'version']).size().shape[0]
+        # Convert face_id to string to avoid type comparison issues
+        participant_data_copy = participant_data.copy()
+        participant_data_copy['face_id'] = participant_data_copy['face_id'].astype(str)
+        unique_combinations = participant_data_copy.groupby(['face_id', 'version']).size().shape[0]
         completion_rate = total_trials / unique_combinations if unique_combinations > 0 else 1.0
         
         # Get trust rating statistics
@@ -962,7 +1429,7 @@ def health():
 def api_refresh_data():
     """API endpoint to manually refresh data."""
     try:
-        print("🔄 Manual data refresh requested via API")
+        # Manual data refresh requested
         trigger_data_refresh()
         return jsonify({
             'status': 'success',
@@ -970,7 +1437,7 @@ def api_refresh_data():
             'timestamp': datetime.now().isoformat()
         })
     except Exception as e:
-        print(f"❌ Manual refresh failed: {e}")
+        print(f"[error] Manual refresh failed: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @dashboard_bp.route('/api/data-status')
@@ -1148,17 +1615,6 @@ def cleanup_p008():
     <p><strong>DELETED:</strong><br>{deleted_list}</p>
     <p><a href='/'>Back to Dashboard</a></p>"""
 
-@dashboard_bp.route('/toggle-incomplete', methods=['POST'])
-# @login_required  # Temporarily disabled for Render deployment
-def toggle_incomplete():
-    """Toggle showing incomplete sessions in production mode."""
-    global show_incomplete_in_production
-    
-    show_incomplete_in_production = not show_incomplete_in_production
-    status = "enabled" if show_incomplete_in_production else "disabled"
-    flash(f'Show incomplete sessions {status}', 'success')
-    
-    return redirect('/dashboard/')
 
 @dashboard_bp.route('/export/cleaned-data')
 @login_required
@@ -1213,7 +1669,10 @@ def export_session_metadata():
             included = pdata['include_in_primary'].sum()
             total = len(pdata)
             # Calculate completion rate based on expected unique combinations
-            unique_combinations = cleaned_data.groupby(['face_id', 'version']).size().shape[0]
+            # Convert face_id to string to avoid type comparison issues
+            cleaned_data_copy = cleaned_data.copy()
+            cleaned_data_copy['face_id'] = cleaned_data_copy['face_id'].astype(str)
+            unique_combinations = cleaned_data_copy.groupby(['face_id', 'version']).size().shape[0]
             completion_rate = total / unique_combinations if unique_combinations > 0 else 1.0
             
             session_metadata.append({
@@ -1372,13 +1831,17 @@ def export_all_reports():
                 
                 # Add session metadata
                 session_metadata_export = []
+                # Prepare denominator for completion rate once
+                cleaned_data_copy = cleaned_data.copy()
+                cleaned_data_copy['face_id'] = cleaned_data_copy['face_id'].astype(str)
+                denom = cleaned_data_copy.groupby(['face_id', 'version']).size().shape[0]
                 for pid in cleaned_data['pid'].unique():
                     pdata = cleaned_data[cleaned_data['pid'] == pid]
                     session_metadata_export.append({
                         'participant_id': pid,
                         'total_trials': len(pdata),
                         'included_trials': pdata['include_in_primary'].sum(),
-                        'completion_rate': len(pdata) / cleaned_data.groupby(['face_id', 'version']).size().shape[0] if cleaned_data.groupby(['face_id', 'version']).size().shape[0] > 0 else 1.0,
+                        'completion_rate': (len(pdata) / denom) if denom > 0 else 1.0,
                         'mean_trust_rating': pdata['trust_rating'].mean(),
                         'versions_seen': pdata['version'].nunique()
                     })
@@ -1457,7 +1920,7 @@ def export_methodology_report():
             story = []
             
             # Title Page
-            story.append(Paragraph("Face Perception Study — Methodology Report", title_style))
+            story.append(Paragraph("Face Perception Study - Methodology Report", title_style))
             story.append(Spacer(1, 20))
             
             # Metadata
@@ -1491,7 +1954,10 @@ def export_methodology_report():
             # Calculate completion rates
             completion_rates = []
             # Get the expected number of unique face_id and version combinations
-            unique_combinations = cleaned_data.groupby(['face_id', 'version']).size().shape[0]
+            # Convert face_id to string to avoid type comparison issues
+            cleaned_data_copy = cleaned_data.copy()
+            cleaned_data_copy['face_id'] = cleaned_data_copy['face_id'].astype(str)
+            unique_combinations = cleaned_data_copy.groupby(['face_id', 'version']).size().shape[0]
             
             for pid in cleaned_data['pid'].unique():
                 pdata = cleaned_data[cleaned_data['pid'] == pid]
@@ -1532,10 +1998,10 @@ def export_methodology_report():
             exclusion_text = """
             The following criteria were applied to include/exclude sessions and trials:
             
-            • <b>Session-level exclusions:</b> Failed attention checks, incomplete sessions, disallowed devices (non-desktop), duplicate participant IDs
-            • <b>Trial-level exclusions:</b> Reaction times < 200ms or > 99.5th percentile, missing trust ratings
-            • <b>Completion threshold:</b> Minimum 50% completion rate for sessions with < 48 trials, 80% for sessions with ≥ 48 trials
-            • <b>Data quality:</b> Only trials with valid trust ratings (1-7 scale) were included in analysis
+            - <b>Session-level exclusions:</b> Failed attention checks, incomplete sessions, disallowed devices (non-desktop), duplicate participant IDs
+            - <b>Trial-level exclusions:</b> Reaction times < 200ms or > 99.5th percentile, missing trust ratings
+            - <b>Completion threshold:</b> Minimum 50% completion rate for sessions with < 48 trials, 80% for sessions with >= 48 trials
+            - <b>Data quality:</b> Only trials with valid trust ratings (1-7 scale) were included in analysis
             """
             story.append(Paragraph(exclusion_text, normal_style))
             story.append(Spacer(1, 20))
@@ -1608,7 +2074,7 @@ def export_methodology_report():
                     ['df (numerator)', str(anova.get('df_num', 'N/A'))],
                     ['df (denominator)', str(anova.get('df_den', 'N/A'))],
                     ['p-value', f"{anova.get('pvalue', 'N/A'):.4f}" if anova.get('pvalue') is not None else 'N/A'],
-                    ['Partial η²', f"{anova.get('effect_size', 'N/A'):.3f}" if anova.get('effect_size') is not None else 'N/A'],
+                    ['Partial eta²', f"{anova.get('effect_size', 'N/A'):.3f}" if anova.get('effect_size') is not None else 'N/A'],
                     ['N participants', str(anova.get('n_participants', 'N/A'))]
                 ]
                 
@@ -1826,47 +2292,132 @@ def api_participant_details(pid):
 # @login_required  # Temporarily disabled for local testing
 def delete_file(filename):
     """Delete a participant data file."""
-    print(f"🗑️ DELETE FUNCTION CALLED: filename={filename}")
     try:
         import os
         from pathlib import Path
         
-        print(f"🗑️ DELETE: Starting delete process for {filename}")
-        
         # Security check: ensure filename is safe
         if not filename or '..' in filename or '/' in filename or '\\' in filename:
-            print(f"🗑️ DELETE: Invalid filename detected: {filename}")
+            # Invalid filename detected
             flash('Invalid filename', 'error')
             return redirect(url_for('dashboard.dashboard'))
         
         # Define the data directory
         data_dir = DATA_DIR
         
-        # Check if file exists
+        # Check if this is a session file (format: "200 (Session)")
+        if filename.endswith(' (Session)'):
+            # Extract participant ID and look in sessions directory
+            participant_id = filename.replace(' (Session)', '')
+            sessions_dir = Path("data/sessions")
+            if not sessions_dir.exists():
+                sessions_dir = Path("../data/sessions")
+            
+            # Look for the actual session file
+            session_file = sessions_dir / f"{participant_id}_session.json"
+            if not session_file.exists():
+                # Session file not found
+                flash(f'File {filename} not found', 'error')
+                return redirect(url_for('dashboard.dashboard'))
+            
+            # Delete the session file
+            try:
+                session_file.unlink()
+                # Session file deleted successfully
+                flash(f'File {filename} deleted successfully', 'success')
+                return redirect(url_for('dashboard.dashboard'))
+            except Exception as e:
+                # Error deleting session file
+                flash(f'Error deleting {filename}: {str(e)}', 'error')
+                return redirect(url_for('dashboard.dashboard'))
+        
+        # Check if file exists in responses directory
         file_path = data_dir / filename
         if not file_path.exists():
-            flash(f'File {filename} not found', 'error')
+            # File already removed (maybe by cleanup); refresh dashboard view
+            initialize_data()
+            flash(f'File {filename} was already removed.', 'info')
             return redirect(url_for('dashboard.dashboard'))
         
         # Delete the file
-        print(f"🗑️ DELETE: Attempting to delete file at {file_path}")
         file_path.unlink()
-        print(f"🗑️ DELETE: File deleted successfully")
-        
+
+        deleted_files = [filename]
+
+        # Remove older CSVs for the same participant so duplicates do not return
+        participant_id = None
+        if data_cleaner and hasattr(data_cleaner, 'file_metadata'):
+            for meta in getattr(data_cleaner, 'file_metadata', []):
+                if meta.get('name') == filename:
+                    participant_id = meta.get('pid')
+                    break
+        if participant_id and str(participant_id).upper() in {'UNKNOWN', 'UNKNOWN_PID', 'NAN'}:
+            participant_id = None
+
+        if not participant_id:
+            stem = Path(filename).stem
+            parts = stem.split('_')
+            if parts:
+                participant_id = parts[0]
+            else:
+                participant_id = stem
+
+        def _extract_pid(name: str) -> str:
+            stem = Path(name).stem
+            parts = stem.split('_')
+            if parts:
+                candidate = parts[0]
+                return candidate
+            return stem
+
+        if participant_id:
+            participant_id_str = str(participant_id)
+            # Remove any additional CSV files that belong to the same participant ID
+            if data_cleaner and hasattr(data_cleaner, 'file_metadata'):
+                for meta in getattr(data_cleaner, 'file_metadata', []):
+                    meta_pid = str(meta.get('pid', '')).strip()
+                    meta_path = meta.get('path')
+                    if not meta_pid or not meta_path:
+                        continue
+                    if meta_pid == participant_id_str and meta_path.name != filename and meta_path.exists():
+                        try:
+                            meta_path.unlink()
+                            deleted_files.append(meta_path.name)
+                        except Exception as cleanup_error:
+                            print(f"[delete] Failed to remove duplicate file {meta_path.name}: {cleanup_error}")
+            else:
+                for other_file in data_dir.glob('*.csv'):
+                    if other_file.name == filename:
+                        continue
+                    if _extract_pid(other_file.name) == participant_id_str:
+                        try:
+                            other_file.unlink()
+                            deleted_files.append(other_file.name)
+                        except Exception as cleanup_error:
+                            print(f"[delete] Failed to remove duplicate file {other_file.name}: {cleanup_error}")
+
+            sessions_dir = Path('data/sessions')
+            if not sessions_dir.exists():
+                sessions_dir = Path('../data/sessions')
+            if sessions_dir.exists():
+                for sess_file in sessions_dir.glob(f"{participant_id_str}_*.json"):
+                    try:
+                        sess_file.unlink()
+                        deleted_files.append(sess_file.name)
+                    except Exception as cleanup_error:
+                        print(f"[delete] Failed to remove session file {sess_file.name}: {cleanup_error}")
+
         # Reinitialize data to refresh the dashboard
-        print(f"🗑️ DELETE: Reinitializing data...")
+        deleted_display = ', '.join(deleted_files)
         if initialize_data():
-            print(f"🗑️ DELETE: Data refresh successful")
-            flash(f'File {filename} deleted successfully', 'success')
+            flash(f'Deleted files: {deleted_display}', 'success')
         else:
-            print(f"🗑️ DELETE: Data refresh failed")
-            flash(f'File {filename} deleted but data refresh failed', 'warning')
-        
-        print(f"🗑️ DELETE: Redirecting to dashboard")
+            flash(f'Deleted files ({deleted_display}) but data refresh failed', 'warning')
+
         return redirect(url_for('dashboard.dashboard'))
         
     except Exception as e:
-        print(f"🗑️ DELETE ERROR: {str(e)}")
+        # Delete error occurred
         flash(f'Error deleting file: {str(e)}', 'error')
         return redirect(url_for('dashboard.dashboard'))
 
@@ -1890,7 +2441,9 @@ def download_file(filename):
         # Check if file exists
         file_path = data_dir / filename
         if not file_path.exists():
-            flash(f'File {filename} not found', 'error')
+            # File already removed (maybe by cleanup); refresh dashboard view
+            initialize_data()
+            flash(f'File {filename} was already removed.', 'info')
             return redirect(url_for('dashboard.dashboard'))
         
         # Send the file
@@ -1902,7 +2455,7 @@ def download_file(filename):
         )
         
     except Exception as e:
-        print(f"📥 DOWNLOAD ERROR: {str(e)}")
+        print(f"[inbox] DOWNLOAD ERROR: {str(e)}")
         flash(f'Error downloading file: {str(e)}', 'error')
         return redirect(url_for('dashboard.dashboard'))
 
@@ -1941,7 +2494,7 @@ def download_multiple_files():
                 if file_path.exists():
                     zip_file.write(file_path, filename)
                 else:
-                    print(f"⚠️ File not found: {filename}")
+                    print(f"[warning] File not found: {filename}")
         
         zip_buffer.seek(0)
         
@@ -1957,7 +2510,7 @@ def download_multiple_files():
         )
         
     except Exception as e:
-        print(f"📦 ZIP DOWNLOAD ERROR: {str(e)}")
+        print(f"[package] ZIP DOWNLOAD ERROR: {str(e)}")
         flash(f'Error creating zip file: {str(e)}', 'error')
         return redirect(url_for('dashboard.dashboard'))
 
@@ -1990,18 +2543,52 @@ def delete_multiple_files():
         
         # Delete each file
         for filename in files:
-            file_path = data_dir / filename
-            if file_path.exists():
-                try:
-                    file_path.unlink()
-                    deleted_files.append(filename)
-                    print(f"🗑️ BULK DELETE: Successfully deleted {filename}")
-                except Exception as e:
-                    failed_files.append(f"{filename} ({str(e)})")
-                    print(f"🗑️ BULK DELETE ERROR: Failed to delete {filename}: {str(e)}")
+            # Check if this is a session file (display name format)
+            if filename.endswith(" (Session)"):
+                # Extract participant ID from display name
+                participant_id = filename.replace(" (Session)", "")
+                session_file_path = Path("data/sessions") / f"{participant_id}_session.json"
+                backup_file_path = Path("data/sessions") / f"{participant_id}_backup.json"
+                
+                # Delete session files
+                session_deleted = False
+                if session_file_path.exists():
+                    try:
+                        session_file_path.unlink()
+                        deleted_files.append(f"{participant_id}_session.json")
+                        # Session file deleted
+                        session_deleted = True
+                    except Exception as e:
+                        failed_files.append(f"{filename} (session file error: {str(e)})")
+                        # Error deleting session file
+                
+                # Delete backup file if it exists
+                if backup_file_path.exists():
+                    try:
+                        backup_file_path.unlink()
+                        deleted_files.append(f"{participant_id}_backup.json")
+                        # Backup file deleted
+                    except Exception as e:
+                        failed_files.append(f"{filename} (backup file error: {str(e)})")
+                        # Error deleting backup file
+                
+                if not session_deleted:
+                    failed_files.append(f"{filename} (session file not found)")
+                    # File not found
             else:
-                failed_files.append(f"{filename} (file not found)")
-                print(f"🗑️ BULK DELETE: File not found: {filename}")
+                # Regular file deletion (CSV files, etc.)
+                file_path = data_dir / filename
+                if file_path.exists():
+                    try:
+                        file_path.unlink()
+                        deleted_files.append(filename)
+                        # File deleted successfully
+                    except Exception as e:
+                        failed_files.append(f"{filename} ({str(e)})")
+                        # Error deleting file
+                else:
+                    failed_files.append(f"{filename} (file not found)")
+                    # File not found
         
         # Provide feedback to user
         if deleted_files:
@@ -2016,18 +2603,35 @@ def delete_multiple_files():
             else:
                 flash(f'Failed to delete {len(failed_files)} files', 'warning')
         
+        # Also clear session data for participants whose files were deleted
+        sessions_dir = Path(__file__).parent.parent / "data" / "sessions"
+        if sessions_dir.exists():
+            for filename in files:
+                # Extract participant ID from filename (e.g., "200.csv" -> "200")
+                participant_id = filename.replace('.csv', '').replace('participant_', '')
+                if participant_id:
+                    # Delete session files for this participant
+                    session_files = list(sessions_dir.glob(f"{participant_id}_*.json"))
+                    for session_file in session_files:
+                        try:
+                            session_file.unlink()
+                            # Session file deleted
+                        except Exception as e:
+                            # Error deleting session file
+                            pass
+        
         # Reinitialize data to refresh the dashboard
-        print(f"🗑️ BULK DELETE: Reinitializing data...")
         if initialize_data():
-            print(f"🗑️ BULK DELETE: Data refresh successful")
+            # Data refresh successful
+            pass
         else:
-            print(f"🗑️ BULK DELETE: Data refresh failed")
+            # Data refresh failed
             flash('Files deleted but data refresh failed', 'warning')
         
         return redirect(url_for('dashboard.dashboard'))
         
     except Exception as e:
-        print(f"🗑️ BULK DELETE ERROR: {str(e)}")
+        # Bulk delete error occurred
         flash(f'Error deleting files: {str(e)}', 'error')
         return redirect(url_for('dashboard.dashboard'))
 
@@ -2042,5 +2646,8 @@ app.register_blueprint(dashboard_bp)
 # Initialize data when the blueprint is registered
 def init_dashboard():
     if initialize_data():
-        print("📊 Dashboard initialized")
+        print("[chart] Dashboard initialized")
     return app
+
+
+

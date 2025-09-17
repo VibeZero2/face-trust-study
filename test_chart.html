@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chart.js Test</title>
+</head>
+<body>
+    <h1>Chart.js Test</h1>
+    <canvas id="testChart" width="400" height="200"></canvas>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        console.log('Chart.js loaded:', typeof Chart !== 'undefined');
+        
+        const ctx = document.getElementById('testChart').getContext('2d');
+        const chart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['Red', 'Blue', 'Yellow'],
+                datasets: [{
+                    label: 'Test Data',
+                    data: [12, 19, 3],
+                    backgroundColor: ['red', 'blue', 'yellow']
+                }]
+            }
+        });
+        console.log('Chart created successfully');
+    </script>
+</body>
+</html>

@@ -769,370 +769,180 @@
          </div>
      </div>
 
+                        {% endif %}
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
-        // Initialize tooltips
-        document.addEventListener('DOMContentLoaded', function() {
-            // Initialize Bootstrap tooltips
-            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-            var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-                return new bootstrap.Tooltip(tooltipTriggerEl);
+        {% if test_results %}
+        document.addEventListener('DOMContentLoaded', function () {
+            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            tooltipTriggerList.forEach(function (tooltipTriggerEl) {
+                new bootstrap.Tooltip(tooltipTriggerEl);
             });
-            
-                         // Trust Ratings Chart
-             const ctx = document.getElementById('trustChart').getContext('2d');
-             
-             // Get data from the page
-             const chartData = {
-                 labels: ['Left Half', 'Right Half', 'Full Face'],
-                 datasets: [{
-                     label: 'Mean Trust Rating',
-                     data: [
-                         {{ test_results.repeated_measures_anova.means.left if test_results.repeated_measures_anova.means and test_results.repeated_measures_anova.means.left else 0 }},
-                         {{ test_results.repeated_measures_anova.means.right if test_results.repeated_measures_anova.means and test_results.repeated_measures_anova.means.right else 0 }},
-                         {{ test_results.repeated_measures_anova.means.both if test_results.repeated_measures_anova.means and test_results.repeated_measures_anova.means.both else 0 }}
-                     ],
-                     backgroundColor: [
-                         'rgba(54, 162, 235, 0.8)',
-                         'rgba(255, 206, 86, 0.8)',
-                         'rgba(75, 192, 192, 0.8)'
-                     ],
-                     borderColor: [
-                         'rgba(54, 162, 235, 1)',
-                         'rgba(255, 206, 86, 1)',
-                         'rgba(75, 192, 192, 1)'
-                     ],
-                     borderWidth: 2
-                 }]
-             };
-             
-             new Chart(ctx, {
-                 type: 'bar',
-                 data: chartData,
-                 options: {
-                     responsive: true,
-                     scales: {
-                         y: {
-                             beginAtZero: true,
-                             max: 7,
-                             title: {
-                                 display: true,
-                                 text: 'Trust Rating (1-7 scale)'
-                             }
-                         },
-                         x: {
-                             title: {
-                                 display: true,
-                                 text: 'Face Version'
-                             }
-                         }
-                     },
-                     plugins: {
-                         title: {
-                             display: true,
-                             text: 'Average Trust Ratings by Face Version'
-                         },
-                         legend: {
-                             display: false
-                         }
-                     }
-                 }
-             });
-             
-             // Histogram Chart
-             const histCtx = document.getElementById('histogramChart').getContext('2d');
-             
-             // Generate histogram data (this would ideally come from the backend)
-             const histogramData = {
-                 labels: ['1', '2', '3', '4', '5', '6', '7'],
-                 datasets: [{
-                     label: 'Left Half',
-                     data: [2, 4, 8, 12, 10, 6, 3],
-                     backgroundColor: 'rgba(54, 162, 235, 0.6)',
-                     borderColor: 'rgba(54, 162, 235, 1)',
-                     borderWidth: 1
-                 }, {
-                     label: 'Right Half',
-                     data: [1, 3, 6, 15, 12, 8, 4],
-                     backgroundColor: 'rgba(255, 206, 86, 0.6)',
-                     borderColor: 'rgba(255, 206, 86, 1)',
-                     borderWidth: 1
-                 }, {
-                     label: 'Full Face',
-                     data: [1, 2, 5, 14, 13, 9, 5],
-                     backgroundColor: 'rgba(75, 192, 192, 0.6)',
-                     borderColor: 'rgba(75, 192, 192, 1)',
-                     borderWidth: 1
-                 }]
-             };
-             
-             new Chart(histCtx, {
-                 type: 'bar',
-                 data: histogramData,
-                 options: {
-                     responsive: true,
-                     scales: {
-                         x: {
-                             stacked: false,
-                             title: {
-                                 display: true,
-                                 text: 'Trust Rating'
-                             }
-                         },
-                         y: {
-                             stacked: false,
-                             title: {
-                                 display: true,
-                                 text: 'Frequency'
-                             }
-                         }
-                     },
-                     plugins: {
-                         title: {
-                             display: true,
-                             text: 'Distribution of Trust Ratings by Version'
-                         },
-                         legend: {
-                             display: true,
-                             position: 'top'
-                         }
-                     }
-                 }
-             });
-             
-             // Emotion Ratings Bar Chart
-             const emotionCtx = document.getElementById('emotionChart');
-             if (emotionCtx) {
-                 const emotionBarCtx = emotionCtx.getContext('2d');
-                 
-                 // Get emotion data from the template
-                 const emotionData = {
-                     labels: ['Left Half', 'Right Half', 'Full Face'],
-                     datasets: [{
-                         label: 'Average Emotion Rating',
-                         data: [
-                             {{ test_results.all_question_stats.emotion_rating.left.mean if test_results.all_question_stats and test_results.all_question_stats.emotion_rating and test_results.all_question_stats.emotion_rating.left else 5.0 }},
-                             {{ test_results.all_question_stats.emotion_rating.right.mean if test_results.all_question_stats and test_results.all_question_stats.emotion_rating and test_results.all_question_stats.emotion_rating.right else 5.0 }},
-                             {{ test_results.all_question_stats.emotion_rating.both.mean if test_results.all_question_stats and test_results.all_question_stats.emotion_rating and test_results.all_question_stats.emotion_rating.both else 5.0 }}
-                         ],
-                         backgroundColor: [
-                             'rgba(255, 99, 132, 0.6)',
-                             'rgba(54, 162, 235, 0.6)',
-                             'rgba(75, 192, 192, 0.6)'
-                         ],
-                         borderColor: [
-                             'rgba(255, 99, 132, 1)',
-                             'rgba(54, 162, 235, 1)',
-                             'rgba(75, 192, 192, 1)'
-                         ],
-                         borderWidth: 1
-                     }]
-                 };
-                 
-                 new Chart(emotionBarCtx, {
-                     type: 'bar',
-                     data: emotionData,
-                     options: {
-                         responsive: true,
-                         scales: {
-                             y: {
-                                 beginAtZero: true,
-                                 max: 9,
-                                 title: {
-                                     display: true,
-                                     text: 'Average Emotion Rating (1-9)'
-                                 }
-                             }
-                         },
-                         plugins: {
-                             title: {
-                                 display: true,
-                                 text: 'Average Emotion Ratings by Face Version'
-                             },
-                             legend: {
-                                 display: false
-                             }
-                         }
-                     }
-                 });
-             }
-             
-             // Emotion Ratings Histogram Chart
-             const emotionHistCtx = document.getElementById('emotionHistogramChart');
-             if (emotionHistCtx) {
-                 const emotionHistBarCtx = emotionHistCtx.getContext('2d');
-                 
-                 // Generate histogram data for emotion ratings
-                 const emotionHistogramData = {
-                     labels: ['1', '2', '3', '4', '5', '6', '7', '8', '9'],
-                     datasets: [{
-                         label: 'Left Half',
-                         data: [2, 4, 8, 12, 10, 6, 3, 2, 1],
-                         backgroundColor: 'rgba(255, 99, 132, 0.6)',
-                         borderColor: 'rgba(255, 99, 132, 1)',
-                         borderWidth: 1
-                     }, {
-                         label: 'Right Half',
-                         data: [1, 3, 6, 15, 12, 8, 4, 2, 1],
-                         backgroundColor: 'rgba(54, 162, 235, 0.6)',
-                         borderColor: 'rgba(54, 162, 235, 1)',
-                         borderWidth: 1
-                     }, {
-                         label: 'Full Face',
-                         data: [1, 2, 5, 14, 13, 9, 5, 2, 1],
-                         backgroundColor: 'rgba(75, 192, 192, 0.6)',
-                         borderColor: 'rgba(75, 192, 192, 1)',
-                         borderWidth: 1
-                     }]
-                 };
-                 
-                 new Chart(emotionHistBarCtx, {
-                     type: 'bar',
-                     data: emotionHistogramData,
-                     options: {
-                         responsive: true,
-                         scales: {
-                             x: {
-                                 stacked: false,
-                                 title: {
-                                     display: true,
-                                     text: 'Emotion Rating'
-                                 }
-                             },
-                             y: {
-                                 stacked: false,
-                                 title: {
-                                     display: true,
-                                     text: 'Frequency'
-                                 }
-                             }
-                         },
-                         plugins: {
-                             title: {
-                                 display: true,
-                                 text: 'Distribution of Emotion Ratings by Version'
-                             },
-                             legend: {
-                                 display: true,
-                                 position: 'top'
-                             }
-                         }
-                     }
-                 });
-             }
-             
-             // Trust Ratings Boxplot using Plotly
-             const trustBoxplotDiv = document.getElementById('trustBoxplotChart');
-             if (trustBoxplotDiv) {
-                 // Generate sample data for trust ratings
-                 const leftData = [1, 2, 3, 4, 5, 5, 5, 6, 6, 7, 7, 8, 8, 9];
-                 const rightData = [1, 2, 3, 4, 5, 5, 6, 6, 6, 7, 7, 8, 8, 9];
-                 const bothData = [1, 2, 3, 4, 5, 5, 5, 6, 6, 7, 7, 8, 8, 9];
-                 
-                 const trustBoxplotData = [
-                     {
-                         y: leftData,
-                         name: 'Left Half',
-                         type: 'box',
-                         boxpoints: 'all',
-                         jitter: 0.3,
-                         pointpos: -1.8,
-                         marker: { color: 'rgba(54, 162, 235, 0.6)' },
-                         line: { color: 'rgba(54, 162, 235, 1)' }
-                     },
-                     {
-                         y: rightData,
-                         name: 'Right Half',
-                         type: 'box',
-                         boxpoints: 'all',
-                         jitter: 0.3,
-                         pointpos: -1.8,
-                         marker: { color: 'rgba(255, 206, 86, 0.6)' },
-                         line: { color: 'rgba(255, 206, 86, 1)' }
-                     },
-                     {
-                         y: bothData,
-                         name: 'Full Face',
-                         type: 'box',
-                         boxpoints: 'all',
-                         jitter: 0.3,
-                         pointpos: -1.8,
-                         marker: { color: 'rgba(75, 192, 192, 0.6)' },
-                         line: { color: 'rgba(75, 192, 192, 1)' }
-                     }
-                 ];
-                 
-                 const trustBoxplotLayout = {
-                     title: 'Boxplot of Trust Ratings by Version',
-                     yaxis: {
-                         title: 'Trust Rating (1-7)',
-                         range: [0, 8]
-                     },
-                     showlegend: true,
-                     margin: { t: 50, r: 50, b: 50, l: 50 }
-                 };
-                 
-                 Plotly.newPlot(trustBoxplotDiv, trustBoxplotData, trustBoxplotLayout, {responsive: true});
-             }
-             
-             // Emotion Ratings Boxplot using Plotly
-             const emotionBoxplotDiv = document.getElementById('emotionBoxplotChart');
-             if (emotionBoxplotDiv) {
-                 // Generate sample data for emotion ratings
-                 const leftEmotionData = [1, 2, 3, 4, 5, 5, 5, 6, 6, 7, 7, 8, 8, 9];
-                 const rightEmotionData = [1, 2, 3, 4, 5, 5, 6, 6, 6, 7, 7, 8, 8, 9];
-                 const bothEmotionData = [1, 2, 3, 4, 5, 5, 5, 6, 6, 7, 7, 8, 8, 9];
-                 
-                 const emotionBoxplotData = [
-                     {
-                         y: leftEmotionData,
-                         name: 'Left Half',
-                         type: 'box',
-                         boxpoints: 'all',
-                         jitter: 0.3,
-                         pointpos: -1.8,
-                         marker: { color: 'rgba(255, 99, 132, 0.6)' },
-                         line: { color: 'rgba(255, 99, 132, 1)' }
-                     },
-                     {
-                         y: rightEmotionData,
-                         name: 'Right Half',
-                         type: 'box',
-                         boxpoints: 'all',
-                         jitter: 0.3,
-                         pointpos: -1.8,
-                         marker: { color: 'rgba(54, 162, 235, 0.6)' },
-                         line: { color: 'rgba(54, 162, 235, 1)' }
-                     },
-                     {
-                         y: bothEmotionData,
-                         name: 'Full Face',
-                         type: 'box',
-                         boxpoints: 'all',
-                         jitter: 0.3,
-                         pointpos: -1.8,
-                         marker: { color: 'rgba(75, 192, 192, 0.6)' },
-                         line: { color: 'rgba(75, 192, 192, 1)' }
-                     }
-                 ];
-                 
-                 const emotionBoxplotLayout = {
-                     title: 'Boxplot of Emotion Ratings by Version',
-                     yaxis: {
-                         title: 'Emotion Rating (1-7)',
-                         range: [0, 8]
-                     },
-                     showlegend: true,
-                     margin: { t: 50, r: 50, b: 50, l: 50 }
-                 };
-                 
-                 Plotly.newPlot(emotionBoxplotDiv, emotionBoxplotData, emotionBoxplotLayout, {responsive: true});
-             }
-        });
-    </script>
-                    {% endif %}
 
+            const trustMeans = {{ (test_results.repeated_measures_anova.means if test_results.repeated_measures_anova and test_results.repeated_measures_anova.means else {})|tojson|safe }};
+            const trustHistogram = {{ test_results.trust_histogram|tojson|safe if test_results.trust_histogram else 'null' }};
+            const emotionHistogram = {{ test_results.emotion_histogram|tojson|safe if test_results.emotion_histogram else 'null' }};
+            const allQuestionStats = {{ (test_results.all_question_stats or {})|tojson|safe }};
+            const trustBoxplot = {{ test_results.trust_boxplot|tojson|safe if test_results.trust_boxplot else 'null' }};
+            const emotionBoxplot = {{ test_results.emotion_boxplot|tojson|safe if test_results.emotion_boxplot else 'null' }};
+
+            window.dashboardData = { trustBoxplot, emotionBoxplot };
+
+            const trustChartElement = document.getElementById('trustChart');
+            if (trustChartElement) {
+                const ctx = trustChartElement.getContext('2d');
+                const labels = ['Left Half', 'Right Half', 'Full Face'];
+                const versions = ['left', 'right', 'both'];
+                const trustValues = versions.map((key) => trustMeans && typeof trustMeans[key] === 'number' ? trustMeans[key] : 0);
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: { labels, datasets: [{
+                        label: 'Mean Trust Rating',
+                        data: trustValues,
+                        backgroundColor: ['rgba(54, 162, 235, 0.8)', 'rgba(255, 206, 86, 0.8)', 'rgba(75, 192, 192, 0.8)'],
+                        borderColor: ['rgba(54, 162, 235, 1)', 'rgba(255, 206, 86, 1)', 'rgba(75, 192, 192, 1)'],
+                        borderWidth: 2
+                    }]},
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: { beginAtZero: true, max: 7, title: { display: true, text: 'Trust Rating (1-7 scale)' } },
+                            x: { title: { display: true, text: 'Face Version' } }
+                        },
+                        plugins: { title: { display: true, text: 'Average Trust Ratings by Face Version' }, legend: { display: false } }
+                    }
+                });
+            }
+
+            const histogramElement = document.getElementById('histogramChart');
+            if (histogramElement && trustHistogram) {
+                const histCtx = histogramElement.getContext('2d');
+                new Chart(histCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: trustHistogram.labels || [],
+                        datasets: ['left', 'right', 'both'].map((key, index) => ({
+                            label: key === 'both' ? 'Full Face' : key.charAt(0).toUpperCase() + key.slice(1) + ' Half',
+                            data: trustHistogram[key] || [],
+                            backgroundColor: ['rgba(54, 162, 235, 0.6)', 'rgba(255, 206, 86, 0.6)', 'rgba(75, 192, 192, 0.6)'][index],
+                            borderColor: ['rgba(54, 162, 235, 1)', 'rgba(255, 206, 86, 1)', 'rgba(75, 192, 192, 1)'][index],
+                            borderWidth: 1
+                        }))
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            x: { title: { display: true, text: 'Trust Rating' } },
+                            y: { title: { display: true, text: 'Frequency' } }
+                        },
+                        plugins: { title: { display: true, text: 'Distribution of Trust Ratings by Version' }, legend: { display: true, position: 'top' } }
+                    }
+                });
+            }
+
+            const emotionChartElement = document.getElementById('emotionChart');
+            const emotionStats = allQuestionStats.emotion_rating || {};
+            if (emotionChartElement && Object.keys(emotionStats).length) {
+                const emotionCtx = emotionChartElement.getContext('2d');
+                const labels = ['Left Half', 'Right Half', 'Full Face'];
+                const versions = ['left', 'right', 'both'];
+                const values = versions.map((key) => emotionStats[key] && typeof emotionStats[key].mean === 'number' ? emotionStats[key].mean : 0);
+                new Chart(emotionCtx, {
+                    type: 'bar',
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: 'Average Emotion Rating',
+                            data: values,
+                            backgroundColor: ['rgba(255, 99, 132, 0.6)', 'rgba(54, 162, 235, 0.6)', 'rgba(75, 192, 192, 0.6)'],
+                            borderColor: ['rgba(255, 99, 132, 1)', 'rgba(54, 162, 235, 1)', 'rgba(75, 192, 192, 1)'],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: { beginAtZero: true, max: 9, title: { display: true, text: 'Average Emotion Rating (1-9)' } }
+                        },
+                        plugins: { title: { display: true, text: 'Average Emotion Ratings by Face Version' }, legend: { display: false } }
+                    }
+                });
+            }
+
+            const emotionHistElement = document.getElementById('emotionHistogramChart');
+            if (emotionHistElement && emotionHistogram) {
+                const ctx = emotionHistElement.getContext('2d');
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: emotionHistogram.labels || [],
+                        datasets: ['left', 'right', 'both'].map((key, index) => ({
+                            label: key === 'both' ? 'Full Face' : key.charAt(0).toUpperCase() + key.slice(1) + ' Half',
+                            data: emotionHistogram[key] || [],
+                            backgroundColor: ['rgba(255, 99, 132, 0.6)', 'rgba(54, 162, 235, 0.6)', 'rgba(75, 192, 192, 0.6)'][index],
+                            borderColor: ['rgba(255, 99, 132, 1)', 'rgba(54, 162, 235, 1)', 'rgba(75, 192, 192, 1)'][index],
+                            borderWidth: 1
+                        }))
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            x: { title: { display: true, text: 'Emotion Rating' } },
+                            y: { title: { display: true, text: 'Frequency' } }
+                        },
+                        plugins: { title: { display: true, text: 'Distribution of Emotion Ratings by Version' }, legend: { display: true, position: 'top' } }
+                    }
+                });
+            }
+
+            function plotBoxplot(targetId, data, title, toolbar) {
+                if (!data) { return; }
+                const target = document.getElementById(targetId);
+                if (!target) { return; }
+                const traces = ['left', 'right', 'both'].map((key) => ({
+                    y: data[key] || [],
+                    name: key === 'both' ? 'Full Face' : key.charAt(0).toUpperCase() + key.slice(1) + ' Half',
+                    type: 'box',
+                    boxpoints: 'all',
+                    jitter: 0.3,
+                    pointpos: -1.8
+                }));
+                if (traces.every(trace => trace.y.length === 0)) { return; }
+                Plotly.newPlot(target, traces, {
+                    title,
+                    yaxis: { title: title.includes('Emotion') ? 'Emotion Rating (1-9)' : 'Trust Rating (1-7)' },
+                    showlegend: true,
+                    margin: { t: 50, r: 30, b: 50, l: 50 }
+                }, { responsive: true, displayModeBar: toolbar });
+            }
+
+            plotBoxplot('trustBoxplotChart', trustBoxplot, 'Boxplot of Trust Ratings by Version', false);
+            plotBoxplot('emotionBoxplotChart', emotionBoxplot, 'Boxplot of Emotion Ratings by Version', false);
+
+            window.openModal = function (modalId) {
+                document.getElementById(modalId).style.display = 'block';
+                if (modalId === 'trustBoxplotModal') {
+                    plotBoxplot('trustBoxplotModalChart', window.dashboardData.trustBoxplot, 'Boxplot of Trust Ratings by Version', true);
+                } else if (modalId === 'emotionBoxplotModal') {
+                    plotBoxplot('emotionBoxplotModalChart', window.dashboardData.emotionBoxplot, 'Boxplot of Emotion Ratings by Version', true);
+                }
+            };
+
+            window.closeModal = function (modalId) {
+                document.getElementById(modalId).style.display = 'none';
+            };
+
+            window.onclick = function (event) {
+                document.querySelectorAll('.modal').forEach((modal) => {
+                    if (event.target === modal) {
+                        modal.style.display = 'none';
+                    }
+                });
+            };
+        });
+        {% endif %}
+    </script>
     <!-- Modal Containers -->
     <div id="trustBoxplotModal" class="modal">
         <div class="modal-content">
@@ -1150,156 +960,5 @@
         </div>
     </div>
 
-    <script>
-        // Modal Functions
-        function openModal(modalId) {
-            document.getElementById(modalId).style.display = 'block';
-            
-            // Recreate the chart in the modal with full toolbar
-            if (modalId === 'trustBoxplotModal') {
-                createTrustBoxplotModal();
-            } else if (modalId === 'emotionBoxplotModal') {
-                createEmotionBoxplotModal();
-            }
-        }
-
-        function closeModal(modalId) {
-            document.getElementById(modalId).style.display = 'none';
-        }
-
-        // Close modal when clicking outside of it
-        window.onclick = function(event) {
-            const modals = document.getElementsByClassName('modal');
-            for (let i = 0; i < modals.length; i++) {
-                if (event.target === modals[i]) {
-                    modals[i].style.display = 'none';
-                }
-            }
-        }
-
-        // Create Trust Boxplot for Modal
-        function createTrustBoxplotModal() {
-            const modalDiv = document.getElementById('trustBoxplotModalChart');
-            if (modalDiv) {
-                const leftData = [1, 2, 3, 4, 5, 5, 5, 6, 6, 7, 7, 8, 8, 9];
-                const rightData = [1, 2, 3, 4, 5, 5, 6, 6, 6, 7, 7, 8, 8, 9];
-                const bothData = [1, 2, 3, 4, 5, 5, 5, 6, 6, 7, 7, 8, 8, 9];
-                
-                const trustBoxplotData = [
-                    {
-                        y: leftData,
-                        name: 'Left Half',
-                        type: 'box',
-                        boxpoints: 'all',
-                        jitter: 0.3,
-                        pointpos: -1.8,
-                        marker: { color: 'rgba(54, 162, 235, 0.6)' },
-                        line: { color: 'rgba(54, 162, 235, 1)' }
-                    },
-                    {
-                        y: rightData,
-                        name: 'Right Half',
-                        type: 'box',
-                        boxpoints: 'all',
-                        jitter: 0.3,
-                        pointpos: -1.8,
-                        marker: { color: 'rgba(255, 206, 86, 0.6)' },
-                        line: { color: 'rgba(255, 206, 86, 1)' }
-                    },
-                    {
-                        y: bothData,
-                        name: 'Full Face',
-                        type: 'box',
-                        boxpoints: 'all',
-                        jitter: 0.3,
-                        pointpos: -1.8,
-                        marker: { color: 'rgba(75, 192, 192, 0.6)' },
-                        line: { color: 'rgba(75, 192, 192, 1)' }
-                    }
-                ];
-                
-                const trustBoxplotLayout = {
-                    title: 'Boxplot of Trust Ratings by Version',
-                    yaxis: {
-                        title: 'Trust Rating (1-7)',
-                        range: [0, 8]
-                    },
-                    showlegend: true,
-                    margin: { t: 50, r: 50, b: 50, l: 50 }
-                };
-                
-                const config = {
-                    responsive: true,
-                    displayModeBar: true,
-                    modeBarButtonsToAdd: ['downloadImage'],
-                    modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d']
-                };
-                
-                Plotly.newPlot(modalDiv, trustBoxplotData, trustBoxplotLayout, config);
-            }
-        }
-
-        // Create Emotion Boxplot for Modal
-        function createEmotionBoxplotModal() {
-            const modalDiv = document.getElementById('emotionBoxplotModalChart');
-            if (modalDiv) {
-                const leftEmotionData = [1, 2, 3, 4, 5, 5, 5, 6, 6, 7, 7, 8, 8, 9];
-                const rightEmotionData = [1, 2, 3, 4, 5, 5, 6, 6, 6, 7, 7, 8, 8, 9];
-                const bothEmotionData = [1, 2, 3, 4, 5, 5, 5, 6, 6, 7, 7, 8, 8, 9];
-                
-                const emotionBoxplotData = [
-                    {
-                        y: leftEmotionData,
-                        name: 'Left Half',
-                        type: 'box',
-                        boxpoints: 'all',
-                        jitter: 0.3,
-                        pointpos: -1.8,
-                        marker: { color: 'rgba(255, 99, 132, 0.6)' },
-                        line: { color: 'rgba(255, 99, 132, 1)' }
-                    },
-                    {
-                        y: rightEmotionData,
-                        name: 'Right Half',
-                        type: 'box',
-                        boxpoints: 'all',
-                        jitter: 0.3,
-                        pointpos: -1.8,
-                        marker: { color: 'rgba(54, 162, 235, 0.6)' },
-                        line: { color: 'rgba(54, 162, 235, 1)' }
-                    },
-                    {
-                        y: bothEmotionData,
-                        name: 'Full Face',
-                        type: 'box',
-                        boxpoints: 'all',
-                        jitter: 0.3,
-                        pointpos: -1.8,
-                        marker: { color: 'rgba(75, 192, 192, 0.6)' },
-                        line: { color: 'rgba(75, 192, 192, 1)' }
-                    }
-                ];
-                
-                const emotionBoxplotLayout = {
-                    title: 'Boxplot of Emotion Ratings by Version',
-                    yaxis: {
-                        title: 'Emotion Rating (1-7)',
-                        range: [0, 8]
-                    },
-                    showlegend: true,
-                    margin: { t: 50, r: 50, b: 50, l: 50 }
-                };
-                
-                const config = {
-                    responsive: true,
-                    displayModeBar: true,
-                    modeBarButtonsToAdd: ['downloadImage'],
-                    modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d']
-                };
-                
-                Plotly.newPlot(modalDiv, emotionBoxplotData, emotionBoxplotLayout, config);
-            }
-        }
-    </script>
 </body>
 </html>

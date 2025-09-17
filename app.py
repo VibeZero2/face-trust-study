@@ -1,3 +1,4 @@
+import sys
 import os
 import csv
 import random
@@ -7,6 +8,7 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 from urllib.parse import quote, unquote
 from cryptography.fernet import Fernet
 from dotenv import load_dotenv
+import traceback
 
 # Session management (IRB-safe addition)
 try:
@@ -14,12 +16,19 @@ try:
     SESSION_MANAGEMENT_ENABLED = True
 except ImportError:
     SESSION_MANAGEMENT_ENABLED = False
-    print("⚠️ Session management not available - continuing without save/resume functionality")
+    print("       Session management not available - continuing without save/resume functionality")
 
 # ----------------------------------------------------------------------------
 # Initial setup
 # ----------------------------------------------------------------------------
 load_dotenv()
+
+# Ensure stdout/stderr can emit Unicode on Windows
+try:
+    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')
+except Exception:
+    pass
 
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", os.urandom(24))
@@ -67,43 +76,14 @@ assert FACE_FILES, "No face images found. Place images in static/images/."
 # Helper functions
 # ----------------------------------------------------------------------------
 
-def save_participant_data(participant_id: str, responses: list, headers: list) -> str:
-    """
-    Save participant responses to CSV file.
-    
-    Args:
-        participant_id: The participant ID
-        responses: List of response dictionaries
-        headers: List of column headers
-        
-    Returns:
-        str: Path to saved file or None if failed
-    """
-    try:
-        # Create responses directory
-        responses_dir = DATA_DIR / "responses"
-        responses_dir.mkdir(exist_ok=True)
-        
-        # Create timestamped filename
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-        filename = f"{participant_id}_{timestamp}.csv"
-        filepath = responses_dir / filename
-        
-        # Write CSV file
-        with open(filepath, "w", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=headers)
-            writer.writeheader()
-            writer.writerows(responses)
-            
-        print(f"✅ Saved participant data to {filepath}")
-        return str(filepath)
-        
-    except Exception as e:
-        print(f"❌ Error saving participant data: {e}")
-        return None
+# (legacy save_participant_data removed; consolidated into long-format implementation below)
 
 def create_participant_run(pid: str, prolific_pid: str = None):
     """Initialises session variables for a new participant."""
+    
+    # CRITICAL: Clear all existing session data first
+    session.clear()
+    print(f"     SESSION RESET: Cleared all session data for new participant {pid}")
     
     # Randomly pick left-first or right-first presentation
     left_first = random.choice([True, False])
@@ -118,7 +98,7 @@ def create_participant_run(pid: str, prolific_pid: str = None):
     
     sequence = []
     for fname in randomized_faces:
-        # order list simply contains the same filename with a tag indicating crop
+        # Create order with both toggle and full versions
         if left_first:
             halves = [
                 {"version": "left", "file": fname},
@@ -131,20 +111,27 @@ def create_participant_run(pid: str, prolific_pid: str = None):
             ]
         sequence.append({
             "face_id": Path(fname).stem,
-            "order": [{"version": "toggle", "file": fname, "start": ("left" if left_first else "right")}, {"version": "full", "file": fname}]
+            "order": [
+                {"version": "toggle", "file": fname, "start": halves[0]["version"]},
+                {"version": "full", "file": fname}
+            ]
         })
+        
+        # Debug: Print first sequence item
+        if len(sequence) == 1:
+            print(f"     SEQUENCE DEBUG: First sequence item: {sequence[0]}")
     
     # CRITICAL DEBUG: Log the sequence creation
-    print(f"🔍 SEQUENCE DEBUG: Creating session for participant {pid}")
-    print(f"🔍 SEQUENCE DEBUG: FACE_FILES count: {len(FACE_FILES)}")
-    print(f"🔍 SEQUENCE DEBUG: randomized_faces count: {len(randomized_faces)}")
-    print(f"🔍 SEQUENCE DEBUG: sequence count: {len(sequence)}")
-    print(f"🔍 SEQUENCE DEBUG: face_order count: {len(face_order)}")
+    print(f"     SEQUENCE DEBUG: Creating session for participant {pid}")
+    print(f"     SEQUENCE DEBUG: FACE_FILES count: {len(FACE_FILES)}")
+    print(f"     SEQUENCE DEBUG: randomized_faces count: {len(randomized_faces)}")
+    print(f"     SEQUENCE DEBUG: sequence count: {len(sequence)}")
+    print(f"     SEQUENCE DEBUG: face_order count: {len(face_order)}")
     
     session["pid"] = pid
     session["index"] = 0  # index in sequence
     session["sequence"] = sequence
-    session["responses"] = []
+    session["responses"] = {}
     session["face_order"] = face_order  # Store the randomized face order
     session["left_first"] = left_first  # Store the left_first value for session resumption
     
@@ -153,8 +140,8 @@ def create_participant_run(pid: str, prolific_pid: str = None):
         session["prolific_pid"] = prolific_pid
         
     # FINAL DEBUG: Confirm session values
-    print(f"🔍 SEQUENCE DEBUG: Final session sequence count: {len(session['sequence'])}")
-    print(f"🔍 SEQUENCE DEBUG: Final session face_order count: {len(session['face_order'])}")
+    print(f"     SEQUENCE DEBUG: Final session sequence count: {len(session['sequence'])}")
+    print(f"     SEQUENCE DEBUG: Final session face_order count: {len(session['face_order'])}")
     
 
 
@@ -195,11 +182,105 @@ def save_encrypted_csv(pid: str, rows: list):
     csv_path = DATA_DIR / f"{pid}.csv"
     with open(csv_path, "w", newline="") as f:
         f.write(csv_content.getvalue())
-        
+
+    # Remove older autosaves for this participant so only the latest CSV remains
+    def _participant_base(name: str) -> str:
+        stem = Path(name).stem
+        parts = stem.split('_')
+        return parts[0] if parts else stem
+
+    new_base = _participant_base(csv_path.name)
+    for existing in DATA_DIR.glob('*.csv'):
+        if existing == csv_path:
+            continue
+        if _participant_base(existing.name) == new_base:
+            try:
+                existing.unlink()
+            except Exception as cleanup_error:
+                print(f"[csv] Cleanup skipped for {existing.name}: {cleanup_error}")
+
     # Return both paths for confirmation
     return {"enc": enc_path, "csv": csv_path}
 
 
+def convert_dict_to_long_format(participant_id, response_dict):
+    """Convert nested session responses to strict long-format rows."""
+    long_responses = []
+
+    print(f"[csv] Processing {len(response_dict)} faces")
+
+    version_question_map = {
+        "left": {
+            "trust_left": "trust_left",
+            "trust_rating": "trust_left",
+            "emotion_left": "emotion_left",
+            "emotion_rating": "emotion_left",
+        },
+        "right": {
+            "trust_right": "trust_right",
+            "trust_rating": "trust_right",
+            "emotion_right": "emotion_right",
+            "emotion_rating": "emotion_right",
+        },
+        "half": {
+            "masc_choice_half": "masc_choice_half",
+            "masc_choice": "masc_choice_half",
+            "fem_choice_half": "fem_choice_half",
+            "fem_choice": "fem_choice_half",
+        },
+        "full": {
+            "trust_full": "trust_full",
+            "trust_rating": "trust_full",
+            "emotion_full": "emotion_full",
+            "emotion_rating": "emotion_full",
+            "masc_choice_full": "masc_choice_full",
+            "masc_choice": "masc_choice_full",
+            "fem_choice_full": "fem_choice_full",
+            "fem_choice": "fem_choice_full",
+        },
+        # Legacy support - map old "both" entries to the new "full" version
+        "both": {
+            "trust_rating": "trust_full",
+            "emotion_rating": "emotion_full",
+            "masc_choice": "masc_choice_full",
+            "fem_choice": "fem_choice_full",
+        },
+    }
+
+    for face_id, face_data in response_dict.items():
+        if not isinstance(face_data, dict):
+            print(f"[csv] Skipping {face_id} - not a dictionary")
+            continue
+
+        face_timestamp = face_data.get("timestamp") or datetime.utcnow().isoformat()
+        actual_pid = face_data.get("prolific_pid", participant_id)
+
+        for version, question_map in version_question_map.items():
+            version_data = face_data.get(version)
+            if not isinstance(version_data, dict):
+                continue
+
+            output_version = "full" if version == "both" else version
+
+            for source_key, question_label in question_map.items():
+                if source_key not in version_data:
+                    continue
+
+                response_value = version_data[source_key]
+                if response_value is None or response_value == "":
+                    continue
+
+                long_responses.append({
+                    "pid": actual_pid,
+                    "face_id": face_id,
+                    "version": output_version,
+                    "question": question_label,
+                    "response": response_value,
+                    "timestamp": face_timestamp,
+                })
+
+    print(f"[csv] Final CSV rows = {len(long_responses)}")
+    return long_responses
 def convert_wide_to_long_format(wide_responses: list) -> list:
     """
     Convert wide format responses to long format.
@@ -212,97 +293,113 @@ def convert_wide_to_long_format(wide_responses: list) -> list:
     """
     long_responses = []
     
-    for response in wide_responses:
+    print(f"     CONVERT DEBUG: Processing {len(wide_responses)} wide format responses")
+    
+    for i, response in enumerate(wide_responses):
+        print(f"     CONVERT DEBUG: Processing response {i}: {response}")
+        
         participant_id = response.get("pid", "")
         timestamp = response.get("timestamp", "")
         face_id = response.get("face_id", "")
         face_view = response.get("version", "")
         
+        print(f"     CONVERT DEBUG: Extracted - pid: {participant_id}, face_id: {face_id}, version: {face_view}")
+        
         # Skip survey rows
         if face_id == "survey":
+            print(f"     CONVERT DEBUG: Skipping survey row")
             continue
             
         # Define question types and their corresponding response values
-        question_mappings = [
-            ("trust_rating", response.get("trust_rating")),
-            ("masc_choice", response.get("masc_choice")),
-            ("fem_choice", response.get("fem_choice")),
-            ("emotion_rating", response.get("emotion_rating")),
-            ("trust_q2", response.get("trust_q2")),
-            ("trust_q3", response.get("trust_q3")),
-            ("pers_q1", response.get("pers_q1")),
-            ("pers_q2", response.get("pers_q2")),
-            ("pers_q3", response.get("pers_q3")),
-            ("pers_q4", response.get("pers_q4")),
-            ("pers_q5", response.get("pers_q5"))
-        ]
+        # Map the wide format columns to the expected question types
+        question_mappings = []
+        
+        # Trust ratings (different versions)
+        if response.get("trust_rating"):
+            question_mappings.append(("trust_rating", response.get("trust_rating")))
+        
+        # Emotion ratings (different versions)  
+        if response.get("emotion_rating"):
+            question_mappings.append(("emotion_rating", response.get("emotion_rating")))
+            
+        # Masculinity/femininity choices (from toggle version)
+        if response.get("masc_choice"):
+            question_mappings.append(("masc_choice", response.get("masc_choice")))
+        if response.get("fem_choice"):
+            question_mappings.append(("fem_choice", response.get("fem_choice")))
+            
+        # Masculinity/femininity ratings (from full version) - only if not already created as choices
+        if response.get("masculinity"):
+            question_mappings.append(("masculinity", response.get("masculinity")))
+        if response.get("femininity"):
+            question_mappings.append(("femininity", response.get("femininity")))
+            
+        # Additional questions (if any)
+        if response.get("trust_q2"):
+            question_mappings.append(("trust_q2", response.get("trust_q2")))
+        if response.get("trust_q3"):
+            question_mappings.append(("trust_q3", response.get("trust_q3")))
+        if response.get("pers_q1"):
+            question_mappings.append(("pers_q1", response.get("pers_q1")))
+        if response.get("pers_q2"):
+            question_mappings.append(("pers_q2", response.get("pers_q2")))
+        if response.get("pers_q3"):
+            question_mappings.append(("pers_q3", response.get("pers_q3")))
+        if response.get("pers_q4"):
+            question_mappings.append(("pers_q4", response.get("pers_q4")))
+        if response.get("pers_q5"):
+            question_mappings.append(("pers_q5", response.get("pers_q5")))
+        
+        print(f"     CONVERT DEBUG: Question mappings: {question_mappings}")
         
         # Create a long format row for each non-null response
         for question_type, response_value in question_mappings:
             if response_value is not None and response_value != "":
                 long_row = {
-                    "participant_id": participant_id,
-                    "image_id": face_id,
-                    "face_view": face_view,
-                    "question_type": question_type,
+                    "pid": participant_id,
+                    "face_id": face_id,
+                    "version": face_view,
+                    "question": question_type,
                     "response": response_value,
                     "timestamp": timestamp
                 }
                 long_responses.append(long_row)
+                print(f"     CONVERT DEBUG: Added long row: {long_row}")
+            else:
+                print(f"     CONVERT DEBUG: Skipping {question_type} = {response_value} (null/empty)")
     
+    print(f"     CONVERT DEBUG: Final result: {len(long_responses)} long format responses")
     return long_responses
 
-def save_participant_data(participant_id: str, responses: list, headers=None):
-    """Save responses to a CSV file in data/responses/ in LONG FORMAT
-    
-    Args:
-        participant_id: The participant ID (PROLIFIC_PID or assigned ID)
-        responses: List of dictionaries containing response data
-        headers: Optional list of column headers (uses dict keys if not provided)
-    """
+# Wide format conversion removed - using long format only
+
+# Wide format export removed - using long format only
+
+def save_participant_data_long(participant_id: str, responses: dict) -> str:
+    """Save responses to CSV in strict LONG format (one row per question)."""
     try:
-        # Create data/responses directory if it doesn't exist
         responses_dir = DATA_DIR / "responses"
         responses_dir.mkdir(exist_ok=True)
-        
-        # Use a timestamp in the filename to prevent overwriting
+
         timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-        
-        # Ensure participant_id is valid for a filename
-        safe_id = participant_id.replace(" ", "_").replace("/", "_").replace("\\", "_")
-        if not safe_id:
-            safe_id = "anon"  # Use 'anon' if ID is empty
-            
-        # Define the filepath with timestamp
+        safe_id = participant_id.replace(" ", "_").replace("/", "_").replace("\\", "_") or "anon"
         filepath = responses_dir / f"{safe_id}_{timestamp}.csv"
-        
-        # Ensure we have valid responses
-        if not responses or len(responses) == 0:
-            print(f"⚠️ No responses to save for participant {participant_id}")
+
+        long_rows = convert_dict_to_long_format(participant_id, responses)
+        if not long_rows:
+            print(f"       No valid responses after conversion to long format for participant {participant_id}")
             return None
-        
-        # Convert wide format to long format
-        long_responses = convert_wide_to_long_format(responses)
-        
-        if not long_responses:
-            print(f"⚠️ No valid responses after conversion to long format for participant {participant_id}")
-            return None
-            
-        # Define long format headers
-        long_format_headers = ["participant_id", "image_id", "face_view", "question_type", "response", "timestamp"]
-        
-        # Write the CSV file in long format
+
+        headers = ["pid", "face_id", "version", "question", "response", "timestamp"]
         with open(filepath, "w", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=long_format_headers)
+            writer = csv.DictWriter(f, fieldnames=headers)
             writer.writeheader()
-            writer.writerows(long_responses)
-        
-        print(f"✅ Saved participant data in LONG FORMAT to {filepath}")
-        print(f"   📊 Converted {len(responses)} wide format rows to {len(long_responses)} long format rows")
+            writer.writerows(long_rows)
+
+        print(f"    Exported long-format CSV for pid={participant_id}: {filepath}")
         return filepath
-        
     except Exception as e:
-        print(f"❌ Error saving participant data: {e}")
+        print(f"    Error saving participant data (long): {e}")
         return None
 
 # ----------------------------------------------------------------------------
@@ -317,7 +414,7 @@ def consent():
         if choice == "agree":
             session["consent"] = True
             return redirect(url_for("landing"))
-        # Declined – clear session and show goodbye
+        # Declined     clear session and show goodbye
         session.clear()
         return render_template("declined.html")
     return render_template("consent.html")
@@ -340,65 +437,16 @@ def survey():
         p5 = request.form.get("pers5")
         prolific_pid = session.get("prolific_pid", "")
         
-        # Log the form data for debugging
-        print(f"Form data received: {dict(request.form)}")
+        # Log the form data for debugging and finish session
+        print(f"Form data received (survey): {dict(request.form)}")
         
-        session["responses"].append([
-            session["pid"], datetime.utcnow().isoformat(), "survey", "survey", session["index"],
-            None, None, None,
-            t1, t2, t3, p1, p2, p3, p4, p5,
-            prolific_pid  # Add Prolific ID
-        ])
-        
-        # Save and finish
-        try:
-            # Save encrypted CSV (original format)
-            save_encrypted_csv(session["pid"], session["responses"])
-            print(f"✅ Successfully saved encrypted CSV for participant {session['pid']}")
-            
-            # Convert session responses to dictionary format for save_participant_data
-            participant_id = session["pid"]
-            prolific_pid = session.get("prolific_pid", participant_id)
-            
-            # Use the Prolific ID if available, otherwise use the participant ID
-            save_id = prolific_pid if prolific_pid else participant_id
-            
-            # Convert list-based responses to dictionary format
-            dict_responses = []
-            headers = [
-                "pid", "timestamp", "face_id", "version", "order_presented",
-                "trust_rating", "masc_choice", "fem_choice",
-                "trust_q1", "trust_q2", "trust_q3",
-                "pers_q1", "pers_q2", "pers_q3", "pers_q4", "pers_q5",
-                "prolific_pid"
-            ]
-            
-            for row in session["responses"]:
-                dict_row = {}
-                for i, header in enumerate(headers):
-                    if i < len(row):
-                        dict_row[header] = row[i]
-                    else:
-                        dict_row[header] = None
-                dict_responses.append(dict_row)
-            
-            # Save participant data to data/responses directory
-            filepath = save_participant_data(save_id, dict_responses, headers)
-            print(f"✅ Successfully saved participant data to {filepath}")
-            
-            # Also save a backup copy with just the participant ID to ensure it's found
-            backup_filepath = save_participant_data(f"participant_{participant_id}", dict_responses, headers)
-            print(f"✅ Successfully saved backup participant data to {backup_filepath}")
-            
-        except Exception as e:
-            print(f"❌ Error saving participant data: {e}")
-        
-        # IRB-Safe: Mark session as complete (non-intrusive addition)
+        # We already saved responses incrementally during /task POSTs
+        # Mark session complete and redirect
         if SESSION_MANAGEMENT_ENABLED:
             try:
                 mark_session_complete(session["pid"])
             except Exception as e:
-                print(f"⚠️ Session completion marking failed (non-critical): {e}")
+                print(f"       Session completion marking failed (non-critical): {e}")
         
         pid = session["pid"]
         prolific_pid = session.get("prolific_pid", "")
@@ -415,19 +463,24 @@ def landing():
 
     pid = request.args.get("pid")
     prolific_pid = request.args.get("PROLIFIC_PID", "")
-    
-    print(f"🔍 LANDING DEBUG: PID from URL: {pid}")
-    print(f"🔍 LANDING DEBUG: Prolific PID from URL: {prolific_pid}")
-    
-    if pid:
-        # Start session immediately
-        print(f"🔍 LANDING DEBUG: Creating session for PID: {pid}")
-        create_participant_run(pid, prolific_pid)
-        return redirect(url_for("task", pid=pid))
-    
-    # Pass prolific_pid to template if available
-    return render_template("index.html", prolific_pid=prolific_pid)
 
+    print(f"     LANDING DEBUG: PID from URL: {pid}")
+    print(f"     LANDING DEBUG: Prolific PID from URL: {prolific_pid}")
+
+    try:
+        if pid:
+            # Start session immediately
+            print(f"     LANDING DEBUG: Creating session for PID: {pid}")
+            create_participant_run(pid, prolific_pid)
+            return redirect(url_for("task", pid=pid))
+
+        # Pass prolific_pid to template if available
+        return render_template("index.html", prolific_pid=prolific_pid)
+    except Exception as e:
+        with open("error.log", "a", encoding="utf-8") as log_file:
+            log_file.write(f"[landing] {e}\n")
+            traceback.print_exc(file=log_file)
+        raise
 @app.route("/instructions")
 def instructions():
     if "pid" not in session:
@@ -438,22 +491,39 @@ def instructions():
 @app.route("/start", methods=["POST"])
 def start_manual():
     pid = request.form.get("pid", "").strip()
-    print(f"🔍 START DEBUG: Received start request for PID: {pid}")
+    print(f"     START DEBUG: Received start request for PID: {pid}")
     if not pid:
         abort(400)
-    
     # Capture Prolific ID if provided
     prolific_pid = request.form.get("prolific_pid", "").strip()
-    print(f"🔍 START DEBUG: Prolific PID: {prolific_pid}")
+    if not prolific_pid or prolific_pid == "UNKNOWN_PID":
+        prolific_pid = pid  # Use participant ID as fallback
+    print(f"     START DEBUG: Prolific PID: {prolific_pid}")
     
     # IRB-Safe: Check for existing session before creating new one
     if SESSION_MANAGEMENT_ENABLED:
         try:
-            existing_session = load_session_state(pid)
-            if existing_session and not existing_session.get("session_complete", False):
+            # FORCE FRESH START: Always clear session and delete any existing session files
+            session.clear()
+            session_file_path = Path("data/sessions") / f"{pid}_session.json"
+            backup_file_path = Path("data/sessions") / f"{pid}_backup.json"
+            
+            # Delete existing session files to force fresh start
+            if session_file_path.exists():
+                session_file_path.unlink()
+                print(f"     DELETED existing session file: {session_file_path}")
+            if backup_file_path.exists():
+                backup_file_path.unlink()
+                print(f"     DELETED existing backup file: {backup_file_path}")
+                
+            print(f"     FORCE FRESH START: Starting completely new session for PID: {pid}")
+            existing_session = None
+            
+            # Skip session resumption - always start fresh
+            if False:  # Disabled session resumption
                 # Resume existing session
                 session["pid"] = pid
-                session["responses"] = existing_session.get("responses", [])
+                session["responses"] = existing_session.get("responses", {})
                 session["face_order"] = existing_session.get("face_order", [])
                 
                 # Rebuild sequence from face_order with proper structure
@@ -461,11 +531,15 @@ def start_manual():
                 left_first = existing_session.get("left_first", True)  # Default to True if not stored
                 sequence = []
                 for face_id in face_order:
-                    # Create the exact same sequence structure as the original
+                    # Create order with both toggle and full versions
+                    if left_first:
+                        start_side = "left"
+                    else:
+                        start_side = "right"
                     sequence.append({
                         "face_id": face_id,
                         "order": [
-                            {"version": "toggle", "file": f"{face_id}.jpg", "start": ("left" if left_first else "right")}, 
+                            {"version": "toggle", "file": f"{face_id}.jpg", "start": start_side},
                             {"version": "full", "file": f"{face_id}.jpg"}
                         ]
                     })
@@ -479,42 +553,42 @@ def start_manual():
                 face_index = existing_index // 2  # Each face has 2 stages (toggle, full)
                 stage_in_face = existing_index % 2  # 0 = toggle, 1 = full
                 
-                print(f"   📊 Existing index: {existing_index}, face_index: {face_index}, stage_in_face: {stage_in_face}")
+                print(f"        Existing index: {existing_index}, face_index: {face_index}, stage_in_face: {stage_in_face}")
                 
                 # Check if current face is complete (has both toggle and full responses)
                 face_responses = [r for r in existing_responses if r[2] == face_order[face_index]]  # Filter by face_id
                 has_toggle = any(r[3] == "toggle" for r in face_responses)
                 has_full = any(r[3] == "full" for r in face_responses)
                 
-                print(f"   📊 Face {face_order[face_index]} responses: toggle={has_toggle}, full={has_full}")
+                print(f"        Face {face_order[face_index]} responses: toggle={has_toggle}, full={has_full}")
                 
                 # If face is incomplete, resume at the missing stage
                 if not has_toggle:
                     # Resume at toggle stage of current face
                     session["index"] = face_index * 2  # toggle stage
-                    print(f"   📊 Resuming at toggle stage (index {session['index']})")
+                    print(f"        Resuming at toggle stage (index {session['index']})")
                 elif not has_full:
                     # Resume at full stage of current face
                     session["index"] = face_index * 2 + 1  # full stage
-                    print(f"   📊 Resuming at full stage (index {session['index']})")
+                    print(f"        Resuming at full stage (index {session['index']})")
                 else:
                     # Face is complete, move to next face
                     session["index"] = (face_index + 1) * 2  # toggle stage of next face
-                    print(f"   📊 Face complete, moving to next face (index {session['index']})")
+                    print(f"        Face complete, moving to next face (index {session['index']})")
                 
                 session["responses"] = existing_responses
-                print(f"   📊 Final index: {session['index']}, total responses: {len(session['responses'])}")
+                print(f"        Final index: {session['index']}, total responses: {len(session['responses'])}")
                 
                 if existing_session.get("prolific_pid"):
                     session["prolific_pid"] = existing_session["prolific_pid"]
                 
-                print(f"✅ Resumed session for participant {pid}")
+                print(f"    Resumed session for participant {pid}")
                 print(f"   Resuming at index: {session['index']}")
-                print(f"   📊 Total responses: {len(session['responses'])}")
-                print(f"   🔄 Redirecting to task page...")
+                print(f"        Total responses: {len(session['responses'])}")
+                print(f"        Redirecting to task page...")
                 return redirect(url_for("task", pid=pid))
         except Exception as e:
-            print(f"⚠️ Session resume failed (non-critical): {e}")
+            print(f"       Session resume failed (non-critical): {e}")
             import traceback
             traceback.print_exc()
     
@@ -528,118 +602,140 @@ def start_manual():
 def task():
     # If session missing but pid present in query (e.g., redirect loop), try to resume first
     if "pid" not in session:
-        qpid = request.args.get("pid")
-        if qpid:
-            # Try to resume existing session first
-            if SESSION_MANAGEMENT_ENABLED:
-                try:
-                    existing_session = load_session_state(qpid)
-                    if existing_session and not existing_session.get("session_complete", False):
-                        # Resume the session with proper index calculation
-                        session["pid"] = existing_session["participant_id"]
-                        session["face_order"] = existing_session["face_order"]
-                        session["responses"] = existing_session["responses"]
-                        
-                        # Rebuild sequence
-                        left_first = existing_session.get("left_first", True)  # Default to True if not stored
-                        sequence = []
-                        for face_id in existing_session["face_order"]:
-                            sequence.append({
-                                "face_id": face_id,
-                                "order": [{"version": "toggle", "file": f"{face_id}.jpg", "start": ("left" if left_first else "right")}, {"version": "full", "file": f"{face_id}.jpg"}]
-                            })
-                        session["sequence"] = sequence
-                        
-                        # Determine the correct index to resume at (same logic as start_manual)
-                        existing_index = existing_session.get("index", 0)
-                        existing_responses = existing_session.get("responses", [])
-                        face_order = existing_session.get("face_order", [])
-                        
-                        # Calculate which face we're on and if it's complete
-                        face_index = existing_index // 2  # Each face has 2 stages (toggle, full)
-                        stage_in_face = existing_index % 2  # 0 = toggle, 1 = full
-                        
-                        
-                        # Check if current face is complete (has both toggle and full responses)
-                        if face_index < len(face_order):
-                            face_responses = [r for r in existing_responses if r[2] == face_order[face_index]]  # Filter by face_id
-                            has_toggle = any(r[3] == "toggle" for r in face_responses)
-                            has_full = any(r[3] == "full" for r in face_responses)
-                            
-                            
-                            # If face is incomplete, resume at the missing stage
-                            if not has_toggle:
-                                # Resume at toggle stage of current face
-                                session["index"] = face_index * 2  # toggle stage
-                            elif not has_full:
-                                # Resume at full stage of current face
-                                session["index"] = face_index * 2 + 1  # full stage
-                            else:
-                                # Face is complete, move to next face
-                                session["index"] = (face_index + 1) * 2  # toggle stage of next face
-                        else:
-                            # We're past all faces, keep the existing index
-                            session["index"] = existing_index
-                        
-                        if existing_session.get("prolific_pid"):
-                            session["prolific_pid"] = existing_session["prolific_pid"]
-                            
-                    else:
+        # Only handle session creation for GET requests, not POST requests
+        if request.method == "GET":
+            qpid = request.args.get("pid")
+            if qpid:
+                # Try to resume existing session first
+                if SESSION_MANAGEMENT_ENABLED:
+                    try:
+                        # FORCE FRESH START: Always redirect to start for new session
+                        print(f"     FORCE FRESH START: Redirecting to start for PID {qpid}")
+                        return redirect(url_for("start"))
+                    except Exception as e:
                         create_participant_run(qpid)
-                except Exception as e:
+                else:
                     create_participant_run(qpid)
             else:
-                create_participant_run(qpid)
+                return redirect(url_for("landing"))
         else:
+            # For POST requests without session, redirect to landing
             return redirect(url_for("landing"))
 
     # Handle POST (save previous answer)
     if request.method == "POST":
+        print(f"     POST DEBUG: Form submission received for {request.form.get('version', 'UNKNOWN')}")
+        print(f"     POST DEBUG: Session keys: {list(session.keys()) if 'pid' in session else 'NO SESSION'}")
+        print(f"     POST DEBUG: Session index: {session.get('index', 'NOT SET')}")
+        
+        # Check if session exists
+        if "pid" not in session:
+            print(f"    POST DEBUG: No session found, redirecting to landing")
+            return redirect(url_for("landing"))
+        
         data = session["sequence"][session["index"] // 2]
         face_id = data["face_id"]
         version = request.form["version"]
-        if version == "toggle":
+        timestamp = datetime.utcnow().isoformat()
+        
+        # Get prolific PID from form or session
+        prolific_pid = request.form.get("prolific_pid", "").strip()
+        if not prolific_pid:
+            prolific_pid = session.get("prolific_pid", session.get("pid", "UNKNOWN_PID"))
+        
+        print(f"     POST DEBUG: Processing face_id: {face_id}, version: {version}")
+        
+        # Initialize face responses dictionary if not exists
+        if face_id not in session["responses"]:
+            session["responses"][face_id] = {
+                "participant_id": session["pid"],
+                "timestamp": timestamp,
+                "face_id": face_id,
+                "prolific_pid": prolific_pid,
+                "left": {},
+                "right": {},
+                "half": {},
+                "full": {}
+            }
+        
+        if version == "full":
+            # Full face rating - store in "full" section
+            trust_full = request.form.get("trust_full")
+            emotion_full = request.form.get("emotion_full")
+            masc = request.form.get("masc")
+            fem = request.form.get("fem")
+            
+            # Store responses in dictionary format (overwrite duplicates)
+            if trust_full:
+                session["responses"][face_id]["full"]["trust_full"] = trust_full
+            if emotion_full:
+                session["responses"][face_id]["full"]["emotion_full"] = emotion_full
+            if masc:
+                session["responses"][face_id]["full"]["masc_choice_full"] = masc
+            if fem:
+                session["responses"][face_id]["full"]["fem_choice_full"] = fem
+                
+        elif version == "toggle":
+            # Toggle version - capture half-face and side-specific responses
             trust_left = request.form.get("trust_left")
-            trust_right = request.form.get("trust_right")
             emotion_left = request.form.get("emotion_left")
+            trust_right = request.form.get("trust_right")
             emotion_right = request.form.get("emotion_right")
             masc_toggle = request.form.get("masc_toggle")
             fem_toggle = request.form.get("fem_toggle")
-            # record left then right (order flag indicates which shown first but both stored)
-            prolific_pid = session.get("prolific_pid", "")
-            
-            row_l = [
-                session["pid"], datetime.utcnow().isoformat(), face_id,
-                "left", session["index"], trust_left, masc_toggle, fem_toggle,
-                emotion_left, None, None, None, None, None, None, None
-            ]
-            row_l.append(prolific_pid)  # Add Prolific ID
-            session["responses"].append(row_l)
-            
-            row_r = [
-                session["pid"], datetime.utcnow().isoformat(), face_id,
-                "right", session["index"], trust_right, masc_toggle, fem_toggle,
-                emotion_right, None, None, None, None, None, None, None
-            ]
-            row_r.append(prolific_pid)  # Add Prolific ID
-            session["responses"].append(row_r)
+
+            left_responses = session["responses"][face_id]["left"]
+            right_responses = session["responses"][face_id]["right"]
+            half_responses = session["responses"][face_id]["half"]
+
+            if trust_left:
+                left_responses["trust_left"] = trust_left
+            if emotion_left:
+                left_responses["emotion_left"] = emotion_left
+
+            if trust_right:
+                right_responses["trust_right"] = trust_right
+            if emotion_right:
+                right_responses["emotion_right"] = emotion_right
+
+            if masc_toggle:
+                half_responses["masc_choice_half"] = masc_toggle
+            if fem_toggle:
+                half_responses["fem_choice_half"] = fem_toggle
         else:
+            # Legacy support for other versions
             trust_rating = request.form.get("trust")
             emotion_rating = request.form.get("emotion")
             masc_choice = request.form.get("masc")
             fem_choice = request.form.get("fem")
             prolific_pid = session.get("prolific_pid", "")
             
-            row_o = [
-                session["pid"], datetime.utcnow().isoformat(), face_id,
-                version, session["index"], trust_rating, masc_choice, fem_choice,
-                emotion_rating, None, None, None, None, None, None, None
-            ]
-            row_o.append(prolific_pid)  # Add Prolific ID
-            session["responses"].append(row_o)
+            # Store responses in dictionary format with version information
+            if face_id not in session["responses"]:
+                session["responses"][face_id] = {
+                    "participant_id": session["pid"],
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "face_id": face_id,
+                    "prolific_pid": prolific_pid
+                }
+            
+            # Store version-specific responses
+            if version not in session["responses"][face_id]:
+                session["responses"][face_id][version] = {}
+            
+            if trust_rating:
+                session["responses"][face_id][version]["trust_rating"] = trust_rating
+            if emotion_rating:
+                session["responses"][face_id][version]["emotion_rating"] = emotion_rating
+            if masc_choice:
+                session["responses"][face_id][version]["masc_choice"] = masc_choice
+            if fem_choice:
+                session["responses"][face_id][version]["fem_choice"] = fem_choice
         # Save the current index before advancing
         current_index = session["index"]
         session["index"] += 1
+        
+        print(f"     FORM PROCESSING COMPLETE: Advanced session index from {current_index} to {session['index']}")
         
         
         # IRB-Safe: Save session state after each response (non-intrusive addition)
@@ -662,75 +758,47 @@ def task():
                     }
                     with open(backup_file, 'w') as f:
                         json.dump(backup_data, f, indent=2)
-                    print(f"✅ Backup session saved to {backup_file}")
+                    print(f"    Backup session saved to {backup_file}")
                 except Exception as backup_e:
-                    print(f"⚠️ Backup save failed: {backup_e}")
+                    print(f"       Backup save failed: {backup_e}")
                     
             except Exception as e:
-                print(f"⚠️ Session save failed (non-critical): {e}")
+                print(f"       Session save failed (non-critical): {e}")
                 import traceback
                 traceback.print_exc()
         
         # Save responses to CSV immediately for dashboard visibility
+        print(f"     ENTERING CSV SAVE SECTION for participant {session.get('pid', 'UNKNOWN')}")
         try:
-            # Convert session responses to dictionary format for save_participant_data
+            # Save directly using the nested dictionary format
             participant_id = session["pid"]
             prolific_pid = session.get("prolific_pid", participant_id)
             
-            # Use the Prolific ID if available, otherwise use the participant ID
+            # Use the Prolific ID for filename if available, otherwise use the participant ID
             save_id = prolific_pid if prolific_pid else participant_id
             
-            # Convert list-based responses to dictionary format
-            dict_responses = []
-            headers = [
-                "pid", "timestamp", "face_id", "version", "order_presented",
-                "trust_rating", "masc_choice", "fem_choice",
-                "emotion_rating", "trust_q2", "trust_q3",
-                "pers_q1", "pers_q2", "pers_q3", "pers_q4", "pers_q5",
-                "prolific_pid"
-            ]
+            print(f"     CSV SAVE DEBUG: Attempting to save CSV for participant {participant_id}")
+            print(f"     CSV SAVE DEBUG: Session responses keys: {list(session['responses'].keys())}")
+            print(f"     CSV SAVE DEBUG: Session responses structure:")
+            for face_id, face_data in session["responses"].items():
+                print(f"  Face {face_id}: {list(face_data.keys())}")
             
-            for row in session["responses"]:
-                dict_row = {}
-                for i, header in enumerate(headers):
-                    if i < len(row):
-                        dict_row[header] = row[i]
-                    else:
-                        dict_row[header] = None
-                dict_responses.append(dict_row)
-            
-            # Save participant data to data/responses directory
-            filepath = save_participant_data(save_id, dict_responses, headers)
-            if filepath:
-                print(f"✅ Saved live response data to {filepath}")
-            else:
-                print(f"❌ save_participant_data returned None - saving failed")
-            
-            # Also save a backup copy with just the participant ID to ensure it's found
-            backup_filepath = save_participant_data(f"participant_{participant_id}", dict_responses, headers)
-            if backup_filepath:
-                print(f"✅ Saved backup response data to {backup_filepath}")
-            
-            # Create a simple CSV file for dashboard compatibility (in long format)
-            responses_dir = DATA_DIR / "responses"
-            responses_dir.mkdir(exist_ok=True)
-            simple_csv_path = responses_dir / f"{participant_id}.csv"
+            # Save both formats only after full screen (ensures a complete face row)
+            # Save only in long format
+            long_path = None
             try:
-                # Convert to long format for dashboard compatibility
-                long_responses = convert_wide_to_long_format(dict_responses)
-                long_format_headers = ["participant_id", "image_id", "face_view", "question_type", "response", "timestamp"]
-                
-                with open(simple_csv_path, "w", newline="") as f:
-                    writer = csv.DictWriter(f, fieldnames=long_format_headers)
-                    writer.writeheader()
-                    writer.writerows(long_responses)
-                print(f"✅ Saved simple CSV in LONG FORMAT for dashboard: {simple_csv_path}")
-                print(f"   📊 Converted {len(dict_responses)} wide format rows to {len(long_responses)} long format rows")
+                long_path = save_participant_data_long(save_id, session["responses"])
             except Exception as e:
-                print(f"⚠️ Simple CSV save failed: {e}")
+                print(f"       Long export failed: {e}")
+            if not long_path:
+                print("    CSV SAVE FAILED: long format export failed")
+            
+            # Single timestamped save only (no extra per-participant CSV)
                 
         except Exception as e:
-            print(f"⚠️ Live response saving failed (non-critical): {e}")
+            print(f"       Live response saving failed (non-critical): {e}")
+            import traceback
+            traceback.print_exc()
 
     # Check if finished
     if session["index"] >= len(session["sequence"]) * 2:  # 2 stages per face (toggle and full)
@@ -740,6 +808,13 @@ def task():
     face_index = session["index"] // 2
     image_index = session["index"] % 2
     current = session["sequence"][face_index]
+    
+    # Debug logging
+    print(f"     TASK DEBUG: session['index']: {session['index']}")
+    print(f"     TASK DEBUG: face_index: {face_index}, image_index: {image_index}")
+    print(f"     TASK DEBUG: current sequence item: {current}")
+    print(f"     TASK DEBUG: current['order'] length: {len(current['order'])}")
+    
     image_dict = current["order"][image_index]
     image_file = image_dict["file"]
     version = image_dict["version"]
@@ -756,11 +831,11 @@ def task():
     progress = face_index + 1
     
     # CRITICAL DEBUG: Log the display values
-    print(f"🔍 DISPLAY DEBUG: Participant {session['pid']} - Face {progress} of {len(session['face_order'])}")
-    print(f"🔍 DISPLAY DEBUG: session['index']: {session['index']}")
-    print(f"🔍 DISPLAY DEBUG: face_index: {face_index}")
-    print(f"🔍 DISPLAY DEBUG: len(session['sequence']): {len(session['sequence'])}")
-    print(f"🔍 DISPLAY DEBUG: len(session['face_order']): {len(session['face_order'])}")
+    print(f"     DISPLAY DEBUG: Participant {session['pid']} - Face {progress} of {len(session['face_order'])}")
+    print(f"     DISPLAY DEBUG: session['index']: {session['index']}")
+    print(f"     DISPLAY DEBUG: face_index: {face_index}")
+    print(f"     DISPLAY DEBUG: len(session['sequence']): {len(session['sequence'])}")
+    print(f"     DISPLAY DEBUG: len(session['face_order']): {len(session['face_order'])}")
     
     return render_template(
         "task.html",
@@ -793,17 +868,25 @@ def done():
 if __name__ == "__main__":
     # Set default port to 3000
     port = 3000
-    print(f"🎯 Starting Facial Trust Study on port {port}")
-    print(f"📍 URL: http://localhost:{port}")
-    print("🔧 Using localhost binding for Windows compatibility")
+    print(f"Starting Facial Trust Study on port {port}")
+    print(f"Study available at http://localhost:{port}")
+    print("Using localhost binding for Windows compatibility")
     try:
         # Use 0.0.0.0 for both Render deployment and local development (allows localhost access)
         host = "0.0.0.0"
         app.run(host=host, port=port, debug=False)
     except OSError as e:
         if "Address already in use" in str(e):
-            print(f"❌ Port {port} is already in use. Please stop other services on this port.")
+            print(f"Port {port} is already in use. Please stop other services on this port.")
         else:
-            print(f"❌ Error starting server: {e}")
+            print(f"Error starting server: {e}")
     except Exception as e:
-        print(f"❌ Unexpected error: {e}")
+        print(f"Unexpected error: {e}")
+
+
+
+
+
+
+
+
