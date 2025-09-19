@@ -2,6 +2,7 @@ import sys
 import os
 import csv
 import random
+import json
 from datetime import datetime
 from pathlib import Path
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
@@ -422,7 +423,8 @@ def consent():
 
 @app.route("/survey", methods=["GET", "POST"])
 def survey():
-    if "pid" not in session:
+    pid = session.get("pid")
+    if not pid:
         return redirect(url_for("landing"))
     if request.method == "POST":
         # Get form data with correct input names
@@ -436,24 +438,38 @@ def survey():
         p4 = request.form.get("pers4")
         p5 = request.form.get("pers5")
         prolific_pid = session.get("prolific_pid", "")
-        
+
         # Log the form data for debugging and finish session
         print(f"Form data received (survey): {dict(request.form)}")
-        
+
         # We already saved responses incrementally during /task POSTs
-        # Mark session complete and redirect
+        # Mark session complete and ensure backups reflect the final state
+        session["session_complete"] = True
         if SESSION_MANAGEMENT_ENABLED:
             try:
-                mark_session_complete(session["pid"])
+                completion_marked = mark_session_complete(pid)
+                if not completion_marked:
+                    print(f"       Session completion flag not persisted for {pid}")
             except Exception as e:
                 print(f"       Session completion marking failed (non-critical): {e}")
-        
-        pid = session["pid"]
+
+        try:
+            backup_dir = DATA_DIR / "sessions"
+            backup_file = backup_dir / f"{pid}_backup.json"
+            if backup_file.exists():
+                with open(backup_file, "r", encoding="utf-8") as f:
+                    backup_data = json.load(f)
+                backup_data["session_complete"] = True
+                backup_data["completion_timestamp"] = datetime.utcnow().isoformat()
+                with open(backup_file, "w", encoding="utf-8") as f:
+                    json.dump(backup_data, f, indent=2)
+        except Exception as backup_error:
+            print(f"       Backup completion update failed: {backup_error}")
+
         prolific_pid = session.get("prolific_pid", "")
         session.clear()
         return redirect(url_for("done", pid=pid, PROLIFIC_PID=prolific_pid))
     return render_template("survey.html")
-
 
 @app.route("/")
 def landing():
@@ -882,11 +898,3 @@ if __name__ == "__main__":
             print(f"Error starting server: {e}")
     except Exception as e:
         print(f"Unexpected error: {e}")
-
-
-
-
-
-
-
-
