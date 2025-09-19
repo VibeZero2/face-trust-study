@@ -66,8 +66,12 @@ def save_session_state(participant_id: str, session_data: Dict[str, Any]) -> boo
             "responses": session_data.get("responses", []),
             "prolific_pid": session_data.get("prolific_pid", ""),
             "left_first": session_data.get("left_first", True),  # Save the left_first value
-            "session_complete": False
+            "session_complete": bool(session_data.get("session_complete", False))
         }
+
+        if session_data.get("completion_timestamp"):
+            session_state["completion_timestamp"] = session_data.get("completion_timestamp")
+
         
         # Save to JSON file
         with open(session_file, 'w') as f:

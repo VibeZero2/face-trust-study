@@ -741,6 +741,14 @@ def task():
         current_index = session["index"]
         session["index"] += 1
         
+        total_steps = len(session.get("sequence") or []) * 2
+        is_complete = total_steps > 0 and session["index"] >= total_steps
+        if is_complete:
+            session["session_complete"] = True
+            session["completion_timestamp"] = datetime.utcnow().isoformat()
+        else:
+            session.pop("completion_timestamp", None)
+        
         print(f"     FORM PROCESSING COMPLETE: Advanced session index from {current_index} to {session['index']}")
         
         
@@ -748,7 +756,14 @@ def task():
         if SESSION_MANAGEMENT_ENABLED:
             try:
                 save_result = save_session_state(session["pid"], dict(session))
-                
+                if is_complete:
+                    try:
+                        completion_marked = mark_session_complete(session["pid"])
+                        if not completion_marked:
+                            print(f"       Session completion flag not persisted for {session['pid']}")
+                    except Exception as mark_error:
+                        print(f"       Session completion update failed: {mark_error}")
+
                 # Also save a backup copy directly to ensure it works
                 try:
                     import json
@@ -760,8 +775,10 @@ def task():
                         "face_order": session["face_order"],
                         "responses": session["responses"],
                         "prolific_pid": session.get("prolific_pid", ""),
-                        "session_complete": False
+                        "session_complete": session.get("session_complete", False)
                     }
+                    if session.get("completion_timestamp"):
+                        backup_data["completion_timestamp"] = session["completion_timestamp"]
                     with open(backup_file, 'w') as f:
                         json.dump(backup_data, f, indent=2)
                     print(f"    Backup session saved to {backup_file}")
@@ -807,7 +824,7 @@ def task():
             traceback.print_exc()
 
     # Check if finished
-    if session["index"] >= len(session["sequence"]) * 2:  # 2 stages per face (toggle and full)
+    if is_complete:
         return redirect(url_for("survey"))
 
     # Determine current image to show
