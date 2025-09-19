@@ -611,8 +611,8 @@ def start_manual():
 @app.route("/task", methods=["GET", "POST"])
 def task():
     # If session missing but pid present in query (e.g., redirect loop), try to resume first
-    # Ensure is_complete has a default value for all control paths
-    is_complete = False
+    # Use an explicit local flag to avoid accidental UnboundLocalError
+    task_is_complete = False
     if "pid" not in session:
         if request.method == "GET":
             qpid = request.args.get("pid")
@@ -744,8 +744,8 @@ def task():
         session["index"] += 1
         
         total_steps = len(session.get("sequence") or []) * 2
-        is_complete = total_steps > 0 and session["index"] >= total_steps
-        if is_complete:
+        task_is_complete = total_steps > 0 and session["index"] >= total_steps
+        if task_is_complete:
             session["session_complete"] = True
             session["completion_timestamp"] = datetime.utcnow().isoformat()
         else:
@@ -758,7 +758,7 @@ def task():
         if SESSION_MANAGEMENT_ENABLED:
             try:
                 save_result = save_session_state(session["pid"], dict(session))
-                if is_complete:
+                if task_is_complete:
                     try:
                         completion_marked = mark_session_complete(session["pid"])
                         if not completion_marked:
@@ -826,12 +826,7 @@ def task():
             traceback.print_exc()
 
     # Check if finished
-    # ensure is_complete is always defined (avoid UnboundLocalError on some paths)
-    try:
-        _is_complete_check = is_complete
-    except NameError:
-        _is_complete_check = False
-    if _is_complete_check:
+    if task_is_complete:
         return redirect(url_for("survey"))
 
     # Determine current image to show
