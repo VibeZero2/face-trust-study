@@ -45,12 +45,12 @@
           'I believe that people are generally trustworthy.',
           'Most people can be counted on to do what they say they will do.'
         ] %}
-        {% for item in trust_items %}
+        {% for item_index, item in enumerate(trust_items, start=1) %}
         <tr>
           <td class="text-start">{{ item }}</td>
           {% for i in range(1,8) %}
-          <td class="rating-cell" onclick="document.getElementById('trust{{ loop.parent.index }}_{{ i }}').click()">
-            <input type="radio" id="trust{{ loop.parent.index }}_{{ i }}" name="trust{{ loop.parent.index }}" value="{{i}}" required>
+          <td class="rating-cell" onclick="document.getElementById('trust{{ item_index }}_{{ i }}').click()">
+            <input type="radio" id="trust{{ item_index }}_{{ i }}" name="trust{{ item_index }}" value="{{i}}" required>
           </td>
           {% endfor %}
         </tr>
@@ -76,12 +76,12 @@
           'I see myself as anxious, easily upset.',
           'I see myself as open to new experiences, complex.'
         ] %}
-        {% for item in pers_items %}
+        {% for item_index, item in enumerate(pers_items, start=1) %}
         <tr>
           <td class="text-start">{{ item }}</td>
           {% for i in range(1,8) %}
-          <td class="rating-cell" onclick="document.getElementById('pers{{ loop.parent.index }}_{{ i }}').click()">
-            <input type="radio" id="pers{{ loop.parent.index }}_{{ i }}" name="pers{{ loop.parent.index }}" value="{{i}}" required>
+          <td class="rating-cell" onclick="document.getElementById('pers{{ item_index }}_{{ i }}').click()">
+            <input type="radio" id="pers{{ item_index }}_{{ i }}" name="pers{{ item_index }}" value="{{i}}" required>
           </td>
           {% endfor %}
         </tr>

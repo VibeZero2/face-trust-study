@@ -611,6 +611,8 @@ def start_manual():
 @app.route("/task", methods=["GET", "POST"])
 def task():
     # If session missing but pid present in query (e.g., redirect loop), try to resume first
+    # Ensure is_complete has a default value for all control paths
+    is_complete = False
     if "pid" not in session:
         if request.method == "GET":
             qpid = request.args.get("pid")
