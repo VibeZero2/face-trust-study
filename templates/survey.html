@@ -49,8 +49,8 @@
         <tr>
           <td class="text-start">{{ item }}</td>
           {% for i in range(1,8) %}
-          <td class="rating-cell" onclick="document.getElementById('trust{{ loop.parent.loop.index }}_{{ i }}').click()">
-            <input type="radio" id="trust{{ loop.parent.loop.index }}_{{ i }}" name="trust{{ loop.parent.loop.index }}" value="{{i}}" required>
+          <td class="rating-cell" onclick="document.getElementById('trust{{ loop.parent.index }}_{{ i }}').click()">
+            <input type="radio" id="trust{{ loop.parent.index }}_{{ i }}" name="trust{{ loop.parent.index }}" value="{{i}}" required>
           </td>
           {% endfor %}
         </tr>
@@ -80,8 +80,8 @@
         <tr>
           <td class="text-start">{{ item }}</td>
           {% for i in range(1,8) %}
-          <td class="rating-cell" onclick="document.getElementById('pers{{ loop.parent.loop.index }}_{{ i }}').click()">
-            <input type="radio" id="pers{{ loop.parent.loop.index }}_{{ i }}" name="pers{{ loop.parent.loop.index }}" value="{{i}}" required>
+          <td class="rating-cell" onclick="document.getElementById('pers{{ loop.parent.index }}_{{ i }}').click()">
+            <input type="radio" id="pers{{ loop.parent.index }}_{{ i }}" name="pers{{ loop.parent.index }}" value="{{i}}" required>
           </td>
           {% endfor %}
         </tr>

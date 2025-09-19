@@ -824,7 +824,12 @@ def task():
             traceback.print_exc()
 
     # Check if finished
-    if is_complete:
+    # ensure is_complete is always defined (avoid UnboundLocalError on some paths)
+    try:
+        _is_complete_check = is_complete
+    except NameError:
+        _is_complete_check = False
+    if _is_complete_check:
         return redirect(url_for("survey"))
 
     # Determine current image to show
