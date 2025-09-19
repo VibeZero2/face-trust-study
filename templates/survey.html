@@ -45,7 +45,8 @@
           'I believe that people are generally trustworthy.',
           'Most people can be counted on to do what they say they will do.'
         ] %}
-        {% for item_index, item in enumerate(trust_items, start=1) %}
+        {% for item in trust_items %}
+        {% set item_index = loop.index %}
         <tr>
           <td class="text-start">{{ item }}</td>
           {% for i in range(1,8) %}
@@ -76,7 +77,8 @@
           'I see myself as anxious, easily upset.',
           'I see myself as open to new experiences, complex.'
         ] %}
-        {% for item_index, item in enumerate(pers_items, start=1) %}
+        {% for item in pers_items %}
+        {% set item_index = loop.index %}
         <tr>
           <td class="text-start">{{ item }}</td>
           {% for i in range(1,8) %}
