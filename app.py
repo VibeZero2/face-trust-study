@@ -71,6 +71,7 @@ for fname in FACE_FILES:
     if stem not in unique:
         unique[stem] = fname  # keep first occurrence
 FACE_FILES = sorted(unique.values())
+FACE_FILE_MAP = {Path(fname).stem: fname for fname in FACE_FILES}
 assert FACE_FILES, "No face images found. Place images in static/images/."
 
 # ----------------------------------------------------------------------------
@@ -144,6 +145,82 @@ def create_participant_run(pid: str, prolific_pid: str = None):
     print(f"     SEQUENCE DEBUG: Final session sequence count: {len(session['sequence'])}")
     print(f"     SEQUENCE DEBUG: Final session face_order count: {len(session['face_order'])}")
     
+
+
+def _build_sequence_from_face_order(face_order, left_first):
+    sequence = []
+    start_side = "left" if left_first else "right"
+    for face_id in face_order:
+        face_file = FACE_FILE_MAP.get(face_id)
+        if not face_file:
+            for candidate_name in FACE_FILES:
+                if Path(candidate_name).stem == face_id:
+                    face_file = candidate_name
+                    break
+        if not face_file:
+            print(f"     RESUME WARNING: Missing face asset for {face_id}")
+            continue
+        sequence.append({
+            "face_id": face_id,
+            "order": [
+                {"version": "toggle", "file": face_file, "start": start_side},
+                {"version": "full", "file": face_file}
+            ]
+        })
+    return sequence
+
+
+def _attempt_session_restore(participant_id: str, fallback_prolific: str | None = None) -> bool:
+    if not SESSION_MANAGEMENT_ENABLED:
+        return False
+    try:
+        state_candidates = []
+        session_state = load_session_state(participant_id)
+        if session_state:
+            state_candidates.append(session_state)
+        backup_file = DATA_DIR / "sessions" / f"{participant_id}_backup.json"
+        if backup_file.exists():
+            with open(backup_file, "r", encoding="utf-8") as backup_handle:
+                try:
+                    backup_state = json.load(backup_handle)
+                    state_candidates.append(backup_state)
+                except json.JSONDecodeError:
+                    print(f"     RESUME WARNING: Backup file for {participant_id} is corrupted")
+        active_states = [candidate for candidate in state_candidates if candidate and not candidate.get("session_complete")]
+        if not active_states:
+            return False
+        best_state = max(active_states, key=lambda candidate: candidate.get("index", 0) or 0)
+        face_order = best_state.get("face_order") or []
+        left_first = best_state.get("left_first")
+        if left_first is None:
+            for candidate in state_candidates:
+                if candidate and candidate.get("left_first") is not None:
+                    left_first = candidate.get("left_first")
+                    break
+        if left_first is None:
+            left_first = True
+        sequence = best_state.get("sequence")
+        if not sequence:
+            sequence = _build_sequence_from_face_order(face_order, bool(left_first))
+        if not sequence:
+            print(f"     RESUME WARNING: Unable to rebuild sequence for {participant_id}")
+            return False
+        session.clear()
+        session["consent"] = True
+        session["pid"] = participant_id
+        session["index"] = int(best_state.get("index", 0) or 0)
+        session["face_order"] = face_order
+        session["left_first"] = bool(left_first)
+        session["sequence"] = sequence
+        session["responses"] = best_state.get("responses") or {}
+        prolific_pid = best_state.get("prolific_pid") or fallback_prolific or participant_id
+        session["prolific_pid"] = prolific_pid
+        print(f"     RESUME SUCCESS: Restored session for {participant_id} at index {session['index']}")
+        return True
+    except Exception as resume_error:
+        print(f"     RESUME ERROR: {resume_error}")
+        traceback.print_exc()
+        return False
 
 
 def save_encrypted_csv(pid: str, rows: list):
@@ -510,128 +587,41 @@ def start_manual():
     print(f"     START DEBUG: Received start request for PID: {pid}")
     if not pid:
         abort(400)
-    # Capture Prolific ID if provided
     prolific_pid = request.form.get("prolific_pid", "").strip()
     if not prolific_pid or prolific_pid == "UNKNOWN_PID":
         prolific_pid = pid  # Use participant ID as fallback
     print(f"     START DEBUG: Prolific PID: {prolific_pid}")
-    
-    # IRB-Safe: Check for existing session before creating new one
+
+    restored = False
     if SESSION_MANAGEMENT_ENABLED:
         try:
-            # FORCE FRESH START: Always clear session and delete any existing session files
-            session.clear()
-            session_file_path = Path("data/sessions") / f"{pid}_session.json"
-            backup_file_path = Path("data/sessions") / f"{pid}_backup.json"
-            
-            # Delete existing session files to force fresh start
-            if session_file_path.exists():
-                session_file_path.unlink()
-                print(f"     DELETED existing session file: {session_file_path}")
-            if backup_file_path.exists():
-                backup_file_path.unlink()
-                print(f"     DELETED existing backup file: {backup_file_path}")
-                
-            print(f"     FORCE FRESH START: Starting completely new session for PID: {pid}")
-            existing_session = None
-            
-            # Skip session resumption - always start fresh
-            if False:  # Disabled session resumption
-                # Resume existing session
-                session["pid"] = pid
-                session["responses"] = existing_session.get("responses", {})
-                session["face_order"] = existing_session.get("face_order", [])
-                
-                # Rebuild sequence from face_order with proper structure
-                face_order = existing_session.get("face_order", [])
-                left_first = existing_session.get("left_first", True)  # Default to True if not stored
-                sequence = []
-                for face_id in face_order:
-                    # Create order with both toggle and full versions
-                    if left_first:
-                        start_side = "left"
-                    else:
-                        start_side = "right"
-                    sequence.append({
-                        "face_id": face_id,
-                        "order": [
-                            {"version": "toggle", "file": f"{face_id}.jpg", "start": start_side},
-                            {"version": "full", "file": f"{face_id}.jpg"}
-                        ]
-                    })
-                session["sequence"] = sequence
-                
-                # Determine the correct index to resume at
-                existing_index = existing_session.get("index", 0)
-                existing_responses = existing_session.get("responses", [])
-                
-                # Calculate which face we're on and if it's complete
-                face_index = existing_index // 2  # Each face has 2 stages (toggle, full)
-                stage_in_face = existing_index % 2  # 0 = toggle, 1 = full
-                
-                print(f"        Existing index: {existing_index}, face_index: {face_index}, stage_in_face: {stage_in_face}")
-                
-                # Check if current face is complete (has both toggle and full responses)
-                face_responses = [r for r in existing_responses if r[2] == face_order[face_index]]  # Filter by face_id
-                has_toggle = any(r[3] == "toggle" for r in face_responses)
-                has_full = any(r[3] == "full" for r in face_responses)
-                
-                print(f"        Face {face_order[face_index]} responses: toggle={has_toggle}, full={has_full}")
-                
-                # If face is incomplete, resume at the missing stage
-                if not has_toggle:
-                    # Resume at toggle stage of current face
-                    session["index"] = face_index * 2  # toggle stage
-                    print(f"        Resuming at toggle stage (index {session['index']})")
-                elif not has_full:
-                    # Resume at full stage of current face
-                    session["index"] = face_index * 2 + 1  # full stage
-                    print(f"        Resuming at full stage (index {session['index']})")
-                else:
-                    # Face is complete, move to next face
-                    session["index"] = (face_index + 1) * 2  # toggle stage of next face
-                    print(f"        Face complete, moving to next face (index {session['index']})")
-                
-                session["responses"] = existing_responses
-                print(f"        Final index: {session['index']}, total responses: {len(session['responses'])}")
-                
-                if existing_session.get("prolific_pid"):
-                    session["prolific_pid"] = existing_session["prolific_pid"]
-                
-                print(f"    Resumed session for participant {pid}")
-                print(f"   Resuming at index: {session['index']}")
-                print(f"        Total responses: {len(session['responses'])}")
-                print(f"        Redirecting to task page...")
-                return redirect(url_for("task", pid=pid))
+            print(f"     START DEBUG: Checking for existing session data for {pid}")
+            restored = _attempt_session_restore(pid, prolific_pid)
         except Exception as e:
             print(f"       Session resume failed (non-critical): {e}")
             import traceback
             traceback.print_exc()
-    
-    # Create new session (existing behavior unchanged)
+
+    if restored:
+        return redirect(url_for("task", pid=pid))
+
     create_participant_run(pid, prolific_pid)
-    if len(session['sequence']) > 0:
-        first_face = session['sequence'][0]
     return redirect(url_for("instructions"))
 
 @app.route("/task", methods=["GET", "POST"])
 def task():
     # If session missing but pid present in query (e.g., redirect loop), try to resume first
     if "pid" not in session:
-        # Only handle session creation for GET requests, not POST requests
         if request.method == "GET":
             qpid = request.args.get("pid")
             if qpid:
-                # Try to resume existing session first
-                if SESSION_MANAGEMENT_ENABLED:
-                    try:
-                        # FORCE FRESH START: Always redirect to start for new session
-                        print(f"     FORCE FRESH START: Redirecting to start for PID {qpid}")
-                        return redirect(url_for("start"))
-                    except Exception as e:
-                        create_participant_run(qpid)
+                prolific_query = request.args.get("PROLIFIC_PID", None)
+                if SESSION_MANAGEMENT_ENABLED and _attempt_session_restore(qpid, prolific_query):
+                    print(f"     RESUME DEBUG: Session restored for {qpid}")
                 else:
-                    create_participant_run(qpid)
+                    print(f"     RESUME DEBUG: Starting fresh session for {qpid}")
+                    create_participant_run(qpid, prolific_query)
+                    return redirect(url_for("instructions"))
             else:
                 return redirect(url_for("landing"))
         else:
