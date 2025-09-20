@@ -1,0 +1,11 @@
+pid,face_id,version,question,response,timestamp
+UNKNOWN_PID,face (24),left,trust_left,9,2025-09-19T15:34:42.218671
+UNKNOWN_PID,face (24),left,emotion_left,1,2025-09-19T15:34:42.218671
+UNKNOWN_PID,face (24),right,trust_right,9,2025-09-19T15:34:42.218671
+UNKNOWN_PID,face (24),right,emotion_right,1,2025-09-19T15:34:42.218671
+UNKNOWN_PID,face (24),half,masc_choice_half,right,2025-09-19T15:34:42.218671
+UNKNOWN_PID,face (24),half,fem_choice_half,left,2025-09-19T15:34:42.218671
+UNKNOWN_PID,face (24),full,trust_full,6,2025-09-19T15:34:42.218671
+UNKNOWN_PID,face (24),full,emotion_full,1,2025-09-19T15:34:42.218671
+UNKNOWN_PID,face (24),full,masc_choice_full,right,2025-09-19T15:34:42.218671
+UNKNOWN_PID,face (24),full,fem_choice_full,left,2025-09-19T15:34:42.218671

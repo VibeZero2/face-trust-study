@@ -1,0 +1,11 @@
+pid,face_id,version,question,response,timestamp
+500,face (21),left,trust_left,5,2025-09-19T14:48:52.323658
+500,face (21),left,emotion_left,3,2025-09-19T14:48:52.323658
+500,face (21),right,trust_right,5,2025-09-19T14:48:52.323658
+500,face (21),right,emotion_right,3,2025-09-19T14:48:52.323658
+500,face (21),half,masc_choice_half,male,2025-09-19T14:48:52.323658
+500,face (21),half,fem_choice_half,female,2025-09-19T14:48:52.323658
+500,face (21),full,trust_full,5,2025-09-19T14:48:52.323658
+500,face (21),full,emotion_full,3,2025-09-19T14:48:52.323658
+500,face (21),full,masc_choice_full,male,2025-09-19T14:48:52.323658
+500,face (21),full,fem_choice_full,female,2025-09-19T14:48:52.323658

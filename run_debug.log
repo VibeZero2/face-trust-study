@@ -1,0 +1,209 @@
+[watcher] Watchdog not available - file monitoring disabled
+[refresh] Forcing dashboard data initialization...
+Found 328 CSV files. Current mode: PRODUCTION
+INFO:dashboard.analysis.cleaning:Loading 3 files for PRODUCTION mode
+INFO:dashboard.analysis.cleaning:Mapping columns: {'pid': 'pid', 'face_id': 'face_id', 'version': 'version', 'timestamp': 'timestamp', 'question': 'question', 'response': 'response'}
+INFO:dashboard.analysis.cleaning:Columns after mapping: ['pid', 'face_id', 'version', 'question', 'response', 'timestamp', 'source_file']
+WARNING:dashboard.analysis.cleaning:No trust data found in either toggle or full format
+WARNING:dashboard.analysis.cleaning:No trust rating data found in either toggle or full format
+INFO:dashboard.analysis.cleaning:Filtered out survey rows. Remaining rows: 1050
+Data initialized successfully in PRODUCTION mode
+[ok] Dashboard data initialized successfully
+Found 328 CSV files. Current mode: PRODUCTION
+INFO:dashboard.analysis.cleaning:Loading 3 files for PRODUCTION mode
+INFO:dashboard.analysis.cleaning:Mapping columns: {'pid': 'pid', 'face_id': 'face_id', 'version': 'version', 'timestamp': 'timestamp', 'question': 'question', 'response': 'response'}
+INFO:dashboard.analysis.cleaning:Columns after mapping: ['pid', 'face_id', 'version', 'question', 'response', 'timestamp', 'source_file']
+WARNING:dashboard.analysis.cleaning:No trust data found in either toggle or full format
+WARNING:dashboard.analysis.cleaning:No trust rating data found in either toggle or full format
+INFO:dashboard.analysis.cleaning:Filtered out survey rows. Remaining rows: 1050
+Data initialized successfully in PRODUCTION mode
+Starting Facial Trust Study on port 3000
+Study available at http://localhost:3000
+Using localhost binding for Windows compatibility
+ * Serving Flask app 'app'
+ * Debug mode: off
+INFO:werkzeug:[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:3000
+ * Running on http://10.14.0.2:3000
+INFO:werkzeug:[33mPress CTRL+C to quit[0m
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:09:52] "GET /dashboard/api/overview HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:10:21] "GET /dashboard/api/overview HTTP/1.1" 200 -
+[search] DEBUG: CSV data loaded, shape: (1050, 12)
+[search] DEBUG: Columns: ['pid', 'face_id', 'version', 'question', 'response', 'timestamp', 'source_file', 'excl_failed_attention', 'excl_fast_rt', 'excl_slow_rt', 'excl_device_violation', 'include_in_primary']
+[search] DEBUG: First 5 rows:
+   pid   face_id  ... excl_device_violation include_in_primary
+0  400  face (1)  ...                 False               True
+1  400  face (1)  ...                 False               True
+2  400  face (1)  ...                 False               True
+3  400  face (1)  ...                 False               True
+4  400  face (1)  ...                 False               True
+
+[5 rows x 12 columns]
+[search] DEBUG: Unique questions: ['emotion_full', 'emotion_left', 'emotion_right', 'fem_choice_full', 'fem_choice_half', 'masc_choice_full', 'masc_choice_half', 'trust_full', 'trust_left', 'trust_right']
+[search] DEBUG: Unique face_ids: ['face (1)', 'face (10)', 'face (11)', 'face (12)', 'face (13)', 'face (14)', 'face (15)', 'face (16)', 'face (17)', 'face (18)', 'face (19)', 'face (2)', 'face (20)', 'face (21)', 'face (22)', 'face (23)', 'face (24)', 'face (25)', 'face (26)', 'face (27)', 'face (28)', 'face (29)', 'face (3)', 'face (30)', 'face (31)', 'face (32)', 'face (33)', 'face (34)', 'face (35)', 'face (4)', 'face (5)', 'face (6)', 'face (7)', 'face (8)', 'face (9)']
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:11:10] "GET /dashboard/ HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:11:10] "GET /dashboard/api/overview HTTP/1.1" 200 -
+[search] DEBUG: CSV data loaded, shape: (1050, 12)
+[search] DEBUG: Columns: ['pid', 'face_id', 'version', 'question', 'response', 'timestamp', 'source_file', 'excl_failed_attention', 'excl_fast_rt', 'excl_slow_rt', 'excl_device_violation', 'include_in_primary']
+[search] DEBUG: First 5 rows:
+   pid   face_id  ... excl_device_violation include_in_primary
+0  400  face (1)  ...                 False               True
+1  400  face (1)  ...                 False               True
+2  400  face (1)  ...                 False               True
+3  400  face (1)  ...                 False               True
+4  400  face (1)  ...                 False               True
+
+[5 rows x 12 columns]
+[search] DEBUG: Unique questions: ['emotion_full', 'emotion_left', 'emotion_right', 'fem_choice_full', 'fem_choice_half', 'masc_choice_full', 'masc_choice_half', 'trust_full', 'trust_left', 'trust_right']
+[search] DEBUG: Unique face_ids: ['face (1)', 'face (10)', 'face (11)', 'face (12)', 'face (13)', 'face (14)', 'face (15)', 'face (16)', 'face (17)', 'face (18)', 'face (19)', 'face (2)', 'face (20)', 'face (21)', 'face (22)', 'face (23)', 'face (24)', 'face (25)', 'face (26)', 'face (27)', 'face (28)', 'face (29)', 'face (3)', 'face (30)', 'face (31)', 'face (32)', 'face (33)', 'face (34)', 'face (35)', 'face (4)', 'face (5)', 'face (6)', 'face (7)', 'face (8)', 'face (9)']
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:11:11] "GET /dashboard/ HTTP/1.1" 200 -
+[search] DEBUG: CSV data loaded, shape: (1050, 12)
+[search] DEBUG: Columns: ['pid', 'face_id', 'version', 'question', 'response', 'timestamp', 'source_file', 'excl_failed_attention', 'excl_fast_rt', 'excl_slow_rt', 'excl_device_violation', 'include_in_primary']
+[search] DEBUG: First 5 rows:
+   pid   face_id  ... excl_device_violation include_in_primary
+0  400  face (1)  ...                 False               True
+1  400  face (1)  ...                 False               True
+2  400  face (1)  ...                 False               True
+3  400  face (1)  ...                 False               True
+4  400  face (1)  ...                 False               True
+
+[5 rows x 12 columns]
+[search] DEBUG: Unique questions: ['emotion_full', 'emotion_left', 'emotion_right', 'fem_choice_full', 'fem_choice_half', 'masc_choice_full', 'masc_choice_half', 'trust_full', 'trust_left', 'trust_right']
+[search] DEBUG: Unique face_ids: ['face (1)', 'face (10)', 'face (11)', 'face (12)', 'face (13)', 'face (14)', 'face (15)', 'face (16)', 'face (17)', 'face (18)', 'face (19)', 'face (2)', 'face (20)', 'face (21)', 'face (22)', 'face (23)', 'face (24)', 'face (25)', 'face (26)', 'face (27)', 'face (28)', 'face (29)', 'face (3)', 'face (30)', 'face (31)', 'face (32)', 'face (33)', 'face (34)', 'face (35)', 'face (4)', 'face (5)', 'face (6)', 'face (7)', 'face (8)', 'face (9)']
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:11:11] "GET /dashboard/ HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:11:11] "GET /dashboard/api/overview HTTP/1.1" 200 -
+[search] DEBUG: CSV data loaded, shape: (1050, 12)
+[search] DEBUG: Columns: ['pid', 'face_id', 'version', 'question', 'response', 'timestamp', 'source_file', 'excl_failed_attention', 'excl_fast_rt', 'excl_slow_rt', 'excl_device_violation', 'include_in_primary']
+[search] DEBUG: First 5 rows:
+   pid   face_id  ... excl_device_violation include_in_primary
+0  400  face (1)  ...                 False               True
+1  400  face (1)  ...                 False               True
+2  400  face (1)  ...                 False               True
+3  400  face (1)  ...                 False               True
+4  400  face (1)  ...                 False               True
+
+[5 rows x 12 columns]
+[search] DEBUG: Unique questions: ['emotion_full', 'emotion_left', 'emotion_right', 'fem_choice_full', 'fem_choice_half', 'masc_choice_full', 'masc_choice_half', 'trust_full', 'trust_left', 'trust_right']
+[search] DEBUG: Unique face_ids: ['face (1)', 'face (10)', 'face (11)', 'face (12)', 'face (13)', 'face (14)', 'face (15)', 'face (16)', 'face (17)', 'face (18)', 'face (19)', 'face (2)', 'face (20)', 'face (21)', 'face (22)', 'face (23)', 'face (24)', 'face (25)', 'face (26)', 'face (27)', 'face (28)', 'face (29)', 'face (3)', 'face (30)', 'face (31)', 'face (32)', 'face (33)', 'face (34)', 'face (35)', 'face (4)', 'face (5)', 'face (6)', 'face (7)', 'face (8)', 'face (9)']
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:11:11] "GET /dashboard/ HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:11:11] "GET /dashboard/api/overview HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:11:41] "GET /dashboard/api/overview HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:12:11] "GET /dashboard/api/overview HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:12:42] "GET /dashboard/api/overview HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:14:42] "GET /dashboard/api/overview HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:16:42] "GET /dashboard/api/overview HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:18:42] "GET /dashboard/api/overview HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:20:42] "GET /dashboard/api/overview HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:22:42] "GET /dashboard/api/overview HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:24:42] "GET /dashboard/api/overview HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:26:42] "GET /dashboard/api/overview HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:28:42] "GET /dashboard/api/overview HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:30:42] "GET /dashboard/api/overview HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:32:42] "GET /dashboard/api/overview HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:34:17] "[32mGET / HTTP/1.1[0m" 302 -
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:34:18] "GET /consent HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:34:18] "[36mGET /static/logos/fielding_logo.svg HTTP/1.1[0m" 304 -
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:34:20] "[32mPOST /consent HTTP/1.1[0m" 302 -
+     LANDING DEBUG: PID from URL: None
+     LANDING DEBUG: Prolific PID from URL: 
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:34:20] "GET / HTTP/1.1" 200 -
+     START DEBUG: Received start request for PID: 222
+     START DEBUG: Prolific PID: 222
+     START DEBUG: Checking for existing session data for 222
+     SESSION RESET: Cleared all session data for new participant 222
+     SEQUENCE DEBUG: First sequence item: {'face_id': 'face (24)', 'order': [{'version': 'toggle', 'file': 'face (24).jpg', 'start': 'right'}, {'version': 'full', 'file': 'face (24).jpg'}]}
+     SEQUENCE DEBUG: Creating session for participant 222
+     SEQUENCE DEBUG: FACE_FILES count: 35
+     SEQUENCE DEBUG: randomized_faces count: 35
+     SEQUENCE DEBUG: sequence count: 35
+     SEQUENCE DEBUG: face_order count: 35
+     SEQUENCE DEBUG: Final session sequence count: 35
+     SEQUENCE DEBUG: Final session face_order count: 35
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:34:33] "[32mPOST /start HTTP/1.1[0m" 302 -
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:34:33] "GET /instructions HTTP/1.1" 200 -
+     TASK DEBUG: session['index']: 0
+     TASK DEBUG: face_index: 0, image_index: 0
+     TASK DEBUG: current sequence item: {'face_id': 'face (24)', 'order': [{'file': 'face (24).jpg', 'start': 'right', 'version': 'toggle'}, {'file': 'face (24).jpg', 'version': 'full'}]}
+     TASK DEBUG: current['order'] length: 2
+     DISPLAY DEBUG: Participant 222 - Face 1 of 35
+     DISPLAY DEBUG: session['index']: 0
+     DISPLAY DEBUG: face_index: 0
+     DISPLAY DEBUG: len(session['sequence']): 35
+     DISPLAY DEBUG: len(session['face_order']): 35
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:34:34] "GET /task HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:34:35] "GET /static/images/face%20(24).jpg HTTP/1.1" 200 -
+     POST DEBUG: Form submission received for toggle
+     POST DEBUG: Session keys: ['face_order', 'index', 'left_first', 'pid', 'prolific_pid', 'responses', 'sequence']
+     POST DEBUG: Session index: 0
+     POST DEBUG: Processing face_id: face (24), version: toggle
+     FORM PROCESSING COMPLETE: Advanced session index from 0 to 1
+✅ Session saved for participant 222
+   📊 Saved 1 responses at index 1
+   📁 File: C:\Users\Chris\CascadeProjects\facial-trust-study\data\sessions\222_session.json
+    Backup session saved to C:\Users\Chris\CascadeProjects\facial-trust-study\data\sessions\222_backup.json
+     ENTERING CSV SAVE SECTION for participant 222
+     CSV SAVE DEBUG: Attempting to save CSV for participant 222
+     CSV SAVE DEBUG: Session responses keys: ['face (24)']
+     CSV SAVE DEBUG: Session responses structure:
+  Face face (24): ['participant_id', 'timestamp', 'face_id', 'prolific_pid', 'left', 'right', 'half', 'full']
+[csv] Processing 1 faces
+[csv] Final CSV rows = 6
+    Exported long-format CSV for pid=222: C:\Users\Chris\CascadeProjects\facial-trust-study\data\responses\222_20250919_153442.csv
+     TASK DEBUG: session['index']: 1
+     TASK DEBUG: face_index: 0, image_index: 1
+     TASK DEBUG: current sequence item: {'face_id': 'face (24)', 'order': [{'file': 'face (24).jpg', 'start': 'right', 'version': 'toggle'}, {'file': 'face (24).jpg', 'version': 'full'}]}
+     TASK DEBUG: current['order'] length: 2
+     DISPLAY DEBUG: Participant 222 - Face 1 of 35
+     DISPLAY DEBUG: session['index']: 1
+     DISPLAY DEBUG: face_index: 0
+     DISPLAY DEBUG: len(session['sequence']): 35
+     DISPLAY DEBUG: len(session['face_order']): 35
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:34:42] "POST /task HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:34:42] "GET /dashboard/api/overview HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:34:42] "[36mGET /static/images/face%20(24).jpg HTTP/1.1[0m" 304 -
+     POST DEBUG: Form submission received for full
+     POST DEBUG: Session keys: ['face_order', 'index', 'left_first', 'pid', 'prolific_pid', 'responses', 'sequence']
+     POST DEBUG: Session index: 1
+     POST DEBUG: Processing face_id: face (24), version: full
+     FORM PROCESSING COMPLETE: Advanced session index from 1 to 2
+✅ Session saved for participant 222
+   📊 Saved 1 responses at index 2
+   📁 File: C:\Users\Chris\CascadeProjects\facial-trust-study\data\sessions\222_session.json
+    Backup session saved to C:\Users\Chris\CascadeProjects\facial-trust-study\data\sessions\222_backup.json
+     ENTERING CSV SAVE SECTION for participant 222
+     CSV SAVE DEBUG: Attempting to save CSV for participant 222
+     CSV SAVE DEBUG: Session responses keys: ['face (24)']
+     CSV SAVE DEBUG: Session responses structure:
+  Face face (24): ['face_id', 'full', 'half', 'left', 'participant_id', 'prolific_pid', 'right', 'timestamp']
+[csv] Processing 1 faces
+[csv] Final CSV rows = 10
+    Exported long-format CSV for pid=222: C:\Users\Chris\CascadeProjects\facial-trust-study\data\responses\222_20250919_153449.csv
+     TASK DEBUG: session['index']: 2
+     TASK DEBUG: face_index: 1, image_index: 0
+     TASK DEBUG: current sequence item: {'face_id': 'face (23)', 'order': [{'file': 'face (23).jpg', 'start': 'right', 'version': 'toggle'}, {'file': 'face (23).jpg', 'version': 'full'}]}
+     TASK DEBUG: current['order'] length: 2
+     DISPLAY DEBUG: Participant 222 - Face 2 of 35
+     DISPLAY DEBUG: session['index']: 2
+     DISPLAY DEBUG: face_index: 1
+     DISPLAY DEBUG: len(session['sequence']): 35
+     DISPLAY DEBUG: len(session['face_order']): 35
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:34:49] "POST /task HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:34:50] "GET /static/images/face%20(23).jpg HTTP/1.1" 200 -
+[search] DEBUG: CSV data loaded, shape: (1050, 12)
+[search] DEBUG: Columns: ['pid', 'face_id', 'version', 'question', 'response', 'timestamp', 'source_file', 'excl_failed_attention', 'excl_fast_rt', 'excl_slow_rt', 'excl_device_violation', 'include_in_primary']
+[search] DEBUG: First 5 rows:
+   pid   face_id  ... excl_device_violation include_in_primary
+0  400  face (1)  ...                 False               True
+1  400  face (1)  ...                 False               True
+2  400  face (1)  ...                 False               True
+3  400  face (1)  ...                 False               True
+4  400  face (1)  ...                 False               True
+
+[5 rows x 12 columns]
+[search] DEBUG: Unique questions: ['emotion_full', 'emotion_left', 'emotion_right', 'fem_choice_full', 'fem_choice_half', 'masc_choice_full', 'masc_choice_half', 'trust_full', 'trust_left', 'trust_right']
+[search] DEBUG: Unique face_ids: ['face (1)', 'face (10)', 'face (11)', 'face (12)', 'face (13)', 'face (14)', 'face (15)', 'face (16)', 'face (17)', 'face (18)', 'face (19)', 'face (2)', 'face (20)', 'face (21)', 'face (22)', 'face (23)', 'face (24)', 'face (25)', 'face (26)', 'face (27)', 'face (28)', 'face (29)', 'face (3)', 'face (30)', 'face (31)', 'face (32)', 'face (33)', 'face (34)', 'face (35)', 'face (4)', 'face (5)', 'face (6)', 'face (7)', 'face (8)', 'face (9)']
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:34:53] "GET /dashboard/ HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:34:53] "GET /dashboard/api/overview HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:35:23] "GET /dashboard/api/overview HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [19/Sep/2025 23:35:53] "GET /dashboard/api/overview HTTP/1.1" 200 -

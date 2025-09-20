@@ -1,0 +1,7 @@
+pid,face_id,version,question,response,timestamp
+500,face (4),left,trust_left,5,2025-09-19T14:51:54.150720
+500,face (4),left,emotion_left,3,2025-09-19T14:51:54.150720
+500,face (4),right,trust_right,5,2025-09-19T14:51:54.150720
+500,face (4),right,emotion_right,3,2025-09-19T14:51:54.150720
+500,face (4),half,masc_choice_half,male,2025-09-19T14:51:54.150720
+500,face (4),half,fem_choice_half,female,2025-09-19T14:51:54.150720
