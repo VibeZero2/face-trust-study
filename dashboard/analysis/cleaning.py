@@ -9,6 +9,19 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+def _infer_completed_faces(df) -> int:
+    """Heuristic: count faces with recorded responses."""
+    if df is None or getattr(df, "empty", True):
+        return 0
+    if "face_id" not in df.columns:
+        return 0
+    try:
+        counts = df["face_id"].astype(str).value_counts()
+        return int((counts > 0).sum())
+    except Exception:
+        return 0
+
+
 class DataCleaner:
     """
     Data cleaning and exclusion logic for face perception study data.
@@ -55,10 +68,19 @@ class DataCleaner:
                 logger.error("Error loading %s: %s", file_path, e)
                 continue
 
+            participant_id = None
             pid_values = df.get('pid')
             if pid_values is not None and not pid_values.dropna().empty:
-                participant_id = str(pid_values.dropna().astype(str).iloc[0])
-            else:
+                candidate = str(pid_values.dropna().astype(str).iloc[0]).strip()
+                if candidate and candidate.upper() not in {'UNKNOWN', 'UNKNOWN_PID', 'NAN'}:
+                    participant_id = candidate
+            if not participant_id:
+                prolific_values = df.get('prolific_pid')
+                if prolific_values is not None and not prolific_values.dropna().empty:
+                    candidate = str(prolific_values.dropna().astype(str).iloc[0]).strip()
+                    if candidate and candidate.upper() not in {'UNKNOWN', 'UNKNOWN_PID', 'NAN'}:
+                        participant_id = candidate
+            if not participant_id:
                 participant_id = file_path.stem.split('_')[0]
 
             versions = df.get('version')
@@ -66,18 +88,21 @@ class DataCleaner:
                 normalized_versions = versions.dropna().astype(str).str.lower()
                 has_full = normalized_versions.eq('full').any()
             else:
-                normalized_versions = pd.Series(dtype=str)
                 has_full = False
 
-            if 'face_id' in df.columns:
-                face_counts = df['face_id'].astype(str).value_counts()
-            else:
-                face_counts = pd.Series(dtype=int)
-
-            completed_faces = int((face_counts >= 10).sum())
+            completed_faces = _infer_completed_faces(df)
             total_faces = self.expected_total_faces or 35
             progress_percent = (min(completed_faces, total_faces) / total_faces * 100) if total_faces else 0
-            is_complete = has_full and completed_faces >= total_faces
+            is_complete = completed_faces >= total_faces
+
+            first_timestamp = None
+            last_timestamp = None
+            timestamps = df.get('timestamp')
+            if timestamps is not None and not timestamps.dropna().empty:
+                parsed_ts = pd.to_datetime(timestamps, errors='coerce').dropna()
+                if not parsed_ts.empty:
+                    first_timestamp = parsed_ts.min()
+                    last_timestamp = parsed_ts.max()
 
             metadata = {
                 'pid': participant_id,
@@ -91,6 +116,8 @@ class DataCleaner:
                 'total_faces': total_faces,
                 'progress_percent': progress_percent,
                 'row_count': len(df),
+                'first_timestamp': first_timestamp,
+                'last_timestamp': last_timestamp,
             }
 
             latest = latest_per_pid.get(participant_id)

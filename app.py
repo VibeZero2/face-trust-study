@@ -331,7 +331,9 @@ def convert_dict_to_long_format(participant_id, response_dict):
             continue
 
         face_timestamp = face_data.get("timestamp") or datetime.utcnow().isoformat()
-        actual_pid = face_data.get("prolific_pid", participant_id)
+        actual_pid = face_data.get("participant_id") or face_data.get("prolific_pid") or participant_id
+        if not actual_pid or str(actual_pid).strip().upper() in {'UNKNOWN', 'UNKNOWN_PID', 'NAN'}:
+            actual_pid = participant_id
 
         for version, question_map in version_question_map.items():
             version_data = face_data.get(version)
@@ -459,9 +461,16 @@ def save_participant_data_long(participant_id: str, responses: dict) -> str:
         responses_dir = DATA_DIR / "responses"
         responses_dir.mkdir(exist_ok=True)
 
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-        safe_id = participant_id.replace(" ", "_").replace("/", "_").replace("\\", "_") or "anon"
-        filepath = responses_dir / f"{safe_id}_{timestamp}.csv"
+        base_id = participant_id or "anon"
+        safe_id = base_id.replace(" ", "_").replace("/", "_").replace("\\", "_")
+        filepath = responses_dir / f"{safe_id}.csv"
+
+        # Remove legacy timestamped files for this participant
+        for legacy in responses_dir.glob(f"{safe_id}_*.csv"):
+            try:
+                legacy.unlink()
+            except Exception as cleanup_error:
+                print(f"       Cleanup skipped for legacy file {legacy}: {cleanup_error}")
 
         long_rows = convert_dict_to_long_format(participant_id, responses)
         if not long_rows:
@@ -812,7 +821,7 @@ def task():
             # Save only in long format
             long_path = None
             try:
-                long_path = save_participant_data_long(save_id, session["responses"])
+                long_path = save_participant_data_long(participant_id, session["responses"])
             except Exception as e:
                 print(f"       Long export failed: {e}")
             if not long_path:

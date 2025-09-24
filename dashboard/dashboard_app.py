@@ -546,23 +546,10 @@ def dashboard():
         
         # Calculate participant and response counts
         
-        # Update data_summary with total counts (prefer long-format trust rows when available)
-        if len(included_data) > 0:
-            data_summary['total_participants'] = included_data['pid'].nunique()
-            data_summary['real_participants'] = data_summary['total_participants']
-            # Support either 'question' or 'question_type'
-            if ('question' in included_data.columns or 'question_type' in included_data.columns) and 'response' in included_data.columns:
-                qcol = 'question' if 'question' in included_data.columns else 'question_type'
-                trust_only = included_data[included_data[qcol] == 'trust_rating']
-                data_summary['total_responses'] = pd.to_numeric(trust_only['response'], errors='coerce').notna().sum()
-            elif 'trust_rating' in included_data.columns:
-                data_summary['total_responses'] = pd.to_numeric(included_data['trust_rating'], errors='coerce').notna().sum()
-            else:
-                data_summary['total_responses'] = len(included_data)
-        else:
-            data_summary['total_participants'] = 0
-            data_summary['real_participants'] = 0
-            data_summary['total_responses'] = 0
+        completed_count = len(all_participants)
+        data_summary['complete_participants'] = completed_count
+        data_summary.setdefault('real_participants', completed_count)
+        data_summary['total_responses'] = total_responses
             
         
         # Dashboard statistics - only use complete participants with complete faces
@@ -599,11 +586,11 @@ def dashboard():
                     trust_std = 0
             
             dashboard_stats = {
-                'total_participants': len(all_participants),  # Total participant count (completed + incomplete)
-                'total_responses': total_responses,  # Total response count (completed + incomplete)
+                'total_participants': 0,  # Placeholder; updated after metadata aggregation
+                'total_responses': total_responses,  # Responses from all visible sessions
                 'avg_trust_rating': trust_mean,  # From completed data only
                 'std_trust_rating': trust_std,  # From completed data only
-                'included_participants': len(all_participants),  # Total participants
+                'included_participants': len(all_participants),  # Fully completed participants
                 'cleaned_trials': len(included_data) if len(included_data) > 0 else 0,  # Completed trials only
                 'raw_responses': exclusion_summary['total_raw'],
                 'excluded_responses': exclusion_summary['total_raw'] - len(included_data) if len(included_data) > 0 else exclusion_summary['total_raw']
@@ -631,11 +618,14 @@ def dashboard():
         data_files = []
         session_data = []
 
+        visible_participants = set()
+        metadata_entries = []
+
         def _normalize_pid(value, fallback_name=None):
             if value:
                 cleaned = str(value).strip()
                 if cleaned and cleaned.upper() not in {'UNKNOWN', 'UNKNOWN_PID', 'NAN'}:
-                    return cleaned.lower()
+                    return cleaned
             if fallback_name:
                 try:
                     stem = Path(fallback_name).stem
@@ -643,7 +633,7 @@ def dashboard():
                     if parts:
                         candidate = parts[0]
                         if candidate and candidate.upper() not in {'UNKNOWN', 'UNKNOWN_PID', 'NAN'}:
-                            return candidate.lower()
+                            return candidate
                 except Exception:
                     pass
             return None
@@ -661,21 +651,37 @@ def dashboard():
             if not _matches_mode(meta.get('is_test', False)):
                 continue
 
-            total_faces = meta.get('total_faces') or 35
+            pid_candidate = _normalize_pid(meta.get('pid'), meta.get('name')) or ''
+            participant_id_display = pid_candidate.lower() if pid_candidate else ''
+            if participant_id_display:
+                visible_participants.add(participant_id_display)
+            responses = int(meta.get('row_count', 0) or 0)
+            total_faces = meta.get('total_faces') or data_cleaner.expected_total_faces
             completed_faces = meta.get('completed_faces', 0)
             progress_percent = meta.get('progress_percent', 0.0)
             status = 'Complete' if meta.get('complete') else f"Incomplete ({progress_percent:.1f}%)"
 
-            normalized_id = _normalize_pid(meta.get('pid'), meta.get('name'))
+            first_ts = meta.get('first_timestamp')
+            if hasattr(first_ts, 'strftime'):
+                modified_display = first_ts.strftime('%Y-%m-%d %H:%M:%S')
+            else:
+                modified_display = meta.get('modified_display', '')
 
             data_files.append({
                 'name': meta.get('name'),
                 'size': f"{completed_faces}/{total_faces} faces",
-                'modified': meta.get('modified_display', ''),
+                'modified': modified_display,
                 'type': 'Test' if meta.get('is_test') else 'Production',
                 'status': status,
-                'participant_id': meta.get('pid'),
-                'normalized_id': normalized_id,
+                'participant_id': participant_id_display or meta.get('pid'),
+                'normalized_id': participant_id_display or pid_candidate,
+            })
+            metadata_entries.append({
+                'pid': participant_id_display or meta.get('pid'),
+                'row_count': responses,
+                'completed_faces': completed_faces,
+                'total_faces': total_faces,
+                'complete': bool(meta.get('complete')),
             })
 
         sessions_dir = Path('data/sessions')
@@ -702,12 +708,14 @@ def dashboard():
                         continue
 
                     face_order = session_info.get('face_order', [])
-                    total_faces = len(face_order) if face_order else 35
+                    total_faces = len(face_order) if face_order else data_cleaner.expected_total_faces
 
                     session_info_data = session_info.get('session_data', {})
                     responses = session_info.get('responses', session_info_data.get('responses', {}))
 
-                    normalized_session_pid = _normalize_pid(participant_id)
+                    normalized_session_pid = _normalize_pid(participant_id) or participant_id
+                    if normalized_session_pid:
+                        visible_participants.add(normalized_session_pid.lower())
 
                     completed_faces_count = 0
                     if data_cleaner and hasattr(data_cleaner, 'cleaned_data') and not data_cleaner.cleaned_data.empty:
@@ -731,10 +739,52 @@ def dashboard():
                         'type': 'Test' if is_test_session else 'Production',
                         'status': f'Incomplete ({progress_percent:.1f}%)',
                         'participant_id': participant_id,
-                        'normalized_id': normalized_session_pid,
+                        'normalized_id': (normalized_session_pid or participant_id).lower(),
                     })
                 except Exception as e:
                     print(f"Error reading session file {session_file}: {e}")
+
+        # Update overview metrics from collected metadata
+        normalized_visible = {pid for pid in visible_participants if pid}
+        unique_csv_ids = set()
+        completed_csv_ids = set()
+        total_rows = 0
+        if metadata_entries:
+            for entry in metadata_entries:
+                pid_value = entry.get('pid')
+                if not pid_value:
+                    continue
+                normalized_pid = str(pid_value).strip()
+                if not normalized_pid:
+                    continue
+                unique_csv_ids.add(normalized_pid)
+                if entry.get('complete'):
+                    completed_csv_ids.add(normalized_pid)
+                try:
+                    total_rows += int(entry.get('row_count', 0) or 0)
+                except Exception:
+                    pass
+                normalized_visible.add(normalized_pid.lower())
+            data_summary['total_rows'] = total_rows
+            data_summary['total_responses'] = total_rows
+            dashboard_stats['total_responses'] = total_rows
+            data_summary['real_participants'] = len(unique_csv_ids)
+            data_summary['complete_participants'] = len(completed_csv_ids)
+            data_summary['completion_rate'] = round((len(completed_csv_ids) / len(unique_csv_ids) * 100), 1) if unique_csv_ids else 0.0
+        else:
+            data_summary.setdefault('total_rows', len(included_data) if included_data is not None else 0)
+            if 'complete_participants' in data_summary:
+                total_visible_candidates = data_summary.get('real_participants') or data_summary['complete_participants']
+                if total_visible_candidates:
+                    data_summary['completion_rate'] = round((data_summary['complete_participants'] / total_visible_candidates) * 100, 1)
+                else:
+                    data_summary['completion_rate'] = 0.0
+        if session_data:
+            data_summary['active_sessions'] = len(session_data)
+            data_summary['session_responses'] = session_responses_count
+        total_visible = len(normalized_visible)
+        data_summary['total_participants'] = total_visible
+        dashboard_stats['total_participants'] = total_visible
 
         combined = []
         entries_by_pid = {}
