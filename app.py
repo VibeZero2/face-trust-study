@@ -496,15 +496,27 @@ def save_participant_data_long(participant_id: str, responses: dict) -> str:
 @app.route("/consent", methods=["GET", "POST"])
 def consent():
     """Informed consent page shown before anything else."""
+    app.logger.info(
+        "[consent] %s request args=%s session_keys=%s",
+        request.method,
+        dict(request.args),
+        list(session.keys()),
+    )
     if request.method == "POST":
         choice = request.form.get("choice")
+        app.logger.info("[consent] choice=%s", choice)
         if choice == "agree":
             session["consent"] = True
+            app.logger.info(
+                "[consent] consent granted; redirecting to landing with pending pid=%s",
+                session.get("pending_pid"),
+            )
             return redirect(url_for("landing"))
-        # Declined     clear session and show goodbye
+        app.logger.info("[consent] consent declined; clearing session")
         session.clear()
         return render_template("declined.html")
     return render_template("consent.html")
+
 
 
 @app.route("/survey", methods=["GET", "POST"])
@@ -564,6 +576,14 @@ def landing():
     study_id = request.args.get("STUDY_ID")
     session_id = request.args.get("SESSION_ID")
 
+    app.logger.info(
+        "[landing] incoming args pid=%s prolific=%s study=%s session=%s",
+        pid,
+        prolific_pid,
+        study_id,
+        session_id,
+    )
+
     # Cache incoming identifiers before any redirect so they survive consent requirement
     if pid:
         session["pending_pid"] = pid
@@ -584,20 +604,30 @@ def landing():
 
     # Require consent after we've preserved query parameters
     if "consent" not in session:
+        app.logger.info("[landing] redirecting to consent (pending pid=%s)", pid)
         return redirect(url_for("consent"))
 
     if not pid and prolific_pid:
         pid = prolific_pid
         session["pending_pid"] = pid
 
-    print(f"     LANDING DEBUG: PID resolved: {pid}")
-    print(f"     LANDING DEBUG: Prolific PID resolved: {prolific_pid}")
+    app.logger.info(
+        "[landing] resolved identifiers pid=%s prolific=%s stored_pid=%s",
+        pid,
+        prolific_pid,
+        session.get("pending_pid"),
+    )
     if study_id or session_id:
-        print(f"     LANDING DEBUG: Study metadata - STUDY_ID={study_id}, SESSION_ID={session_id}")
+        app.logger.info(
+            "[landing] study metadata study=%s session=%s",
+            study_id,
+            session_id,
+        )
 
     try:
         if pid:
             # Start session immediately
+            app.logger.info("[landing] creating session for pid=%s", pid)
             print(f"     LANDING DEBUG: Creating session for PID: {pid}")
             create_participant_run(pid, prolific_pid or pid)
             return redirect(url_for("task", pid=pid))
@@ -608,6 +638,7 @@ def landing():
         with open("error.log", "a", encoding="utf-8") as log_file:
             log_file.write(f"[landing] {e}\n")
             traceback.print_exc(file=log_file)
+        app.logger.exception("[landing] failed")
         raise
 @app.route("/instructions")
 def instructions():
