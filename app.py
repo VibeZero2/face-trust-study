@@ -502,11 +502,18 @@ def consent():
         dict(request.args),
         list(session.keys()),
     )
+    pending_pid = session.get("pending_pid")
+    pending_prolific = session.get("pending_prolific_pid")
+    if request.method == "GET" and not pending_pid and pending_prolific:
+        session["pending_pid"] = pending_prolific
+        session.modified = True
+        app.logger.info("[consent] promoted prolific pid to pending pid=%s", pending_prolific)
     if request.method == "POST":
         choice = request.form.get("choice")
         app.logger.info("[consent] choice=%s", choice)
         if choice == "agree":
             session["consent"] = True
+            session.modified = True
             app.logger.info(
                 "[consent] consent granted; redirecting to landing with pending pid=%s",
                 session.get("pending_pid"),
@@ -515,6 +522,8 @@ def consent():
         app.logger.info("[consent] consent declined; clearing session")
         session.clear()
         return render_template("declined.html")
+    if not session.get("pending_prolific_pid"):
+        app.logger.warning("[consent] missing pending prolific pid in session")
     return render_template("consent.html")
 
 
@@ -584,7 +593,6 @@ def landing():
         session_id,
     )
 
-    # Cache incoming identifiers before any redirect so they survive consent requirement
     if pid:
         session["pending_pid"] = pid
     elif "pending_pid" in session:
@@ -602,14 +610,19 @@ def landing():
     if session_id:
         session["pending_session_id"] = session_id
 
-    # Require consent after we've preserved query parameters
+    stored = {k: session.get(k) for k in ("pending_pid", "pending_prolific_pid", "pending_study_id", "pending_session_id")}
+    if any(stored.values()):
+        app.logger.info("[landing] stored session params: %s", stored)
+        session.modified = True
+
     if "consent" not in session:
-        app.logger.info("[landing] redirecting to consent (pending pid=%s)", pid)
+        app.logger.info("[landing] redirecting to consent (pending pid=%s)", stored.get("pending_pid"))
         return redirect(url_for("consent"))
 
     if not pid and prolific_pid:
         pid = prolific_pid
         session["pending_pid"] = pid
+        session.modified = True
 
     app.logger.info(
         "[landing] resolved identifiers pid=%s prolific=%s stored_pid=%s",
@@ -624,15 +637,61 @@ def landing():
             session_id,
         )
 
+    candidate_pid = pid or session.get("pending_pid") or prolific_pid
+    fallback_prolific = prolific_pid or session.get("pending_prolific_pid")
+    if candidate_pid and SESSION_MANAGEMENT_ENABLED:
+        try:
+            existing_state = load_session_state(candidate_pid)
+            if not existing_state and fallback_prolific and fallback_prolific != candidate_pid:
+                app.logger.info(
+                    "[landing] no state for %s, checking prolific id %s",
+                    candidate_pid,
+                    fallback_prolific,
+                )
+                existing_state = load_session_state(fallback_prolific)
+                if existing_state:
+                    candidate_pid = fallback_prolific
+                    session["pending_pid"] = candidate_pid
+                    session.modified = True
+                    pid = candidate_pid
+            if existing_state:
+                if existing_state.get("session_complete"):
+                    app.logger.info(
+                        "[landing] session already complete for %s; sending to done",
+                        candidate_pid,
+                    )
+                    completion_pid = existing_state.get("participant_id", candidate_pid)
+                    completion_prolific = (
+                        existing_state.get("prolific_pid")
+                        or fallback_prolific
+                        or completion_pid
+                    )
+                    return redirect(
+                        url_for(
+                            "done",
+                            pid=completion_pid,
+                            PROLIFIC_PID=completion_prolific,
+                        )
+                    )
+                if _attempt_session_restore(candidate_pid, fallback_prolific):
+                    app.logger.info(
+                        "[landing] restored existing session for %s",
+                        candidate_pid,
+                    )
+                    return redirect(url_for("task", pid=candidate_pid))
+        except Exception:
+            app.logger.exception(
+                "[landing] failed to resume session for %s",
+                candidate_pid,
+            )
+
     try:
         if pid:
-            # Start session immediately
             app.logger.info("[landing] creating session for pid=%s", pid)
             print(f"     LANDING DEBUG: Creating session for PID: {pid}")
             create_participant_run(pid, prolific_pid or pid)
             return redirect(url_for("task", pid=pid))
 
-        # Pass prolific_pid to template if available
         return render_template("index.html", prolific_pid=prolific_pid)
     except Exception as e:
         with open("error.log", "a", encoding="utf-8") as log_file:
