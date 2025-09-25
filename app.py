@@ -559,21 +559,47 @@ def survey():
 
 @app.route("/")
 def landing():
-    # Force consent first
+    pid = request.args.get("pid")
+    prolific_pid = request.args.get("PROLIFIC_PID", "")
+    study_id = request.args.get("STUDY_ID")
+    session_id = request.args.get("SESSION_ID")
+
+    # Cache incoming identifiers before any redirect so they survive consent requirement
+    if pid:
+        session["pending_pid"] = pid
+    elif "pending_pid" in session:
+        pid = session["pending_pid"]
+
+    if prolific_pid:
+        session["pending_prolific_pid"] = prolific_pid
+    elif "pending_prolific_pid" in session:
+        prolific_pid = session["pending_prolific_pid"]
+    elif "prolific_pid" in session:
+        prolific_pid = session["prolific_pid"]
+
+    if study_id:
+        session["pending_study_id"] = study_id
+    if session_id:
+        session["pending_session_id"] = session_id
+
+    # Require consent after we've preserved query parameters
     if "consent" not in session:
         return redirect(url_for("consent"))
 
-    pid = request.args.get("pid")
-    prolific_pid = request.args.get("PROLIFIC_PID", "")
+    if not pid and prolific_pid:
+        pid = prolific_pid
+        session["pending_pid"] = pid
 
-    print(f"     LANDING DEBUG: PID from URL: {pid}")
-    print(f"     LANDING DEBUG: Prolific PID from URL: {prolific_pid}")
+    print(f"     LANDING DEBUG: PID resolved: {pid}")
+    print(f"     LANDING DEBUG: Prolific PID resolved: {prolific_pid}")
+    if study_id or session_id:
+        print(f"     LANDING DEBUG: Study metadata - STUDY_ID={study_id}, SESSION_ID={session_id}")
 
     try:
         if pid:
             # Start session immediately
             print(f"     LANDING DEBUG: Creating session for PID: {pid}")
-            create_participant_run(pid, prolific_pid)
+            create_participant_run(pid, prolific_pid or pid)
             return redirect(url_for("task", pid=pid))
 
         # Pass prolific_pid to template if available

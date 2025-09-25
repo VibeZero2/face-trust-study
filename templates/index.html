@@ -18,12 +18,23 @@
     }
 
     window.onload = function() {
-      const prolificPid = getProlificPID();
-      
-      // Auto-populate the participant ID field
+      const serverDetectedPid = {{ prolific_pid | tojson }};
+      let prolificPid = getProlificPID();
+
+      if (!prolificPid && serverDetectedPid) {
+        prolificPid = serverDetectedPid;
+        localStorage.setItem('prolific_pid', serverDetectedPid);
+      }
+
       if (prolificPid) {
-        document.getElementById('pid').value = prolificPid;
-        document.getElementById('prolific-pid').value = prolificPid;
+        const pidInput = document.getElementById('pid');
+        const prolificInput = document.getElementById('prolific-pid');
+        if (pidInput) {
+          pidInput.value = prolificPid;
+        }
+        if (prolificInput) {
+          prolificInput.value = prolificPid;
+        }
         window.prolificPID = prolificPid;
       }
     };
