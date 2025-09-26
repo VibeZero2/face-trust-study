@@ -135,28 +135,28 @@
                         <div class="row">
                             <div class="col-md-3">
                                 <div class="text-center">
-                                    <h3 class="text-primary">{{ exclusion_summary.total_raw }}</h3>
+                                    <h3 class="text-primary">{{ exclusion_summary.get('total_raw', 0) }}</h3>
                                     <p class="text-muted">Total Raw Responses</p>
                                 </div>
                             </div>
+                            {% set total_cleaned = exclusion_summary.get('total_cleaned', 0) %}
+                            {% set total_raw = exclusion_summary.get('total_raw', 0) %}
                             <div class="col-md-3">
                                 <div class="text-center">
-                                    <h3 class="text-success">{{ exclusion_summary.total_cleaned }}</h3>
+                                    <h3 class="text-success">{{ total_cleaned }}</h3>
                                     <p class="text-muted">Included Responses</p>
                                 </div>
                             </div>
                             <div class="col-md-3">
                                 <div class="text-center">
-                                    <h3 class="text-danger">{{ exclusion_summary.total_raw - exclusion_summary.total_cleaned }}</h3>
+                                    <h3 class="text-danger">{{ total_raw - total_cleaned }}</h3>
                                     <p class="text-muted">Excluded Responses</p>
                                 </div>
                             </div>
                             <div class="col-md-3">
                                 <div class="text-center">
-                                    <h3 class="text-info">
-                                        {% set inclusion_rate = (exclusion_summary.total_cleaned / exclusion_summary.total_raw * 100) if exclusion_summary.total_raw > 0 else 0 %}
-                                        {{ "%.1f"|format(inclusion_rate) }}%
-                                    </h3>
+                                    {% set inclusion_rate = (total_cleaned / total_raw * 100) if total_raw else 0 %}
+                                    <h3 class="text-info">{{ "%.1f"|format(inclusion_rate) }}%</h3>
                                     <p class="text-muted">Inclusion Rate</p>
                                 </div>
                             </div>

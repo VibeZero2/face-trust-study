@@ -708,7 +708,7 @@
                             totalParticipants.textContent = data.exclusion_summary.session_level.total_sessions || '0';
                         }
                         if (totalResponses) {
-                            totalResponses.textContent = data.exclusion_summary.total_raw || '0';
+                            totalResponses.textContent = (data.exclusion_summary && data.exclusion_summary.total_rows !== undefined ? data.exclusion_summary.total_rows : (data.exclusion_summary && data.exclusion_summary.total_raw) || 0);
                         }
                         if (avgTrust && data.dashboard_stats) {
                             avgTrust.textContent = data.dashboard_stats.avg_trust_rating ? data.dashboard_stats.avg_trust_rating.toFixed(1) : '0';        
