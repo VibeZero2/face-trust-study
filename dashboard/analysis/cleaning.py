@@ -457,6 +457,24 @@ class DataCleaner:
         self.raw_data = df
         return df
     
+    def _estimate_expected_trials(self, participant_data: pd.DataFrame) -> int:
+        if participant_data is None or participant_data.empty:
+            return int(self.expected_total_faces or 0)
+
+        if 'face_id' in participant_data.columns and participant_data['face_id'].notna().any():
+            counts = participant_data.groupby('face_id').size()
+            if not counts.empty:
+                responses_per_face = int(max(1, round(counts.median())))
+                return int(self.expected_total_faces * responses_per_face)
+
+        if ('question' in participant_data.columns or 'question_type' in participant_data.columns) and 'response' in participant_data.columns:
+            return int(self.expected_total_faces * 10)
+
+        if {'trust_rating', 'emotion_rating', 'masc_choice', 'fem_choice'}.issubset(participant_data.columns):
+            return int(self.expected_total_faces)
+
+        return max(int(self.expected_total_faces), int(len(participant_data)))
+
     def apply_exclusion_rules(self) -> pd.DataFrame:
         """
         Apply exclusion rules to create cleaned dataset.
@@ -541,7 +559,7 @@ class DataCleaner:
                 completion_rate = 1.0
             else:
                 # For non-real participants, check completion rate
-                expected_trials = 60  # Adjust based on your study design
+                expected_trials = max(1, self._estimate_expected_trials(participant_data))
                 actual_trials = len(participant_data)
                 completion_rate = actual_trials / expected_trials
                 

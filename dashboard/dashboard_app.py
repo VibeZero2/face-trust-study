@@ -1443,22 +1443,25 @@ def exclusions():
             # Get inclusion status safely
             included = participant_data['include_in_primary'].iloc[0] if len(participant_data) > 0 else False
             
+            expected_trials = max(1, data_cleaner._estimate_expected_trials(participant_data) if data_cleaner else len(participant_data))
+            actual_trials = len(participant_data)
+            completion_pct = (actual_trials / expected_trials * 100) if expected_trials else 0
+
             # Determine exclusion reasons
             exclusion_reasons = []
             if not included:
-                # Check for low completion
-                if len(participant_data) < 48:  # 80% of 60 trials
+                if actual_trials < 0.8 * expected_trials:
                     exclusion_reasons.append('low_completion')
-                # Check for attention failures (placeholder)
                 if 'excl_failed_attention' in participant_data.columns and participant_data['excl_failed_attention'].any():
                     exclusion_reasons.append('attention_failed')
-                # Check for device violations (placeholder)
                 if 'excl_device_violation' in participant_data.columns and participant_data['excl_device_violation'].any():
                     exclusion_reasons.append('device_violation')
-            
+
             session_details.append({
                 'pid': pid,
-                'total_trials': len(participant_data),
+                'total_trials': actual_trials,
+                'expected_trials': expected_trials,
+                'completion_rate': completion_pct,
                 'included': included,
                 'exclusion_reasons': exclusion_reasons
             })
