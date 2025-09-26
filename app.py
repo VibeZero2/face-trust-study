@@ -34,6 +34,18 @@ except Exception:
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", os.urandom(24))
 
+DASHBOARD_SESSION_KEYS = {"authenticated", "username", "role"}
+
+def _preserve_dashboard_session():
+    return {key: session[key] for key in DASHBOARD_SESSION_KEYS if key in session}
+
+def clear_participant_session():
+    preserved = _preserve_dashboard_session()
+    session.clear()
+    if preserved:
+        session.update(preserved)
+        session.modified = True
+
 # Import and register dashboard blueprint
 from dashboard import dashboard_blueprint
 app.register_blueprint(dashboard_blueprint, url_prefix='/dashboard')
@@ -84,7 +96,7 @@ def create_participant_run(pid: str, prolific_pid: str = None):
     """Initialises session variables for a new participant."""
     
     # CRITICAL: Clear all existing session data first
-    session.clear()
+    clear_participant_session()
     print(f"     SESSION RESET: Cleared all session data for new participant {pid}")
     
     # Randomly pick left-first or right-first presentation
@@ -205,7 +217,7 @@ def _attempt_session_restore(participant_id: str, fallback_prolific: str | None 
         if not sequence:
             print(f"     RESUME WARNING: Unable to rebuild sequence for {participant_id}")
             return False
-        session.clear()
+        clear_participant_session()
         session["consent"] = True
         session["pid"] = participant_id
         session["index"] = int(best_state.get("index", 0) or 0)
@@ -520,7 +532,7 @@ def consent():
             )
             return redirect(url_for("landing"))
         app.logger.info("[consent] consent declined; clearing session")
-        session.clear()
+        clear_participant_session()
         return render_template("declined.html")
     if not session.get("pending_prolific_pid"):
         app.logger.warning("[consent] missing pending prolific pid in session")
@@ -574,7 +586,7 @@ def survey():
             print(f"       Backup completion update failed: {backup_error}")
 
         prolific_pid = session.get("prolific_pid", "")
-        session.clear()
+        clear_participant_session()
         return redirect(url_for("done", pid=pid, PROLIFIC_PID=prolific_pid))
     return render_template("survey.html")
 
