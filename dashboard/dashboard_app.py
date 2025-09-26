@@ -1339,12 +1339,20 @@ def generate_random_tests():
 @login_required
 def exclusions():
     """Data exclusions page."""
+    global data_cleaner, data_filter, statistical_analyzer
     try:
+        if data_cleaner is None:
+            if not initialize_data():
+                flash('No data available to display exclusions. Upload data first.', 'warning')
+                return redirect(url_for('dashboard.dashboard'))
+
         # Get exclusion summary
-        exclusion_summary = data_cleaner.get_exclusion_summary()
+        exclusion_summary = data_cleaner.get_exclusion_summary() if data_cleaner else {}
         
         # Get detailed session information
-        cleaned_data = data_cleaner.get_cleaned_data()
+        cleaned_data = data_cleaner.get_cleaned_data() if data_cleaner else pd.DataFrame()
+        if cleaned_data is None or cleaned_data.empty or "pid" not in cleaned_data.columns:
+            return render_template('exclusions.html', exclusion_summary=exclusion_summary, session_details=[], trial_details=[])
         
         # Session-level details
         session_details = []
