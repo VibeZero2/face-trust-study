@@ -221,13 +221,14 @@
                                         <td><strong>{{ session.pid }}</strong></td>
                                         <td>{{ session.total_trials }}</td>
                                         <td>
-                                            {% set completion_rate = (session.total_trials / 60 * 100) if session.total_trials else 0 %}
+                                            {% set completion_rate = session.completion_rate or 0 %}
                                             <div class="progress" style="height: 20px;">
                                                 <div class="progress-bar {% if completion_rate >= 80 %}bg-success{% elif completion_rate >= 50 %}bg-warning{% else %}bg-danger{% endif %}" 
                                                      style="width: {{ completion_rate }}%">
                                                     {{ "%.0f"|format(completion_rate) }}%
                                                 </div>
                                             </div>
+                                            <small class="text-muted">{{ session.total_trials }}/{{ session.expected_trials }}</small>
                                         </td>
                                         <td>
                                             {% if session.exclusion_reasons %}
