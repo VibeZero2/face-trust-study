@@ -141,6 +141,8 @@
                             </div>
                             {% set total_cleaned = exclusion_summary.get('total_cleaned', 0) %}
                             {% set total_raw = exclusion_summary.get('total_raw', 0) %}
+                            {% set session_summary = exclusion_summary.get('session_level', {}) %}
+                            {% set session_reasons = session_summary.get('exclusion_reasons', {}) %}
                             <div class="col-md-3">
                                 <div class="text-center">
                                     <h3 class="text-success">{{ total_cleaned }}</h3>
@@ -394,35 +396,29 @@
                                     </tr>
                                 </thead>
                                 <tbody>
+                                    {% set total_sessions = session_summary.get('total_sessions', 0) %}
+                                    {% set low_comp = session_reasons.get('low_completion', 0) %}
+                                    {% set att_fail = session_reasons.get('attention_failed', 0) %}
+                                    {% set dev_viol = session_reasons.get('device_violation', 0) %}
                                     <tr>
                                         <td><span class="badge bg-danger">Session-Level</span></td>
                                         <td>Low Completion Rate</td>
-                                        <td>{{ exclusion_summary.session_level.exclusion_reasons.get('low_completion', 0) if exclusion_summary.session_level.exclusion_reasons else 0 }}</td>
-                                        <td>
-                                            {% set total_sessions = exclusion_summary.session_level.total_sessions %}
-                                            {% set low_comp = exclusion_summary.session_level.exclusion_reasons.get('low_completion', 0) if exclusion_summary.session_level.exclusion_reasons else 0 %}
-                                            {{ "%.1f"|format(low_comp / total_sessions * 100) if total_sessions > 0 else 0 }}%
-                                        </td>
+                                        <td>{{ low_comp }}</td>
+                                        <td>{{ "%.1f"|format(low_comp / total_sessions * 100) if total_sessions > 0 else 0 }}%</td>
                                         <td>Participants with < 80% completion rate</td>
                                     </tr>
                                     <tr>
                                         <td><span class="badge bg-danger">Session-Level</span></td>
                                         <td>Attention Check Failed</td>
-                                        <td>{{ exclusion_summary.session_level.exclusion_reasons.get('attention_failed', 0) if exclusion_summary.session_level.exclusion_reasons else 0 }}</td>
-                                        <td>
-                                            {% set att_fail = exclusion_summary.session_level.exclusion_reasons.get('attention_failed', 0) if exclusion_summary.session_level.exclusion_reasons else 0 %}
-                                            {{ "%.1f"|format(att_fail / total_sessions * 100) if total_sessions > 0 else 0 }}%
-                                        </td>
+                                        <td>{{ att_fail }}</td>
+                                        <td>{{ "%.1f"|format(att_fail / total_sessions * 100) if total_sessions > 0 else 0 }}%</td>
                                         <td>Failed attention check questions</td>
                                     </tr>
                                     <tr>
                                         <td><span class="badge bg-danger">Session-Level</span></td>
                                         <td>Device Violation</td>
-                                        <td>{{ exclusion_summary.session_level.exclusion_reasons.get('device_violation', 0) if exclusion_summary.session_level.exclusion_reasons else 0 }}</td>
-                                        <td>
-                                            {% set dev_viol = exclusion_summary.session_level.exclusion_reasons.get('device_violation', 0) if exclusion_summary.session_level.exclusion_reasons else 0 %}
-                                            {{ "%.1f"|format(dev_viol / total_sessions * 100) if total_sessions > 0 else 0 }}%
-                                        </td>
+                                        <td>{{ dev_viol }}</td>
+                                        <td>{{ "%.1f"|format(dev_viol / total_sessions * 100) if total_sessions > 0 else 0 }}%</td>
                                         <td>Mobile device or incompatible browser</td>
                                     </tr>
                                     <tr>

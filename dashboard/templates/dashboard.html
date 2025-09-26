@@ -704,8 +704,9 @@
                         const stdTrust = document.getElementById('std-trust-rating');
                         const dataFilesInfo = document.getElementById('data-files-info');
                         
-                        if (totalParticipants && data.exclusion_summary.session_level) {
-                            totalParticipants.textContent = data.exclusion_summary.session_level.total_sessions || '0';
+                        const sessionSummary = data.exclusion_summary && data.exclusion_summary.session_level ? data.exclusion_summary.session_level : null;
+                        if (totalParticipants) {
+                            totalParticipants.textContent = sessionSummary ? (sessionSummary.total_sessions || 0) : 0;
                         }
                         if (totalResponses) {
                             totalResponses.textContent = (data.exclusion_summary && data.exclusion_summary.total_rows !== undefined ? data.exclusion_summary.total_rows : (data.exclusion_summary && data.exclusion_summary.total_raw) || 0);

@@ -23,6 +23,35 @@ FileSystemEventHandler = None
 WATCHDOG_AVAILABLE = False
 
 # Import from the dashboard.analysis package
+
+def _empty_exclusion_summary():
+    return {
+        'total_raw': 0,
+        'total_cleaned': 0,
+        'session_level': {
+            'total_sessions': 0,
+            'excluded_sessions': 0,
+            'exclusion_reasons': {}
+        },
+        'trial_level': {
+            'total_trials': 0,
+            'excluded_trials': 0,
+            'exclusion_reasons': {}
+        }
+    }
+
+
+def _empty_data_summary(mode):
+    return {
+        'mode': mode,
+        'total_rows': 0,
+        'real_participants': 0,
+        'test_files': 0,
+        'real_files': [],
+        'test_files_list': []
+    }
+
+
 from .analysis.cleaning import DataCleaner
 from .analysis.stats import StatisticalAnalyzer
 from .analysis.filters import DataFilter
@@ -848,27 +877,51 @@ def dashboard():
 # @login_required  # Temporarily disabled for Render deployment
 def api_overview():
     """API endpoint for overview statistics."""
-    global data_cleaner, statistical_analyzer
+    global data_cleaner, statistical_analyzer, data_filter, dashboard_mode
     
     try:
         # Check if components are initialized
         if data_cleaner is None or statistical_analyzer is None:
             if not initialize_data():
-                print("ERROR: API Overview - Data initialization failed")
-                return jsonify({'error': 'Data initialization failed'}), 500
+                empty_payload = {
+                    'status': 'empty',
+                    'exclusion_summary': _empty_exclusion_summary(),
+                    'descriptive_stats': {},
+                    'data_summary': _empty_data_summary(dashboard_mode),
+                    'total_participants': 0,
+                    'total_responses': 0,
+                    'trust_mean': None,
+                    'trust_std': None,
+                    'timestamp': datetime.now().isoformat()
+                }
+                return jsonify(empty_payload)
+        
+        if data_cleaner is None or statistical_analyzer is None:
+            empty_payload = {
+                'status': 'empty',
+                'exclusion_summary': _empty_exclusion_summary(),
+                'descriptive_stats': {},
+                'data_summary': _empty_data_summary(dashboard_mode),
+                'total_participants': 0,
+                'total_responses': 0,
+                'trust_mean': None,
+                'trust_std': None,
+                'timestamp': datetime.now().isoformat()
+            }
+            return jsonify(empty_payload)
         
         # Get data with error handling
         try:
             exclusion_summary = data_cleaner.get_exclusion_summary()
         except Exception as e:
             print(f"ERROR: API Overview - Failed to get exclusion summary: {e}")
-            exclusion_summary = {'error': f'Exclusion summary failed: {str(e)}'}
+            exclusion_summary = _empty_exclusion_summary()
         
         try:
             descriptive_stats = statistical_analyzer.get_descriptive_stats()
         except Exception as e:
             print(f"ERROR: API Overview - Failed to get descriptive stats: {e}")
-            descriptive_stats = {'error': f'Descriptive stats failed: {str(e)}'}
+            descriptive_stats = {}
         
         # Convert numpy types to native Python types for JSON serialization
         def convert_numpy_types(obj):
@@ -882,14 +935,27 @@ def api_overview():
                 return obj
         
         # Compute top-card metrics from cleaned data (supports long or wide formats)
-        cleaned = data_cleaner.get_cleaned_data()
+        try:
+            cleaned = data_cleaner.get_cleaned_data()
+        except Exception as e:
+            print(f"ERROR: API Overview - Failed to get cleaned data: {e}")
+            cleaned = pd.DataFrame()
+
+        if cleaned is None:
+            cleaned = pd.DataFrame()
+        if not isinstance(cleaned, pd.DataFrame):
+            cleaned = pd.DataFrame(cleaned)
+
         included = cleaned[cleaned['include_in_primary']] if 'include_in_primary' in cleaned.columns else cleaned
         try:
             included = included.copy()
-            included['pid'] = included['pid'].astype(str)
+            if 'pid' in included.columns:
+                included['pid'] = included['pid'].astype(str)
         except Exception:
             pass
-        total_participants = included['pid'].nunique() if len(included) > 0 else 0
+
+        has_pid = 'pid' in included.columns
+        total_participants = included['pid'].nunique() if has_pid and len(included) > 0 else 0
         # total_responses: prefer long-format trust rows
         if len(included) > 0 and ('question' in included.columns or 'question_type' in included.columns) and 'response' in included.columns:
             qcol = 'question' if 'question' in included.columns else 'question_type'
@@ -900,16 +966,22 @@ def api_overview():
             total_responses = pd.to_numeric(included['trust_rating'], errors='coerce').notna().sum()
             trust_vals = pd.to_numeric(included['trust_rating'], errors='coerce').dropna()
         else:
-            total_responses = len(included)
+            total_responses = len(included) if len(included) > 0 else 0
             trust_vals = pd.Series(dtype=float)
 
         trust_mean = float(trust_vals.mean()) if len(trust_vals) > 0 else None
         trust_std = float(trust_vals.std()) if len(trust_vals) > 1 else 0.0 if len(trust_vals) == 1 else None
 
+        try:
+            data_summary_converted = convert_numpy_types(data_cleaner.get_data_summary()) if data_cleaner else _empty_data_summary(dashboard_mode)
+        except Exception as e:
+            print(f"ERROR: API Overview - Failed to get data summary: {e}")
+            data_summary_converted = _empty_data_summary(dashboard_mode)
+
         response_data = {
             'exclusion_summary': convert_numpy_types(exclusion_summary),
             'descriptive_stats': convert_numpy_types(descriptive_stats),
-            'data_summary': convert_numpy_types(data_cleaner.get_data_summary()),
+            'data_summary': data_summary_converted,
             'total_participants': total_participants,
             'total_responses': int(total_responses),
             'trust_mean': trust_mean,
@@ -1347,9 +1419,8 @@ def exclusions():
                 return redirect(url_for('dashboard.dashboard'))
 
         # Get exclusion summary
-        exclusion_summary = data_cleaner.get_exclusion_summary() if data_cleaner else {}
+        exclusion_summary = data_cleaner.get_exclusion_summary() if data_cleaner else _empty_exclusion_summary()
         
-        # Get detailed session information
         cleaned_data = data_cleaner.get_cleaned_data() if data_cleaner else pd.DataFrame()
         if cleaned_data is None or cleaned_data.empty or "pid" not in cleaned_data.columns:
             return render_template('exclusions.html', exclusion_summary=exclusion_summary, session_details=[], trial_details=[])
