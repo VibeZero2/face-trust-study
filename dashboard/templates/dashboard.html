@@ -380,14 +380,14 @@
                                         <h6>Upload Participant Data</h6>
                                         <form action="{{ url_for('dashboard.upload_data') }}" method="post" enctype="multipart/form-data" class="mb-3" id="uploadForm">
                                             <div class="mb-3">
-                                                <label for="file" class="form-label">Select CSV file with participant responses:</label>
+                                                <label for="file" class="form-label">Select CSV file(s) with participant responses:</label>
                                                 <div class="upload-area" id="uploadArea">
                                                     <div class="upload-content">
                                                         <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-3"></i>
-                                                        <p class="mb-2">Drag and drop CSV files here</p>
-                                                        <p class="text-muted small">or click to browse</p>
+                                                        <p class="mb-2">Drag and drop CSV files here (multiple supported)</p>
+                                                        <p class="text-muted small">or click to browse (supports multiple files)</p>
                                                     </div>
-                                                    <input type="file" class="form-control d-none" id="file" name="file" accept=".csv" required>
+                                                    <input type="file" class="form-control d-none" id="file" name="file" accept=".csv" multiple required>
                                                 </div>
                                                 <div class="form-text">File must contain a "Participant ID" column and be in CSV format.</div>
                                                 <div id="uploadStatus" class="mt-2"></div>
@@ -630,13 +630,16 @@
             });
 
             function handleFileSelect() {
-                const file = fileInput.files[0];
-                if (file) {
+                const files = Array.from(fileInput.files || []);
+                if (files.length > 0) {
                     uploadBtn.disabled = false;
+                    const details = files
+                        .map(file => `<span class="d-block">${file.name} (${(file.size / 1024).toFixed(1)} KB)</span>`)
+                        .join('');
                     uploadStatus.innerHTML = `
                         <div class="alert alert-info alert-sm">
                             <i class="fas fa-file-csv me-2"></i>
-                            Selected: ${file.name} (${(file.size / 1024).toFixed(1)} KB)
+                            Selected ${files.length} file(s):<br>${details}
                         </div>
                     `;
                 } else {
@@ -647,12 +650,13 @@
 
             // Form submission with feedback
             uploadForm.addEventListener('submit', function(e) {
+                const files = Array.from(fileInput.files || []);
                 uploadBtn.disabled = true;
                 uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Uploading...';
                 uploadStatus.innerHTML = `
                     <div class="alert alert-info alert-sm">
                         <i class="fas fa-upload me-2"></i>
-                        Processing file...
+                        Processing ${files.length || 0} file(s)...
                     </div>
                 `;
             });

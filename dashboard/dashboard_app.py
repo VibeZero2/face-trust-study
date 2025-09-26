@@ -1216,45 +1216,63 @@ def statistics():
 def upload_data():
     """Handle file upload for participant data."""
     try:
-        if 'file' not in request.files:
-            flash('No file selected', 'error')
+        files = request.files.getlist('file') if 'file' in request.files else []
+        files = [f for f in files if f and f.filename]
+        if not files:
+            flash('No files selected', 'error')
             return redirect(url_for('dashboard.dashboard'))
 
-        file = request.files['file']
-        if file.filename == '':
-            flash('No file selected', 'error')
-            return redirect(url_for('dashboard.dashboard'))
+        import pandas as pd
+        import io
 
-        if file and file.filename.lower().endswith('.csv'):
-            import pandas as pd
-            import io
+        is_test = request.form.get('is_test') == 'on'
+        prefix = 'TEST_' if is_test else ''
+        base_timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
 
-            csv_content = file.read().decode('utf-8')
-            df = pd.read_csv(io.StringIO(csv_content))
+        saved_files = []
+        errors = []
+
+        for index, file in enumerate(files, start=1):
+            original_name = file.filename
+            if not original_name.lower().endswith('.csv'):
+                errors.append(f"{original_name} (not a CSV file)")
+                continue
+            try:
+                csv_content = file.read().decode('utf-8')
+                df = pd.read_csv(io.StringIO(csv_content))
+            except Exception as read_error:
+                errors.append(f"{original_name} ({read_error})")
+                continue
 
             required_columns = ['pid', 'face_id', 'version', 'question', 'response']
             if not all(col in df.columns for col in required_columns):
-                flash(f"CSV must contain columns: {', '.join(required_columns)}", 'error')
-                return redirect(url_for('dashboard.dashboard'))
+                errors.append(f"{original_name} (missing required columns)")
+                continue
 
             participant_id = str(df['pid'].iloc[0]) if len(df) > 0 else 'uploaded'
             safe_id = secure_filename(participant_id) or 'participant'
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            is_test = request.form.get('is_test') == 'on'
-            prefix = 'TEST_' if is_test else ''
+            timestamp = f"{base_timestamp}_{index:02d}"
             filename = f"{prefix}{safe_id}_{timestamp}.csv"
             filepath = DATA_DIR / filename
             filepath.parent.mkdir(parents=True, exist_ok=True)
 
             df.to_csv(filepath, index=False)
+            saved_files.append((filename, len(df)))
 
+        if saved_files:
             initialize_data()
+            total_rows = sum(count for _, count in saved_files)
+            mode_note = ' (marked as test data)' if is_test else ''
+            if len(saved_files) == 1:
+                filename, row_count = saved_files[0]
+                flash(f"Successfully uploaded {filename} with {row_count} rows{mode_note}", 'success')
+            else:
+                filenames = ', '.join(name for name, _ in saved_files)
+                flash(f"Uploaded {len(saved_files)} files{mode_note}: {filenames}. Total rows: {total_rows}", 'success')
 
-            mode_note = ' marked as test data' if is_test else ''
-            flash(f'Successfully uploaded {filename} with {len(df)} rows{mode_note}', 'success')
-        else:
-            flash('Please upload a CSV file', 'error')
-
+        if errors:
+            message = 'Some files were skipped: ' + '; '.join(errors)
+            flash(message, 'warning' if saved_files else 'error')
     except Exception as e:
         flash(f'Error uploading file: {str(e)}', 'error')
 

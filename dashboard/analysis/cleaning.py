@@ -2,7 +2,7 @@
 import numpy as np
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Set
 import logging
 
 # Set up logging
@@ -35,6 +35,8 @@ class DataCleaner:
         self.file_metadata: List[Dict] = []
         self.cleaned_data = None
         self.exclusion_summary = {}
+        self.production_fallback_used = False
+        self.promoted_files: Set[str] = set()
     
     @staticmethod
     def _is_test_file(file_name: str) -> bool:
@@ -111,6 +113,7 @@ class DataCleaner:
                 'mtime': file_path.stat().st_mtime,
                 'modified_display': datetime.fromtimestamp(file_path.stat().st_mtime).strftime('%Y-%m-%d %H:%M:%S'),
                 'is_test': self._is_test_file(file_path.name),
+                'is_test_original': self._is_test_file(file_path.name),
                 'complete': is_complete,
                 'completed_faces': completed_faces,
                 'total_faces': total_faces,
@@ -138,14 +141,33 @@ class DataCleaner:
             return self.raw_data
 
         mode = (self.mode or 'PRODUCTION').upper()
+        self.production_fallback_used = False
+        self.promoted_files.clear()
         files_to_load: List[Path] = []
+        test_candidates: List[Path] = []
         for info in selection_source.values():
             is_test = info.get('is_test', False)
-            if mode == 'PRODUCTION' and is_test:
-                continue
-            if mode == 'TEST' and not is_test:
+            if mode == 'PRODUCTION':
+                if is_test:
+                    test_candidates.append(info['path'])
+                    continue
+            elif mode == 'TEST' and not is_test:
                 continue
             files_to_load.append(info['path'])
+
+        if not files_to_load and mode == 'PRODUCTION' and test_candidates:
+            logger.warning(
+                "PRODUCTION mode detected only test-labeled files; promoting %s file(s) for analysis",
+                len(test_candidates),
+            )
+            files_to_load = list(test_candidates)
+            self.promoted_files = {path.name for path in test_candidates}
+            self.production_fallback_used = True
+            promoted_paths = set(test_candidates)
+            for metadata in self.file_metadata:
+                if metadata.get('path') in promoted_paths:
+                    metadata['promoted_from_test'] = True
+                    metadata['is_test'] = False
 
         if not files_to_load:
             self.raw_data = pd.DataFrame()
@@ -189,13 +211,20 @@ class DataCleaner:
             }
 
         loaded_files = list(self.raw_data['source_file'].unique())
-        test_files = [name for name in loaded_files if self._is_test_file(name)]
-        real_files = [name for name in loaded_files if name not in test_files]
+        test_files = []
+        real_files = []
+        for name in loaded_files:
+            if name in self.promoted_files:
+                real_files.append(name)
+            elif self._is_test_file(name):
+                test_files.append(name)
+            else:
+                real_files.append(name)
 
         if self.mode == 'TEST':
             visible_participants = test_files
         elif self.mode == 'PRODUCTION':
-            visible_participants = real_files
+            visible_participants = real_files if real_files else (test_files if self.production_fallback_used else real_files)
         else:  # ALL
             visible_participants = loaded_files
 
@@ -275,25 +304,39 @@ class DataCleaner:
         # Handle new question/response format - keep in long format for correct counting
         if 'question_type' in df.columns and 'response' in df.columns:
             logger.info("Detected question_type/response format - keeping in long format")
-            
-            # Keep data in long format - don't pivot
-            # This preserves the correct response counts (1 face = 10 responses: 2 left + 2 right + 6 both)
-            logger.info("Data is in long format - preserving for accurate response counting")
-            
-            # Ensure we have the expected column names
-            # Keep standardized long format names used across the dashboard
-            # Ensure columns are exactly: pid, face_id, version, question_type, response, timestamp
-            # We already mapped 'question' -> 'question_type' above when needed
-            
-            # Add a flag to indicate this is long format data
+            df = df.rename(columns={'question_type': 'question'})
+            logger.info("Renamed question_type column to question for consistency")
             df['_is_long_format'] = True
-            
             logger.info("Successfully processed question/response data in long format")
             logger.info(f"After processing: {len(df)} rows, columns: {list(df.columns)}")
             if 'version' in df.columns:
                 logger.info(f"Version counts: {df['version'].value_counts().to_dict()}")
-            if 'question_type' in df.columns:
-                logger.info(f"Question type counts: {df['question_type'].value_counts().to_dict()}")
+            logger.info(f"Question counts: {df['question'].value_counts().to_dict()}")
+        
+        # Normalize question labels to match analytics expectations
+        if 'question' in df.columns:
+            df['question'] = df['question'].astype(str).str.strip().str.lower()
+            question_map = {
+                'trust_left': 'trust_rating',
+                'trust_right': 'trust_rating',
+                'trust_full': 'trust_rating',
+                'trust': 'trust_rating',
+                'emotion_left': 'emotion_rating',
+                'emotion_right': 'emotion_rating',
+                'emotion_full': 'emotion_rating',
+                'emotion': 'emotion_rating',
+                'masc_choice_half': 'masc_choice',
+                'masc_choice_full': 'masc_choice',
+                'masc_choice': 'masc_choice',
+                'fem_choice_half': 'fem_choice',
+                'fem_choice_full': 'fem_choice',
+                'fem_choice': 'fem_choice',
+                'masculinity_full': 'masculinity_full',
+                'masculinity': 'masculinity_full',
+                'femininity_full': 'femininity_full',
+                'femininity': 'femininity_full',
+            }
+            df['question'] = df['question'].map(question_map).fillna(df['question'])
         
         # Handle duplicate column names by keeping first occurrence
         if df.columns.duplicated().any():
@@ -304,29 +347,34 @@ class DataCleaner:
         # Handle face_id conversion for study program format
         if 'face_id' in df.columns:
             # Convert face_id to string first to handle both string and numeric formats
-            df['face_id'] = df['face_id'].astype(str)
-            
+            df['face_id'] = df['face_id'].astype(str).str.strip()
+
             # Study program uses 'face_1', 'face_2', etc.
             # Handle "Face ID (25)" format from 200.csv
             face_id_pattern = df['face_id'].str.match(r'Face ID \((\d+)\)', na=False)
             if face_id_pattern.any():
-                # Extract the number from "Face ID (25)" and convert to "face_25"
                 df.loc[face_id_pattern, 'face_id'] = 'face_' + df.loc[face_id_pattern, 'face_id'].str.extract(r'Face ID \((\d+)\)')[0]
                 logger.info("Converted 'Face ID (X)' format to study program format")
-            
+
+            # Handle "Face (25)" style identifiers
+            face_paren_pattern = df['face_id'].str.match(r'(?i)^face \((\d+)\)$', na=False)
+            if face_paren_pattern.any():
+                df.loc[face_paren_pattern, 'face_id'] = 'face_' + df.loc[face_paren_pattern, 'face_id'].str.extract(r'(?i)^face \((\d+)\)$')[0].astype(int).astype(str)
+                logger.info("Converted 'Face (X)' format to study program format")
+
             # Handle simple numeric face IDs like "1", "2", "3" from old test data
             numeric_pattern = df['face_id'].str.match(r'^\d+$', na=False)
             if numeric_pattern.any():
-                # Convert "1" to "face_1", "2" to "face_2", etc.
                 df.loc[numeric_pattern, 'face_id'] = 'face_' + df.loc[numeric_pattern, 'face_id']
                 logger.info("Converted numeric face IDs to study program format")
-            
+
             # Handle new test data format (face_01, face_02, etc.) - ensure consistent format
             face_xx_pattern = df['face_id'].str.match(r'face_(\d+)$', na=False)
             if face_xx_pattern.any():
-                # Convert face_01 to face_1, face_02 to face_2, etc.
                 df.loc[face_xx_pattern, 'face_id'] = 'face_' + df.loc[face_xx_pattern, 'face_id'].str.extract(r'face_(\d+)$')[0].astype(int).astype(str)
                 logger.info("Converted face_XX format to face_X format")
+
+            df['face_id'] = df['face_id'].str.lower()
         
         # Ensure version exists and has data (study program uses 'version')
         if 'faceversion' in df.columns and 'version' in df.columns:
@@ -340,55 +388,47 @@ class DataCleaner:
             df = df.rename(columns={'faceversion': 'version'})
             logger.info("Renamed faceversion to version")
         
-        # Check for trust data in long format only
+        # Check for trust data in long format or wide columns
         has_trust_data = 'trust_rating' in df.columns
-        
+        has_trust_from_questions = 'question' in df.columns and df['question'].eq('trust_rating').any()
+
         if 'trust' in df.columns and 'trust_rating' in df.columns:
-            # Copy trust data to trust_rating if trust_rating is empty
             if df['trust_rating'].isna().all():
                 df['trust_rating'] = df['trust']
                 logger.info("Copied trust data to empty trust_rating column")
-            # Drop the trust column since we have trust_rating
             df = df.drop(columns=['trust'])
             logger.info("Dropped trust column after ensuring trust_rating has data")
         elif 'trust' in df.columns and 'trust_rating' not in df.columns:
-            # If we only have trust, rename it to trust_rating
             df = df.rename(columns={'trust': 'trust_rating'})
+            has_trust_data = True
             logger.info("Renamed trust to trust_rating")
-        
-        # Log what trust data we have
-        if has_trust_data:
-            logger.info("Found trust data (trust_rating)")
-        if not has_trust_data:
-            logger.warning("No trust data found in either toggle or full format")
-        
 
-        
+        if has_trust_data or has_trust_from_questions:
+            logger.info("Found trust data for analysis")
+        else:
+            logger.warning("No trust data found in either toggle or full format")
+
         # Ensure required columns exist (long format only)
         required_cols = ['pid', 'face_id', 'version', 'question', 'response']
-        
+
         missing_cols = []
         for col in required_cols:
             if col not in df.columns:
                 missing_cols.append(col)
-        
+
         if missing_cols:
             logger.warning(f"Missing required columns: {missing_cols}")
-            # Add missing columns with default values
             for col in missing_cols:
                 df[col] = None
-        
-        # Check if we have trust data in long format
-        has_trust_data = 'trust_rating' in df.columns
-        
-        if not has_trust_data:
-            logger.warning("No trust rating data found in either toggle or full format")
-            # Don't filter out all data, just log the warning
-        
+
+        if 'question' in df.columns and 'response' in df.columns:
+            numeric_questions = {'trust_rating', 'emotion_rating', 'masculinity_full', 'femininity_full'}
+            mask = df['question'].isin(numeric_questions)
+            df.loc[mask, 'response'] = pd.to_numeric(df.loc[mask, 'response'], errors='coerce')
+
         # Standardize version values and filter out toggle/survey rows
         if 'version' in df.columns:
-            # Convert to string first, then apply string operations
-            df['version'] = df['version'].astype(str).str.strip()
+            df['version'] = df['version'].astype(str).str.strip().str.lower()
             version_mapping = {
                 'left half': 'left',
                 'right half': 'right',
@@ -397,24 +437,10 @@ class DataCleaner:
                 'left': 'left',
                 'right': 'right',
                 'full': 'both',
-                'Left Half': 'left',
-                'Right Half': 'right', 
-                'Full Face': 'both'
+                'half': 'both',
+                'toggle': 'both',
             }
-            # First try exact mapping
             df['version'] = df['version'].map(version_mapping).fillna(df['version'])
-            
-            # If still have original values, try case-insensitive mapping
-            if df['version'].isin(['Left Half', 'Right Half', 'Full Face']).any():
-                # Convert to lowercase for mapping
-                df['version'] = df['version'].str.lower().map({
-                    'left half': 'left',
-                    'right half': 'right',
-                    'full face': 'both'
-                }).fillna(df['version'])
-            
-            # Keep all versions including toggle, full, both, left, right
-            # Only filter out survey rows
             df = df[~df['version'].isin(['survey'])]
             logger.info(f"Filtered out survey rows. Remaining rows: {len(df)}")
         
