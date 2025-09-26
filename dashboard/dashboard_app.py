@@ -385,7 +385,7 @@ def logout():
     return redirect(url_for('dashboard.login'))
 
 @dashboard_bp.route('/')
-# @login_required  # Temporarily disabled for Render deployment
+@login_required
 def dashboard():
     """Main dashboard page."""
     global data_cleaner, statistical_analyzer, data_filter
@@ -874,7 +874,7 @@ def dashboard():
 
 @dashboard_bp.route('/api/overview')
 @dashboard_bp.route('/dashboard/api/overview')
-# @login_required  # Temporarily disabled for Render deployment
+@login_required
 def api_overview():
     """API endpoint for overview statistics."""
     global data_cleaner, statistical_analyzer, data_filter, dashboard_mode
@@ -1127,7 +1127,7 @@ def export_analysis_report():
         return redirect(url_for('dashboard'))
 
 @dashboard_bp.route('/participants')
-# @login_required  # Temporarily disabled for consistency with main dashboard
+@login_required
 def participants():
     """Participants overview page."""
     try:
@@ -1201,7 +1201,7 @@ def participants():
         return render_template('error.html', message=str(e))
 
 @dashboard_bp.route('/images')
-# @login_required  # Temporarily disabled for Render deployment
+@login_required
 def images():
     """Images analysis page."""
     try:
@@ -1216,7 +1216,7 @@ def images():
         return render_template('error.html', message=str(e))
 
 @dashboard_bp.route('/statistics')
-# @login_required  # Temporarily disabled for local testing
+@login_required
 def statistics():
     """Statistical tests page."""
     try:
