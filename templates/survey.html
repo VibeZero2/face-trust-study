@@ -31,25 +31,28 @@
   <form method="post" id="surveyForm">
     <!-- Trust Survey -->
     <h2 class="h4">General Trust Survey</h2>
-    <p>Rate how much you agree with the following statements <strong>(1 = Strongly Disagree, 7 = Strongly Agree)</strong></p>
+    <p>Rate how much you agree with the following statements <strong>(1 = Strongly Disagree, 5 = Strongly Agree)</strong></p>
     <table class="table table-dark table-bordered align-middle text-center">
       <thead>
         <tr>
           <th class="text-start" style="width:45%;"></th>
-          {% for i in range(1,8) %}<th>{{ i }}</th>{% endfor %}
+          {% for i in range(1,6) %}<th>{{ i }}</th>{% endfor %}
         </tr>
       </thead>
       <tbody>
         {% set trust_items = [
           'Most people are basically honest.',
-          'I believe that people are generally trustworthy.',
-          'Most people can be counted on to do what they say they will do.'
+          'Most people are trustworthy.',
+          'Most people are basically good and kind.',
+          'Most people can be counted on to do what they say they will do.',
+          'Most people are truthful.',
+          'I am trusting.'
         ] %}
         {% for item in trust_items %}
         {% set item_index = loop.index %}
         <tr>
           <td class="text-start">{{ item }}</td>
-          {% for i in range(1,8) %}
+          {% for i in range(1,6) %}
           <td class="rating-cell" onclick="document.getElementById('trust{{ item_index }}_{{ i }}').click()">
             <input type="radio" id="trust{{ item_index }}_{{ i }}" name="trust{{ item_index }}" value="{{i}}" required>
           </td>
@@ -58,7 +61,6 @@
         {% endfor %}
       </tbody>
     </table>
-
     <!-- Personality Survey -->
     <h2 class="h4 mt-5">Personality Survey (TIPI)</h2>
     <p>Rate how well each statement describes you <strong>(1 = Strongly Disagree, 7 = Strongly Agree)</strong></p>
@@ -70,27 +72,31 @@
         </tr>
       </thead>
       <tbody>
-        {% set pers_items = [
+        {% set tipi_items = [
           'I see myself as extraverted, enthusiastic.',
           'I see myself as critical, quarrelsome.',
           'I see myself as dependable, self-disciplined.',
           'I see myself as anxious, easily upset.',
-          'I see myself as open to new experiences, complex.'
+          'I see myself as open to new experiences, complex.',
+          'I see myself as reserved, quiet.',
+          'I see myself as sympathetic, warm.',
+          'I see myself as disorganized, careless.',
+          'I see myself as calm, emotionally stable.',
+          'I see myself as conventional, uncreative.'
         ] %}
-        {% for item in pers_items %}
+        {% for item in tipi_items %}
         {% set item_index = loop.index %}
         <tr>
           <td class="text-start">{{ item }}</td>
           {% for i in range(1,8) %}
-          <td class="rating-cell" onclick="document.getElementById('pers{{ item_index }}_{{ i }}').click()">
-            <input type="radio" id="pers{{ item_index }}_{{ i }}" name="pers{{ item_index }}" value="{{i}}" required>
+          <td class="rating-cell" onclick="document.getElementById('tipi{{ item_index }}_{{ i }}').click()">
+            <input type="radio" id="tipi{{ item_index }}_{{ i }}" name="tipi{{ item_index }}" value="{{i}}" required>
           </td>
           {% endfor %}
         </tr>
         {% endfor %}
       </tbody>
     </table>
-
     <div class="text-center mt-4">
       <button type="submit" class="btn btn-success btn-lg">Submit Surveys</button>
     </div>

@@ -293,6 +293,52 @@ def save_encrypted_csv(pid: str, rows: list):
     return {"enc": enc_path, "csv": csv_path}
 
 
+
+
+def save_survey_responses(pid: str, survey_payload: dict):
+    """Persist post-task survey responses for later export."""
+    try:
+        surveys_dir = DATA_DIR / 'surveys'
+        surveys_dir.mkdir(exist_ok=True)
+        timestamp = survey_payload.get('timestamp') or datetime.utcnow().isoformat()
+        rows = []
+
+        for item, value in survey_payload.get('trust_scale', {}).items():
+            if value is None:
+                continue
+            rows.append({
+                'pid': pid,
+                'scale': 'general_trust',
+                'item': item,
+                'response': value,
+                'timestamp': timestamp
+            })
+
+        for item, value in survey_payload.get('tipi', {}).items():
+            if value is None:
+                continue
+            rows.append({
+                'pid': pid,
+                'scale': 'tipi',
+                'item': item,
+                'response': value,
+                'timestamp': timestamp
+            })
+
+        if not rows:
+            return None
+
+        output_path = surveys_dir / f"{pid}_survey.csv"
+        fieldnames = ['pid', 'scale', 'item', 'response', 'timestamp']
+        with open(output_path, 'w', newline='') as handle:
+            writer = csv.DictWriter(handle, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)
+        return output_path
+    except Exception as survey_error:
+        print(f"    Survey save failed for {pid}: {survey_error}")
+        return None
+
 def convert_dict_to_long_format(participant_id, response_dict):
     """Convert nested session responses to strict long-format rows."""
     long_responses = []
@@ -546,17 +592,36 @@ def survey():
     if not pid:
         return redirect(url_for("landing"))
     if request.method == "POST":
-        # Get form data with correct input names
-        # The template now uses trust1, trust2, trust3 instead of trust1, trust2, trust3
-        t1 = request.form.get("trust1")
-        t2 = request.form.get("trust2")
-        t3 = request.form.get("trust3")
-        p1 = request.form.get("pers1")
-        p2 = request.form.get("pers2")
-        p3 = request.form.get("pers3")
-        p4 = request.form.get("pers4")
-        p5 = request.form.get("pers5")
-        prolific_pid = session.get("prolific_pid", "")
+        # Collect trust and personality survey responses
+        trust_scale = {}
+        missing_trust = []
+        for idx in range(1, 7):
+            value = request.form.get(f"trust{idx}")
+            if value is None:
+                missing_trust.append(idx)
+            trust_scale[f"trust_{idx}"] = value
+
+        tipi_scale = {}
+        missing_tipi = []
+        for idx in range(1, 11):
+            value = request.form.get(f"tipi{idx}")
+            if value is None:
+                missing_tipi.append(idx)
+            tipi_scale[f"tipi_{idx}"] = value
+
+        if missing_trust or missing_tipi:
+            flash('Please answer every survey question before continuing.', 'error')
+            return render_template('survey.html')
+
+        prolific_pid = session.get('prolific_pid', '')
+
+        survey_payload = {
+            'timestamp': datetime.utcnow().isoformat(),
+            'trust_scale': trust_scale,
+            'tipi': tipi_scale
+        }
+        session['survey_responses'] = survey_payload
+        save_survey_responses(pid, survey_payload)
 
         # Log the form data for debugging and finish session
         print(f"Form data received (survey): {dict(request.form)}")

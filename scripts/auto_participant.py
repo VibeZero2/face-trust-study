@@ -94,8 +94,9 @@ def run_participant(base_url: str, pid: str):
     r = s.get(base_url + '/survey')
     print('->', r.status_code)
     survey_data = {
-        'trust1': '5', 'trust2': '4', 'trust3': '5',
-        'pers1': '3', 'pers2': '3', 'pers3': '3', 'pers4': '3', 'pers5': '3'
+        'trust1': '5', 'trust2': '4', 'trust3': '5', 'trust4': '4', 'trust5': '5', 'trust6': '4',
+        'tipi1': '3', 'tipi2': '3', 'tipi3': '4', 'tipi4': '2', 'tipi5': '4',
+        'tipi6': '2', 'tipi7': '5', 'tipi8': '3', 'tipi9': '4', 'tipi10': '3'
     }
     print('POST /survey', survey_data)
     r = s.post(base_url + '/survey', data=survey_data, allow_redirects=True)
